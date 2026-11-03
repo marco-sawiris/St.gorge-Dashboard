@@ -14,7 +14,8 @@
 - **🛠️ بيئة التطوير (Dev Preview)**:  
   👉 [https://ais-dev-hxspestwy3s46we3q7y3jz-462590052947.europe-west2.run.app](https://ais-dev-hxspestwy3s46we3q7y3jz-462590052947.europe-west2.run.app)
 - **📊 ملف قاعدة البيانات المرتبط (Google Sheets)**:  
-  👉 [عرض شيت البيانات على Google Drive](https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit)
+  👉 [عرض شيت البيانات على Google Drive](https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit)  
+  *(رمز التوثيق السري لطلبات الكتابة: `st_gorge_secret_token_2026`)*
 - **🐙 مستودع الكود على GitHub**:  
   👉 [https://github.com/marco-sawiris/St.gorge-Dashboard.git](https://github.com/marco-sawiris/St.gorge-Dashboard.git)
 

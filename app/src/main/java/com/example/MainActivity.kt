@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
+import org.json.JSONObject
 import com.example.ui.theme.MyApplicationTheme
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
@@ -109,23 +110,19 @@ class MainActivity : ComponentActivity() {
                 }
                 val text = response.text ?: "لا يوجد رد من النموذج"
                 withContext(Dispatchers.Main) {
-                  val escaped = text.replace("\\", "\\\\")
-                    .replace("\"", "\\\"")
-                    .replace("\n", "\\n")
-                    .replace("\r", "")
+                  val quotedText = JSONObject.quote(text)
                   webView.evaluateJavascript(
-                    "window.onGeminiResponse && window.onGeminiResponse('$callbackId', true, \"$escaped\");",
+                    "window.onGeminiResponse && window.onGeminiResponse('$callbackId', true, $quotedText);",
                     null
                   )
                 }
               } catch (e: Exception) {
                 Log.e("GeminiAPI", "Failed to generate AI response", e)
                 withContext(Dispatchers.Main) {
-                  val errorMsg = (e.localizedMessage ?: "حدث خطأ أثناء معالجة الطلب")
-                    .replace("\"", "\\\"")
-                    .replace("\n", " ")
+                  val errorMsg = e.localizedMessage ?: "حدث خطأ أثناء معالجة الطلب"
+                  val quotedError = JSONObject.quote(errorMsg)
                   webView.evaluateJavascript(
-                    "window.onGeminiResponse && window.onGeminiResponse('$callbackId', false, \"$errorMsg\");",
+                    "window.onGeminiResponse && window.onGeminiResponse('$callbackId', false, $quotedError);",
                     null
                   )
                 }

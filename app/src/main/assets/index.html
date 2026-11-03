@@ -18,14 +18,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   
-  <!-- مكتبات التصميم والأيقونات -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- مكتبات التصميم والأيقونات محلياً للعمل بدون إنترنت (Offline First) -->
+  <link href="libs/bootstrap.rtl.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="libs/fontawesome/css/all.min.css">
   
-  <!-- مكتبات الرسوم والتصدير -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- مكتبات الرسوم والتصدير محلياً -->
+  <script src="libs/chart.umd.min.js"></script>
+  <script src="libs/xlsx.full.min.js"></script>
+  <script src="libs/html2pdf.bundle.min.js"></script>
 
   <style>
     @font-face {
@@ -502,6 +502,34 @@
       margin-bottom: 14px;
       box-shadow: var(--shadow-sm);
     }
+    
+    .offline-queue-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid #f59e0b;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #d97706;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+      animation: pulseAlert 2s infinite ease-in-out;
+    }
+    @keyframes pulseAlert {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    [data-theme="dark"] .offline-queue-badge {
+      color: #fbbf24;
+      border-color: #fbbf24;
+      background: rgba(245, 158, 11, 0.22);
+    }
+
     .top-sync-badge {
       display: inline-flex;
       align-items: center;
@@ -1664,6 +1692,10 @@
         <i class="fa-solid fa-wand-magic-sparkles"></i>
         <span>Gemini</span>
       </button>
+      <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
+        <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
+        <span><strong id="pendingOpsCount">0</strong> معلق</span>
+      </div>
       <div class="top-sync-badge" id="topSyncStatus" onclick="fetchLiveGoogleSheetData()" title="مزامنة تلقائية كل 5 دقائق (اضغط للتحديث الفوري)">
         <i class="fa-solid fa-arrows-rotate" id="topSyncSpinIcon" style="display:none; font-size:10px;"></i>
         <span class="status-dot" id="topSyncDot"></span>
@@ -2078,7 +2110,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="libs/bootstrap.bundle.min.js"></script>
 
 <script>
   /* ============================================================
@@ -2086,6 +2118,7 @@
      ============================================================ */
   const SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzetL8maCClf180cEMTVUYrxTSQH8pCX969eUxkuDeW6lmpb8HmVAWCs4Y3iSQZbRvY4g/exec';
+  const APPS_SCRIPT_SECRET_TOKEN = 'st_gorge_secret_token_2026';
 
   const SHEET_CONFIG = {
     'نشط':               { name: 'نشط',               gid: 0          },
@@ -2114,16 +2147,19 @@
     })[ch]);
   }
 
-  /* شاشة البداية */
-  window.addEventListener('load', () => {
-    setTimeout(() => {
-      const splash = document.getElementById('splashScreen');
-      if (splash) {
-        splash.classList.add('splash-hide');
-        setTimeout(() => { splash.style.display = 'none'; }, 500);
-      }
-    }, 3000);
-  });
+  /* شاشة البداية الذكية - تختفي عند جاهزية التطبيق وبحد أقصى 1.5 ثانية */
+  let splashScreenHidden = false;
+  function hideSplashScreen() {
+    if (splashScreenHidden) return;
+    splashScreenHidden = true;
+    const splash = document.getElementById('splashScreen');
+    if (splash) {
+      splash.classList.add('splash-hide');
+      setTimeout(() => { splash.style.display = 'none'; }, 400);
+    }
+  }
+  // إخفاء فوري بعد 1.5 ثانية كحد أقصى
+  setTimeout(hideSplashScreen, 1500);
 
   /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
   function updateScrollProgress() {
@@ -2331,17 +2367,43 @@
     box.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-2"></i>جاري تحليل البيانات عبر Gemini API...</span>';
 
     let prompt = "";
+    const totalCount = studentsData.length;
+    const attendedCount = studentsData.filter(s => s.attendanceStatus === 'حاضر').length;
+    const absentMonthCount = studentsData.filter(s => s.attendanceMonth === 0).length;
+    const rate = totalCount > 0 ? Math.round((attendedCount / totalCount) * 100) : 0;
+
     if (type === 'analyzeAttendance') {
-      const dropOffNames = studentsData.filter(s => s.attendanceMonth === 0).map(s => s.name).slice(0, 10).join(', ');
-      prompt = `أنت مساعد كنسي ذكي لفصل الشهيد مارجرجس. إجمالي المخدومين ${studentsData.length}. هؤلاء المخدومين لم يحضروا هذا الشهر: ${dropOffNames}. قدم تحليلاً دقيقاً وتوصيات للافتقاد.`;
+      // خصوصية وأمان: إرسال أرقام وإحصائيات فقط بدون أي أسماء شخصية
+      prompt = `أنت مساعد كنسي ذكي لفصل الشهيد العظيم مارجرجس بكنيسة السيدة العذراء بالزيتون.
+إليك إحصائيات الغياب والحضور العامة (أرقام وإحصائيات مجردة بدون أي أسماء شخصية):
+• إجمالي عدد المخدومين: ${totalCount}
+• عدد الحاضرين هذا الأسبوع: ${attendedCount} (نسبة الحضور: ${rate}%)
+• عدد الغائبين طوال الشهر: ${absentMonthCount}
+قدم تحليلاً رعوياً مفيداً من 3 نقاط لمساعدة الخدام في خطة الافتقاد ومتابعة الغياب.`;
     } else if (type === 'encourageMessage') {
-      prompt = `اكتب رسالة افتقاد وتشجيع رقيقة ومؤثرة بالعامية المصرية لمرسلها لخادم أو مخدوم في إعدادي يشجعه على الحضور في كنيسة العذراء بالزيتون.`;
+      prompt = `اكتب اقتراح رسالة افتقاد وتشجيع روحية بالعامية المصرية الودودة لإرسالها لمخدوم في مرحلة إعدادي يشجعه على الحضور بكنيسة العذراء بالزيتون دون ذكر أي اسم شخصي.`;
     } else {
-      prompt = `لخص وضع الخدمة والافتقاد بناء على عدد المخدومين (${studentsData.length}) وتوزيع الخدام والمناطق.`;
+      const servantsCount = [...new Set(studentsData.map(s => s.servant).filter(s => s && s !== 'غير محدد'))].length;
+      const areasCount = [...new Set(studentsData.map(s => s.area).filter(a => a && a !== 'غير محددة'))].length;
+      prompt = `لخص وضع الخدمة بناء على الأرقام: إجمالي ${totalCount} مخدوم، ${servantsCount} خدام، ${areasCount} مناطق سكنية. قدم نصيحة تنظيمية واحدة بدون أسماء.`;
     }
 
     askGeminiAI(prompt, (success, result) => {
-      box.textContent = result;
+      if (success) {
+        box.style.color = 'var(--text-main)';
+        box.style.borderColor = 'var(--border)';
+        box.textContent = result;
+      } else {
+        box.style.color = '#e53935';
+        box.style.borderColor = '#e53935';
+        box.innerHTML = `
+          <div class="d-flex align-items-center gap-2 mb-2 text-danger fw-bold">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>تنبيه خطأ في الاستجابة:</span>
+          </div>
+          <div style="font-size: 13px; line-height: 1.6; color: #e53935;">${escapeHtml(result || 'تعذر معالجة الطلب')}</div>
+        `;
+      }
     });
   }
 
@@ -2353,9 +2415,23 @@
     const box = document.getElementById('geminiResponseBox');
     box.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Gemini يفكر في الإجابة...</span>';
 
-    const prompt = `سؤال من خادم فصل مارجرجس: ${query}\nمعلومات مساعدة: عدد المخدومين ${studentsData.length}. أجب بإيجاز وفائدة كنسية وتربوية.`;
+    const prompt = `سؤال من خادم فصل مارجرجس: ${query}\n(إحصائية: إجمالي المخدومين ${studentsData.length}). أجب بإيجاز وفائدة كنسية وتربوية دون ذكر أي أسماء شخصية.`;
     askGeminiAI(prompt, (success, result) => {
-      box.textContent = result;
+      if (success) {
+        box.style.color = 'var(--text-main)';
+        box.style.borderColor = 'var(--border)';
+        box.textContent = result;
+      } else {
+        box.style.color = '#e53935';
+        box.style.borderColor = '#e53935';
+        box.innerHTML = `
+          <div class="d-flex align-items-center gap-2 mb-2 text-danger fw-bold">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>تنبيه خطأ في الاستجابة:</span>
+          </div>
+          <div style="font-size: 13px; line-height: 1.6; color: #e53935;">${escapeHtml(result || 'تعذر معالجة الطلب')}</div>
+        `;
+      }
     });
   }
 
@@ -2746,7 +2822,7 @@
       if (reqSeq !== sheetLoadSequence) return;
       setSyncProgress(false);
       if (spinIcon) spinIcon.classList.remove('fa-spin');
-      if (loadingState) loadingState.classList.add('d-none');
+      if (loadingState) loadingState.classList.add('d-none'); hideSplashScreen();
       renderServantsChips();
       applyFilters();
       renderStats();
@@ -3106,50 +3182,185 @@
     }
   }
 
+
+  // ============================================================
+  // طابور العمليات الأوفلاين (Offline Queue Manager)
+  // ============================================================
+  const OFFLINE_QUEUE_KEY = 'stgorge_pending_ops_queue';
+
+  function getOfflineQueue() {
+    try {
+      return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveOfflineQueue(queue) {
+    try {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    } catch (e) {}
+    updateOfflineQueueUI();
+  }
+
+  function addToOfflineQueue(item) {
+    const queue = getOfflineQueue();
+    queue.push(Object.assign({
+      id: 'op_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      createdAt: new Date().toISOString()
+    }, item));
+    saveOfflineQueue(queue);
+  }
+
+  function updateOfflineQueueUI() {
+    const queue = getOfflineQueue();
+    const badge = document.getElementById('offlineQueueBadge');
+    const countSpan = document.getElementById('pendingOpsCount');
+    if (badge && countSpan) {
+      countSpan.textContent = queue.length;
+      if (queue.length > 0) {
+        badge.style.display = 'inline-flex';
+        badge.title = `${queue.length} عمليات معلقة بانتظار الاتصال (اضغط للمزامنة الفورية)`;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  }
+
+  let isProcessingOfflineQueue = false;
+  async function processOfflineQueue() {
+    if (isProcessingOfflineQueue) return;
+    const queue = getOfflineQueue();
+    if (!queue.length) return;
+
+    if (!navigator.onLine) {
+      showToast('أوفلاين', 'لا يوجد اتصال بالإنترنت حالياً لإرسال العمليات المعلقة', 'warning');
+      return;
+    }
+
+    isProcessingOfflineQueue = true;
+    setSyncProgress(true);
+    let successCount = 0;
+    const remaining = [];
+
+    for (const item of queue) {
+      try {
+        await saveToSheet(item.payload, null, null);
+        successCount++;
+      } catch (err) {
+        console.warn('تعذر معالجة عملية من الطابور:', item, err);
+        remaining.push(item);
+      }
+    }
+
+    saveOfflineQueue(remaining);
+    setSyncProgress(false);
+    isProcessingOfflineQueue = false;
+
+    if (successCount > 0) {
+      showToast('مزامنة الأوفلاين', `تم بنجاح إرسال ${successCount} عملية كانت معلقة`, 'success');
+      fetchLiveGoogleSheetData({ isAutoSync: true });
+    }
+  }
+
+  window.addEventListener('online', () => {
+    console.log('تم استرجاع الإنترنت: بدء تفريغ طابور العمليات...');
+    processOfflineQueue();
+  });
+
+  const pendingAttendanceSet = new Set();
+
   async function markFridayQuick(studentId, isPresent) {
+    // 1. منع الضغط المتكرر أثناء الحفظ لنفس المخدوم
+    if (pendingAttendanceSet.has(studentId)) {
+      return;
+    }
     const s = studentsData.find(item => item.id === studentId);
     if (!s) return;
+
+    pendingAttendanceSet.add(studentId);
     const date = getNearestFridayString();
     const beforeStatus = s.attendanceStatus;
     const beforeTotal = s.attendanceTotal;
     const beforeMonth = s.attendanceMonth;
+    const beforeFridayVal = s.att ? s.att[date] : undefined;
 
+    // تعطيل الأزرار بصرياً لمنع النقرات المتكررة
+    const cardEl = document.getElementById(`card-${studentId}`);
+    const attButtons = cardEl ? cardEl.querySelectorAll('.btn-quick-att') : [];
+    attButtons.forEach(b => {
+      b.disabled = true;
+      b.style.pointerEvents = 'none';
+      b.style.opacity = '0.6';
+    });
+
+    // تطبيق التغيير مؤقتاً
     s.attendanceStatus = isPresent ? 'حاضر' : 'غائب';
-    s.attendanceTotal = Math.max(0, s.attendanceTotal + (isPresent ? 1 : -1));
-    s.attendanceMonth = Math.max(0, s.attendanceMonth + (isPresent ? 1 : -1));
+    if (!s.att) s.att = {};
+    s.att[date] = isPresent;
+    s.attendanceTotal = Math.max(0, beforeTotal + (isPresent ? 1 : -1));
+    s.attendanceMonth = Math.max(0, beforeMonth + (isPresent ? 1 : -1));
     applyFilters();
     renderStats();
 
+    const payload = {
+      action: 'attendance',
+      row: s.row,
+      name: s.name,
+      date: date,
+      present: isPresent,
+      sourceSheet: s.sourceSheet
+    };
+
     try {
-      await saveToSheet({
-        action: 'attendance',
-        row: s.row,
-        name: s.name,
-        date: date,
-        present: isPresent,
-        sourceSheet: s.sourceSheet
-      }, isPresent ? 'تم تسجيل الحضور' : 'تم تسجيل الغياب', s.name);
+      await saveToSheet(payload, isPresent ? 'تم تسجيل الحضور' : 'تم تسجيل الغياب', s.name);
     } catch (e) {
-      s.attendanceStatus = beforeStatus;
-      s.attendanceTotal = beforeTotal;
-      s.attendanceMonth = beforeMonth;
-      applyFilters();
-      renderStats();
+      const isNet = !navigator.onLine || e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
+      if (isNet) {
+        // انقطاع النت: إضافة للطابور الأوفلاين
+        addToOfflineQueue({
+          type: 'attendance',
+          payload: payload,
+          description: `تسجيل ${isPresent ? 'حضور' : 'غياب'} ${s.name}`
+        });
+        showToast('حفظ أوفلاين', `تم حفظ العملية للمخدوم (${s.name}) في الطابور المعلق لغياب الإنترنت`, 'warning');
+      } else {
+        // فشل السيرفر: استرجاع القيم القديمة وعرض خطأ واضح
+        s.attendanceStatus = beforeStatus;
+        s.attendanceTotal = beforeTotal;
+        s.attendanceMonth = beforeMonth;
+        if (s.att) s.att[date] = beforeFridayVal;
+        applyFilters();
+        renderStats();
+        showToast('تعذر تسجيل الحضور', `فشل حفظ البيانات للمخدوم ${s.name}: ${e.message}`, 'error');
+      }
+    } finally {
+      pendingAttendanceSet.delete(studentId);
+      attButtons.forEach(b => {
+        b.disabled = false;
+        b.style.pointerEvents = 'auto';
+        b.style.opacity = '1';
+      });
     }
   }
 
   async function saveToSheet(payload, okTitle, okMsg) {
     const sourceSheet = payload.sourceSheet || currentSheetName;
     const cfg = SHEET_CONFIG[sourceSheet] || { name: sourceSheet };
+    const postBody = Object.assign({
+      sheet: cfg.name,
+      token: APPS_SCRIPT_SECRET_TOKEN
+    }, payload);
+
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ sheet: cfg.name }, payload))
+      body: JSON.stringify(postBody)
     });
     if (!res.ok) throw new Error('تعذر الحفظ (HTTP ' + res.status + ')');
     const data = await res.json();
     if (!data || !data.ok) throw new Error(data.error || 'فشل الحفظ');
-    showToast(okTitle, okMsg);
+    if (okTitle) showToast(okTitle, okMsg);
     return data;
   }
 
@@ -3489,6 +3700,7 @@
   });
 
   document.addEventListener('DOMContentLoaded', () => {
+    updateOfflineQueueUI();
     fetchLiveGoogleSheetData();
     startAutoSyncTimer();
     updateScrollProgress();
