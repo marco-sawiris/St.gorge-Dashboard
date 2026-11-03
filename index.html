@@ -253,19 +253,20 @@
       animation: wordIn 800ms var(--ease-spring) 1200ms both;
     }
 
-    /* شريط التقدم الرأسي */
+    /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
     #scrollBar {
       position: fixed;
-      left: 0;
       top: 0;
-      width: 4px;
-      height: 0%;
-      background: linear-gradient(to bottom, var(--primary), var(--navy));
-      z-index: 9999;
-      transition: height 100ms linear, opacity 200ms ease;
-      opacity: 0.5;
+      right: 0;
+      left: 0;
+      width: 0%;
+      height: 4px;
+      background: linear-gradient(90deg, #1a73e8, #4da3ff, #fbd68b);
+      z-index: 999999;
       pointer-events: none;
-      border-radius: 0 4px 4px 0;
+      box-shadow: 0 1px 8px rgba(26, 115, 232, 0.7);
+      transition: width 80ms ease-out, opacity 250ms ease;
+      opacity: 0.95;
     }
 
     /* ============================================================
@@ -488,7 +489,9 @@
       padding: 12px 14px 60px;
     }
     
-    .top-bar {
+        .top-bar {
+      position: relative;
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -498,6 +501,84 @@
       padding: 10px 14px;
       margin-bottom: 14px;
       box-shadow: var(--shadow-sm);
+    }
+    .top-sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+    }
+    .top-sync-badge:hover {
+      border-color: var(--primary);
+    }
+    .top-sync-badge .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green-status);
+      display: inline-block;
+      transition: background 0.3s ease;
+    }
+    .top-sync-badge.syncing {
+      background: rgba(26, 115, 232, 0.12);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .top-sync-badge.syncing #topSyncSpinIcon {
+      display: inline-block !important;
+      animation: fa-spin 1s infinite linear;
+    }
+    .top-sync-badge.syncing .status-dot {
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+      animation: pulseDot 1s infinite alternate;
+    }
+    @keyframes pulseDot {
+      from { transform: scale(0.85); opacity: 0.6; }
+      to { transform: scale(1.35); opacity: 1; }
+    }
+    .top-sync-progress-track {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: transparent;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .top-sync-progress-track.active {
+      opacity: 1;
+      background: rgba(26, 115, 232, 0.15);
+    }
+    .top-sync-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #1a73e8, #4da3ff, #fbd68b);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .top-sync-progress-track.indeterminate .top-sync-progress-bar {
+      width: 45%;
+      position: absolute;
+      animation: syncProgressIndeterminate 1.3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    @keyframes syncProgressIndeterminate {
+      0% { right: -45%; width: 30%; }
+      50% { right: 25%; width: 60%; }
+      100% { right: 100%; width: 30%; }
     }
     .btn-menu {
       width: 44px;
@@ -1583,10 +1664,15 @@
         <i class="fa-solid fa-wand-magic-sparkles"></i>
         <span>Gemini</span>
       </button>
-      <div class="top-sync-badge" id="topSyncStatus">
-        <span class="status-dot"></span>
+      <div class="top-sync-badge" id="topSyncStatus" onclick="fetchLiveGoogleSheetData()" title="مزامنة تلقائية كل 5 دقائق (اضغط للتحديث الفوري)">
+        <i class="fa-solid fa-arrows-rotate" id="topSyncSpinIcon" style="display:none; font-size:10px;"></i>
+        <span class="status-dot" id="topSyncDot"></span>
         <span id="syncText">متزامن</span>
       </div>
+    </div>
+    <!-- مؤشر تقدم المزامنة الدقيق في الشريط العلوي -->
+    <div class="top-sync-progress-track" id="topSyncProgressTrack" aria-hidden="true">
+      <div class="top-sync-progress-bar" id="topSyncProgressBar"></div>
     </div>
   </header>
 
@@ -2039,19 +2125,23 @@
     }, 3000);
   });
 
-  /* شريط التمرير الرأسي */
-  window.addEventListener('scroll', () => {
-    const scrollTop = window.scrollY;
-    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-    const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+  /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
+  function updateScrollProgress() {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+    const docHeight = (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight;
+    const progress = docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0;
     const bar = document.getElementById('scrollBar');
     if (bar) {
-      bar.style.height = progress + '%';
-      bar.style.opacity = '1';
+      bar.style.width = progress + '%';
+      bar.style.opacity = progress > 0 ? '0.95' : '0.4';
       clearTimeout(window._scrollBarTimer);
-      window._scrollBarTimer = setTimeout(() => { bar.style.opacity = '0.5'; }, 400);
+      window._scrollBarTimer = setTimeout(() => {
+        bar.style.opacity = progress > 0 ? '0.8' : '0.3';
+      }, 500);
     }
-  });
+  }
+  window.addEventListener('scroll', updateScrollProgress, { passive: true });
+  window.addEventListener('resize', updateScrollProgress, { passive: true });
 
   /* الـ Sidebar */
   function openSidebar() {
@@ -2533,7 +2623,69 @@
     });
   }
 
-  async function fetchLiveGoogleSheetData() {
+  // ============================================================
+  // المزامنة التلقائية كل 5 دقائق ومؤشر تقدم الشريط العلوي
+  // ============================================================
+  const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 دقائق
+  let autoSyncInterval = null;
+  let lastSyncTimeStr = '';
+
+  function setSyncProgress(active) {
+    const track = document.getElementById('topSyncProgressTrack');
+    const bar = document.getElementById('topSyncProgressBar');
+    const badge = document.getElementById('topSyncStatus');
+    const spin = document.getElementById('topSyncSpinIcon');
+
+    if (!track || !bar) return;
+
+    if (active) {
+      track.classList.add('active', 'indeterminate');
+      if (badge) badge.classList.add('syncing');
+      if (spin) spin.style.display = 'inline-block';
+    } else {
+      track.classList.remove('indeterminate');
+      bar.style.width = '100%';
+      setTimeout(() => {
+        track.classList.remove('active');
+        bar.style.width = '0%';
+        if (badge) badge.classList.remove('syncing');
+        if (spin) spin.style.display = 'none';
+      }, 500);
+    }
+  }
+
+  function startAutoSyncTimer() {
+    if (autoSyncInterval) clearInterval(autoSyncInterval);
+    autoSyncInterval = setInterval(() => {
+      // إذا كان هناك كارت مفتوح للتعديل نؤجل التحديث حتى لا يفقد الخادم ما يكتبه
+      if (document.querySelector('.student-card.flipped')) {
+        console.log('تأجيل المزامنة التلقائية: يوجد كارت قيد التعديل');
+        return;
+      }
+      console.log('بدء المزامنة التلقائية المجدولة (كل 5 دقائق)...');
+      fetchLiveGoogleSheetData({ isAutoSync: true });
+    }, AUTO_SYNC_INTERVAL_MS);
+  }
+
+  async function fetchLiveGoogleSheetData(options = {}) {
+    const isAutoSync = !!(options && options.isAutoSync);
+    const requested = currentSheetName;
+    const reqSeq = ++sheetLoadSequence;
+    const spinIcon = document.getElementById('syncSpinIcon');
+    const syncText = document.getElementById('syncText');
+    const loadingState = document.getElementById('loadingState');
+    const topBadge = document.getElementById('topSyncStatus');
+
+    setSyncProgress(true);
+
+    if (spinIcon) spinIcon.classList.add('fa-spin');
+    if (!isAutoSync && loadingState) {
+      document.getElementById('loadingSheetLabel').textContent = `الشيت: ${requested}`;
+      loadingState.classList.remove('d-none');
+    }
+    if (syncText) {
+      syncText.textContent = isAutoSync ? 'تحديث تلقائي...' : 'جاري المزامنة...';
+    }
     const requested = currentSheetName;
     const reqSeq = ++sheetLoadSequence;
     const spinIcon = document.getElementById('syncSpinIcon');
@@ -2564,8 +2716,18 @@
         if (reqSeq !== sheetLoadSequence) return;
         parseRows(header, rows, requested, 0, false, firstDataRow);
       }
-      syncText.textContent = `متزامن (${studentsData.length})`;
-      showToast('تمت المزامنة بنجاح', `تم تحميل ${studentsData.length} مخدوم`);
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+      lastSyncTimeStr = timeStr;
+
+      if (syncText) syncText.textContent = `متزامن (${timeStr})`;
+      if (topBadge) topBadge.title = `آخر تحديث: ${timeStr} — المزامنة التلقائية القادمة بعد 5 دقائق (اضغط للتحديث الفوري)`;
+
+      if (isAutoSync) {
+        showToast('مزامنة تلقائية', `تم تحديث البيانات تلقائياً (${studentsData.length} مخدوم)`);
+      } else {
+        showToast('تمت المزامنة بنجاح', `تم تحميل ${studentsData.length} مخدوم`);
+      }
       try {
         localStorage.setItem(`stgorge_cache_${requested}`, JSON.stringify(studentsData));
       } catch (e) {}
@@ -2582,8 +2744,9 @@
       }
     } finally {
       if (reqSeq !== sheetLoadSequence) return;
+      setSyncProgress(false);
       if (spinIcon) spinIcon.classList.remove('fa-spin');
-      loadingState.classList.add('d-none');
+      if (loadingState) loadingState.classList.add('d-none');
       renderServantsChips();
       applyFilters();
       renderStats();
@@ -3327,6 +3490,8 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     fetchLiveGoogleSheetData();
+    startAutoSyncTimer();
+    updateScrollProgress();
   });
 </script>
 </body>
