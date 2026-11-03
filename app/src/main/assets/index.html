@@ -255,20 +255,52 @@
       animation: wordIn 800ms var(--ease-spring) 1200ms both;
     }
 
-    /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
+    /* شريط تقدم التمرير الأفقي في أعلى الشاشة - عريض وواضح */
     #scrollBar {
       position: fixed;
       top: 0;
       right: 0;
       left: 0;
       width: 0%;
-      height: 4px;
-      background: linear-gradient(90deg, #1a73e8, #4da3ff, #fbd68b);
+      height: 6px;
+      background: linear-gradient(90deg, #1a73e8, #4da3ff, #fbd68b, #ffb300);
       z-index: 999999;
       pointer-events: none;
-      box-shadow: 0 1px 8px rgba(26, 115, 232, 0.7);
+      box-shadow: 0 2px 10px rgba(26, 115, 232, 0.85);
       transition: width 80ms ease-out, opacity 250ms ease;
       opacity: 0.95;
+    }
+
+    /* شريط التمرير الرأسي والأفقي المخصص (Scrollbar) عريض وواضح */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.06);
+      border-radius: 8px;
+    }
+    [data-theme="dark"] ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1a73e8;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0d47a1;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #1a73e8 rgba(0, 0, 0, 0.06);
+    }
+    [data-theme="dark"] * {
+      scrollbar-color: #4da3ff rgba(255, 255, 255, 0.08);
     }
 
     /* ============================================================
@@ -835,7 +867,7 @@
     }
     .card-flip-container {
       perspective: 1200px;
-      min-height: 440px;
+      min-height: 480px;
     }
     .card-flip-inner {
       position: relative;
@@ -848,12 +880,13 @@
       transform: rotateY(180deg);
     }
 
+    /* الكارت أبيض وأسود افتراضياً ويتحول إلى ألوان كاملة عند الوقوف عليه */
     .student-card {
       background: var(--card-bg);
       border-radius: var(--radius-xl);
       border: 1px solid var(--border);
       box-shadow: var(--shadow-sm);
-      padding: 18px;
+      padding: 16px;
       position: relative;
       display: flex;
       flex-direction: column;
@@ -861,7 +894,29 @@
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
       height: 100%;
+      filter: grayscale(100%);
+      opacity: 0.94;
+      transition: filter 320ms cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 320ms ease,
+                  transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                  box-shadow 320ms ease;
     }
+
+    /* عند الوقوف بالماوس أو اللمس أو التركيز يتحول الكارت إلى ألوان كاملة */
+    .card-flip-container:hover .student-card,
+    .card-flip-container:focus-within .student-card,
+    .card-flip-container:active .student-card,
+    .student-card:hover,
+    .student-card:focus-within,
+    .student-card.hover-active,
+    .student-card.editing,
+    .card-flip-inner.flipped .student-card {
+      filter: grayscale(0%) !important;
+      opacity: 1 !important;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(18, 52, 77, 0.12);
+    }
+
     .card-front {
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
@@ -874,13 +929,14 @@
       inset: 0;
       background: var(--card-bg);
       border-radius: var(--radius-xl);
-      padding: 16px;
-      overflow-y: auto;
+      padding: 14px 16px;
+      overflow: hidden; /* فيت كامل بدون سكرول */
       border: 2px solid var(--primary);
       box-shadow: var(--shadow-md);
       z-index: 10;
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
     }
 
     .card-accent-bar {
@@ -970,24 +1026,76 @@
       color: var(--text-main);
     }
 
-    .monthly-indicator {
+    /* مسارات الحضور والافتقاد المزدوجة */
+    .card-dual-tracks {
       display: flex;
+      flex-direction: column;
       gap: 6px;
-      margin: 6px 0 10px;
-      padding: 4px 0;
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
+      margin: 8px 0 10px;
+      padding: 7px 10px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
     }
-    .monthly-segment {
+    .track-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .track-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+    }
+    .track-title {
+      font-weight: 700;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .track-count {
+      font-size: 10.5px;
+      font-weight: 800;
+    }
+    .track-segments {
+      display: flex;
+      gap: 5px;
+    }
+    .track-segment {
       height: 6px;
       flex: 1;
       border-radius: 999px;
-      background: var(--border);
-      opacity: 0.3;
+      transition: all 250ms ease;
     }
-    .monthly-segment.on {
-      opacity: 1;
+
+    /* لاين الحضور — أخضر للحضور ورمادي خفيف للغياب */
+    .track-segment.att-off {
+      background: rgba(148, 163, 184, 0.3);
+    }
+    .track-segment.att-on {
       background: var(--green-status);
+      box-shadow: 0 1px 4px rgba(22, 163, 74, 0.3);
+    }
+
+    /* لاين الافتقاد — مميز باللون الرمادي الغامق */
+    .track-segment.fu-dark-gray {
+      background: #334155; /* رمادي غامق */
+    }
+    [data-theme="dark"] .track-segment.fu-dark-gray {
+      background: #475569;
+    }
+    /* أول وحدة في الافتقاد: أحمر إذا لم يتم، وتتحول لأخضر عند الافتقاد */
+    .track-segment.fu-first-pending {
+      background: #e53935; /* أحمر تنبيهي لعدم الافتقاد */
+      box-shadow: 0 1px 6px rgba(229, 57, 53, 0.45);
+      cursor: pointer;
+    }
+    .track-segment.fu-first-done {
+      background: var(--green-status); /* أخضر عند الافتقاد */
+      box-shadow: 0 1px 6px rgba(22, 163, 74, 0.45);
+      cursor: pointer;
     }
 
     .meta-list {
@@ -1170,18 +1278,19 @@
       font-size: 14px;
     }
 
-    /* الوجه الخلفي للكارت */
+    /* الوجه الخلفي للكارت — مناسب تماماً للكرت بدون سكرول */
     .card-back-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
+      margin-bottom: 6px;
+      padding-bottom: 6px;
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
     .card-back-header h4 {
       font-family: 'Almarai', sans-serif;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 900;
       margin: 0;
       color: var(--primary);
@@ -1189,51 +1298,71 @@
     .btn-back-cancel-x {
       background: transparent;
       border: none;
-      font-size: 16px;
+      font-size: 15px;
       color: var(--text-muted);
       cursor: pointer;
+      padding: 0 4px;
+    }
+    .card-back-meta-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 8px;
+      margin-bottom: 6px;
+      font-size: 10.5px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .card-back-meta-strip strong {
+      color: var(--text-main);
     }
     .card-edit-form {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 5px;
       flex: 1;
+      justify-content: space-between;
     }
     .edit-field-group {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
     }
     .edit-field-group label {
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: 700;
       color: var(--text-muted);
+      margin-bottom: 1px;
     }
-    .edit-field-group input, .edit-field-group select, .edit-field-group textarea {
-      padding: 6px 10px;
-      font-size: 12px;
-      border-radius: 8px;
+    .edit-field-group input, .edit-field-group select {
+      padding: 4px 8px;
+      height: 29px;
+      font-size: 11.5px;
+      border-radius: 6px;
       border: 1px solid var(--border);
       background: var(--input-bg);
       color: var(--text-main);
       font-family: inherit;
       outline: none;
     }
-    .edit-field-group input[readonly] {
-      background: rgba(100, 116, 139, 0.1);
-      color: var(--text-muted);
-      cursor: not-allowed;
+    .edit-field-group input:focus, .edit-field-group select:focus {
+      border-color: var(--primary);
+      background: var(--card-bg);
     }
     .card-back-actions {
       display: flex;
       gap: 8px;
-      margin-top: 14px;
-      padding-top: 8px;
+      margin-top: 8px;
+      padding-top: 6px;
       border-top: 1px solid var(--border);
+      flex-shrink: 0;
     }
     .btn-flip-save {
       flex: 1;
-      height: 38px;
+      height: 36px;
       background: var(--green-status);
       color: #fff;
       border: none;
@@ -1248,7 +1377,7 @@
     }
     .btn-flip-cancel {
       flex: 1;
-      height: 38px;
+      height: 36px;
       background: var(--gray-status);
       color: #fff;
       border: none;
@@ -1723,7 +1852,7 @@
   <div class="search-filter-card">
     <div class="search-input-wrap">
       <i class="fa-solid fa-magnifying-glass"></i>
-      <input type="text" id="searchInput" class="app-input" placeholder="بحث بالاسم، الكود، أو الملاحظات...">
+      <input type="text" id="searchInput" class="app-input" placeholder="بحث بالاسم أو الملاحظات...">
     </div>
     
     <select id="sheetSelector" class="app-select">
@@ -1778,7 +1907,6 @@
         <table class="app-table">
           <thead>
             <tr>
-              <th>الكود</th>
               <th>الاسم</th>
               <th>الاشبين</th>
               <th>المنطقة</th>
@@ -1904,7 +2032,6 @@
             <tr>
               <th>التاريخ</th>
               <th>أسبوع الجمعة</th>
-              <th>الكود</th>
               <th>الاسم</th>
               <th>الأشبين</th>
               <th>نوع الافتقاد</th>
@@ -2005,39 +2132,6 @@
         <img src="app_icon.png" alt="St. George" class="about-hero-ext-icon">
         <h2>لوحة الخدمة <span>والإحصائيات الذكية</span></h2>
         <p>متابعة نسب الحضور والغياب، إحصائيات الافتقاد اللحظية، ومساعد Gemini الذكي لرعاية مخدومي إعدادي بكنيسة السيدة العذراء مريم بالزيتون.</p>
-        
-        <div class="hero-logo-wrap" style="transform: scale(0.85); margin: -15px auto;">
-          <svg class="hero-logo" id="Layer_2" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 737.01 708.66" role="img" aria-label="شعار فصل مارجرجس">
-            <defs>
-              <style>
-    @font-face {
-      font-family: 'Almarai';
-      src: url('fonts/almarai.ttf') format('truetype');
-      font-weight: 100 900;
-      font-style: normal;
-      font-display: swap;
-    }
-
-                .st0 { stroke: #f9ff00; stroke-width: 16.2px; }
-                .st0, .st1, .st2 { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-                .st1 { stroke: #ffffff; stroke-width: 15px; }
-                .st2 { stroke: #fbd68b; stroke-width: 15px; }
-              </style>
-            </defs>
-            <path class="st2 trim-part trim-0" pathLength="100" style="--trim-delay:0ms" d="M487.59,532.22s16.85,40.39,13.94,60.29c-.78,5.31-7.36,7.36-11.06,3.48l-71.86-75.92h-94.58s-55.54,61.61-67.68,59.87"/>
-            <path class="st2 spear-shaft trim-part trim-1" pathLength="100" style="--trim-delay:0ms" d="M219.4 7.5 L538.04 531.41"/>
-            <path class="st2 spear-tip trim-part trim-2" pathLength="100" style="--trim-delay:0ms" d="M212.35 51.41 L261.37 17.71"/>
-            <path class="st1 trim-part trim-3" pathLength="100" style="--trim-delay:0ms" d="M254.62,61.51l-27.24,45.82c-11.44,21.02-8.02,47.02,8.47,64.36l73.85,77.64s-54.76,99.37-98.78,85.56c-2.68-.84-4.36-3.5-4.04-6.29,1.15-9.87,14.31-41.1,14.31-41.1,0,0-62.48,96.32-112.81,59.44,0,0,59.01-180.92,132.76-128.86s50.76,225.61,50.76,225.61h59.8c21.05,0,38.11,17.06,38.11,38.11v.71-.71h70.43l-69.42-104.79"/>
-            <path class="st1 trim-part trim-4" pathLength="100" style="--trim-delay:0ms" d="M389.97,375.15l-139.88-1.54c-12.75-.14-25.48,1.67-37.58,5.71-17.86,5.95-30.36,15.57-34.27,60.48h0s-13.14,79.51-43.43,93.86c-7.01,3.32-15.25-.96-16.54-8.61-4.5-26.71-14.55-98.08,2.26-119.09,20.83-26.03,86.34-10.85,84.17,51.63v22.64c0,8.11-2.93,16.04-8.6,21.84-7.64,7.82-14.56,26.11,7.3,67.02l33.84,81.57s-107.2-.3-117.61-71.89c0,0,35.61,34.14,92.02,18.09"/>
-            <path class="st2 trim-part trim-5" pathLength="100" style="--trim-delay:0ms" d="M294.37,644.81c.48.51.97,1.02,1.46,1.52l17.79-21.26-24.3-21.69s63.78,72.89,148.82,27.77c0,0-22.56-34.71-33.41-64.21-9.58-26.07-77.66-20.83-62.48,15.62,13.99,33.57,52.93,15.19,42.52-6.07"/>
-            <path class="st1 trim-part trim-6" pathLength="100" style="--trim-delay:0ms" d="M313.18,471.47s-32.54,53.8-74.63,62.91c0,0,19.86,72.24,55.81,110.42"/>
-            <path class="st2 trim-part trim-7" pathLength="100" style="--trim-delay:0ms" d="M431.19,623.76s77.66,53.37,134.5-16.49h47.29l-75.49-127.12"/>
-            <path class="st1 trim-part trim-8" pathLength="100" style="--trim-delay:0ms" d="M503.65,474.51l63.78-39.92,32.11,49.03,37.31-12.15-55.97-92.41-78.96,23.86s25.16-78.1-31.24-137.97l82.87,22.13,9.98-33.84-82.44-73.32-6.94-60.74-69.42,91.98,14.36,38.89c3.64,9.85-1.01,20.83-10.61,25.07l-80.98,35.83,38.61-52.06"/>
-            <path class="st1 trim-part trim-9" pathLength="100" style="--trim-delay:0ms" d="M269.97,115.39l-21.44,38.06s67.17,23.76,108.56,14.95c19.01-4.04,32.62-21.26,30.82-40.61-.25-2.64-.77-5.25-1.7-7.8-6.46-18.37-31.45-22.99-46.57-16.39-.38.16-.76.33-1.13.51-8.89,4.23-14.7,13.02-15.72,22.8-2.59,24.95,21.38,60.74,90.6,69.92"/>
-            <path class="st0 trim-part trim-10" pathLength="100" style="--trim-delay:0ms" d="M298.82,100.49c10.65-21.09,32.51-35.55,57.75-35.55,35.7,0,64.65,28.94,64.65,64.65,0,9.64-2.11,18.79-5.9,27.02"/>
-            <path class="st2 trim-part trim-11" pathLength="100" style="--trim-delay:0ms" d="M31.48 657.23 L705.53 657.23"/>
-          </svg>
-        </div>
       </div>
     </div>
   </div>
@@ -2865,6 +2959,7 @@
 
     container.innerHTML = filteredData.map((s, idx) => {
       const isPresent = s.attendanceStatus.includes('حاضر');
+      const hasFollowup = s.followupStatus && s.followupStatus !== 'بدون' && !s.followupStatus.includes('لم');
       const rawPhone = s.phoneStudent ? { num: s.phoneStudent, label: 'المخدوم' }
                      : (s.phoneParent1 ? { num: s.phoneParent1, label: 'ولي الأمر' } : null);
       const cleanPhone = rawPhone ? rawPhone.num.replace(/\D/g, '') : '';
@@ -2883,7 +2978,6 @@
                     <h3>${escapeHtml(s.name)}</h3>
                     <div class="servant-badge"><i class="fa-solid fa-user-shield text-primary"></i> ${escapeHtml(s.servant)}</div>
                   </div>
-                  <span class="student-code">#${escapeHtml(s.code)}</span>
                 </div>
 
                 <div class="attendance-metric-box">
@@ -2897,11 +2991,39 @@
                   </div>
                 </div>
 
-                <div class="monthly-indicator">
-                  <span class="monthly-segment ${s.attendanceMonth >= 1 ? 'on' : ''}"></span>
-                  <span class="monthly-segment ${s.attendanceMonth >= 2 ? 'on' : ''}"></span>
-                  <span class="monthly-segment ${s.attendanceMonth >= 3 ? 'on' : ''}"></span>
-                  <span class="monthly-segment ${s.attendanceMonth >= 4 ? 'on' : ''}"></span>
+                <!-- الخطين: خط الحضور وخط الافتقاد -->
+                <div class="card-dual-tracks">
+                  <!-- مسار الحضور الشهري -->
+                  <div class="track-row">
+                    <div class="track-header">
+                      <span class="track-title"><i class="fa-solid fa-calendar-check text-success"></i> الحضور الشهري</span>
+                      <span class="track-count text-success">${s.attendanceMonth}/4</span>
+                    </div>
+                    <div class="track-segments">
+                      <span class="track-segment ${s.attendanceMonth >= 1 ? 'att-on' : 'att-off'}" title="جمعة 1"></span>
+                      <span class="track-segment ${s.attendanceMonth >= 2 ? 'att-on' : 'att-off'}" title="جمعة 2"></span>
+                      <span class="track-segment ${s.attendanceMonth >= 3 ? 'att-on' : 'att-off'}" title="جمعة 3"></span>
+                      <span class="track-segment ${s.attendanceMonth >= 4 ? 'att-on' : 'att-off'}" title="جمعة 4"></span>
+                    </div>
+                  </div>
+
+                  <!-- مسار الافتقاد: مميز باللون الرمادي الغامق، وأول وحدة أحمر/أخضر -->
+                  <div class="track-row">
+                    <div class="track-header">
+                      <span class="track-title"><i class="fa-solid fa-phone text-secondary"></i> الافتقاد (رمادي غامق)</span>
+                      <span class="track-count ${hasFollowup ? 'text-success' : 'text-danger'}" style="cursor:pointer;" onclick="toggleQuickFollowup(${s.id}, event)" title="انقر لتسجيل أو تعديل الافتقاد">
+                        ${hasFollowup ? `<i class="fa-solid fa-circle-check me-1"></i>${escapeHtml(s.followupStatus)}` : '<i class="fa-solid fa-circle-exclamation me-1"></i>بحاجة لافتقاد'}
+                      </span>
+                    </div>
+                    <div class="track-segments">
+                      <span class="track-segment ${hasFollowup ? 'fu-first-done' : 'fu-first-pending'}" 
+                            onclick="toggleQuickFollowup(${s.id}, event)" 
+                            title="${hasFollowup ? 'تم الافتقاد (أخضر) - انقر للتبديل' : 'لم يتم الافتقاد بعد (أحمر) - انقر لتسجيل الافتقاد'}"></span>
+                      <span class="track-segment fu-dark-gray" title="أسبوع سابق"></span>
+                      <span class="track-segment fu-dark-gray" title="أسبوع سابق"></span>
+                      <span class="track-segment fu-dark-gray" title="أسبوع سابق"></span>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="friday-check-bar">
@@ -2914,7 +3036,7 @@
 
                 <div class="meta-list">
                   <div class="meta-chip"><span class="meta-chip-label">المنطقة</span><span class="meta-chip-val">${escapeHtml(s.area)}</span></div>
-                  <div class="meta-chip"><span class="meta-chip-label">الافتقاد</span><span class="meta-chip-val">${escapeHtml(s.followupStatus || 'بدون')}</span></div>
+                  <div class="meta-chip"><span class="meta-chip-label">الافتقاد</span><span class="meta-chip-val ${hasFollowup ? 'text-success' : 'text-danger'}">${escapeHtml(s.followupStatus || 'بدون')}</span></div>
                 </div>
 
                 <div class="address-box">
@@ -2943,29 +3065,29 @@
               <!-- أزرار الإجراءات -->
               <div class="contact-actions">
                 ${cleanPhone 
-                  ? `<a href="tel:${cleanPhone}" class="btn-card-action btn-call"><i class="fa-solid fa-phone"></i><span>اتصال</span></a>
-                     <a href="https://wa.me/2${cleanPhone}" target="_blank" class="btn-card-action btn-whatsapp"><i class="fa-brands fa-whatsapp"></i><span>واتساب</span></a>`
+                  ? `<a href="tel:${cleanPhone}" class="btn-card-action btn-call" onclick="recordQuickCallFollowup(${s.id})"><i class="fa-solid fa-phone"></i><span>اتصال</span></a>
+                     <a href="https://wa.me/2${cleanPhone}" target="_blank" class="btn-card-action btn-whatsapp" onclick="recordQuickWhatsAppFollowup(${s.id})"><i class="fa-brands fa-whatsapp"></i><span>واتساب</span></a>`
                   : `<span class="btn-card-action bg-light text-muted" style="grid-column: span 2;">لا يوجد هاتف</span>`}
                 <button class="btn-flip-edit" onclick="flipCardToEdit(${s.id})" title="تعديل بيانات المخدوم"><i class="fa-solid fa-pen-to-square"></i></button>
               </div>
             </div>
 
-            <!-- الوجه الخلفي للكارت -->
+            <!-- الوجه الخلفي للكارت — ملائم تماماً بدون سكرول -->
             <div class="card-back" id="cardBack-${s.id}">
               <div class="card-back-header">
                 <h4><i class="fa-solid fa-user-pen me-2"></i>تعديل بيانات المخدوم</h4>
                 <button class="btn-back-cancel-x" onclick="flipCardBack(${s.id})"><i class="fa-solid fa-xmark"></i></button>
               </div>
 
+              <div class="card-back-meta-strip">
+                <span>المخدوم: <strong class="text-primary">${escapeHtml(s.name)}</strong></span>
+                <span>إجمالي: <strong>${s.attendanceTotal}</strong></span>
+                <span>الشهر: <strong>${s.attendanceMonth}</strong></span>
+              </div>
+
               <div class="card-edit-form">
-                <div class="row g-2">
-                  <div class="col-4">
-                    <div class="edit-field-group">
-                      <label>الكود</label>
-                      <input type="text" value="${escapeHtml(s.code)}" readonly>
-                    </div>
-                  </div>
-                  <div class="col-8">
+                <div class="row g-1">
+                  <div class="col-12">
                     <div class="edit-field-group">
                       <label>الاسم بالكامل</label>
                       <input type="text" id="editName-${s.id}" value="${escapeHtml(s.name)}">
@@ -2973,29 +3095,17 @@
                   </div>
                   <div class="col-6">
                     <div class="edit-field-group">
-                      <label>إجمالي الحضور</label>
-                      <input type="text" value="${s.attendanceTotal}" readonly>
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="edit-field-group">
-                      <label>حضور الشهر</label>
-                      <input type="text" value="${s.attendanceMonth}" readonly>
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="edit-field-group">
-                      <label>الأشبين</label>
+                      <label>الأشبين (الخادم)</label>
                       <input type="text" id="editServant-${s.id}" value="${escapeHtml(s.servant)}">
                     </div>
                   </div>
                   <div class="col-6">
                     <div class="edit-field-group">
-                      <label>المنطقة</label>
+                      <label>المنطقة السكنية</label>
                       <input type="text" id="editArea-${s.id}" value="${escapeHtml(s.area)}">
                     </div>
                   </div>
-                  <div class="col-12">
+                  <div class="col-6">
                     <div class="edit-field-group">
                       <label>موبايل المخدوم</label>
                       <input type="text" id="editPhoneStudent-${s.id}" value="${escapeHtml(s.phoneStudent || '')}" dir="ltr" style="text-align: right;">
@@ -3003,25 +3113,13 @@
                   </div>
                   <div class="col-6">
                     <div class="edit-field-group">
-                      <label>موبايل ولي الأمر 1</label>
+                      <label>موبايل ولي الأمر</label>
                       <input type="text" id="editPhoneParent1-${s.id}" value="${escapeHtml(s.phoneParent1 || '')}" dir="ltr" style="text-align: right;">
                     </div>
                   </div>
                   <div class="col-6">
                     <div class="edit-field-group">
-                      <label>موبايل ولي الأمر 2</label>
-                      <input type="text" id="editPhoneParent2-${s.id}" value="${escapeHtml(s.phoneParent2 || '')}" dir="ltr" style="text-align: right;">
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="edit-field-group">
-                      <label>تاريخ الميلاد</label>
-                      <input type="text" id="editBirthDate-${s.id}" value="${escapeHtml(s.birthDate || '')}">
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="edit-field-group">
-                      <label>وسيلة الافتقاد</label>
+                      <label>حالة الافتقاد</label>
                       <select id="editFollowup-${s.id}">
                         <option value="بدون" ${s.followupStatus === 'بدون' ? 'selected' : ''}>بدون</option>
                         <option value="تم تليفونياً" ${s.followupStatus.includes('تليفون') ? 'selected' : ''}>تم تليفونياً</option>
@@ -3031,10 +3129,16 @@
                       </select>
                     </div>
                   </div>
+                  <div class="col-6">
+                    <div class="edit-field-group">
+                      <label>تاريخ الميلاد</label>
+                      <input type="text" id="editBirthDate-${s.id}" value="${escapeHtml(s.birthDate || '')}">
+                    </div>
+                  </div>
                   <div class="col-12">
                     <div class="edit-field-group">
-                      <label>العنوان التفصيلي</label>
-                      <textarea id="editAddress-${s.id}" rows="2">${escapeHtml(s.address || '')}</textarea>
+                      <label>العنوان السكني</label>
+                      <input type="text" id="editAddress-${s.id}" value="${escapeHtml(s.address || '')}">
                     </div>
                   </div>
                 </div>
@@ -3127,6 +3231,82 @@
     }
   }
 
+  // ============================================================
+  // تسجيل الافتقاد السريع وتحديث المسار الثنائي
+  // ============================================================
+  async function recordQuickFollowup(studentId, method) {
+    const s = studentsData.find(item => item.id === studentId);
+    if (!s) return;
+    const beforeStatus = s.followupStatus;
+    const friday = getNearestFridayString();
+    s.followupStatus = method;
+    if (!s.fu) s.fu = {};
+    s.fu[friday] = method;
+    applyFilters();
+    renderStats();
+
+    try {
+      await saveToSheet({
+        action: 'followup',
+        row: s.row,
+        name: s.name,
+        date: friday,
+        type: method,
+        notes: `افتقاد عبر ${method}`,
+        sourceSheet: s.sourceSheet
+      }, 'تم تسجيل الافتقاد', `${s.name}: ${method}`);
+    } catch (e) {
+      const isNet = !navigator.onLine || e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
+      if (isNet) {
+        addToOfflineQueue({
+          type: 'followup',
+          payload: {
+            action: 'followup',
+            row: s.row,
+            name: s.name,
+            date: friday,
+            type: method,
+            notes: `افتقاد عبر ${method}`,
+            sourceSheet: s.sourceSheet
+          },
+          description: `تسجيل افتقاد ${method} لـ ${s.name}`
+        });
+        showToast('حفظ أوفلاين', `تم حفظ افتقاد (${s.name}) في طابور العمليات المعلقة`, 'warning');
+      } else {
+        s.followupStatus = beforeStatus;
+        if (s.fu) s.fu[friday] = beforeStatus;
+        applyFilters();
+        renderStats();
+        showToast('تعذر الحفظ', e.message, 'error');
+      }
+    }
+  }
+
+  function toggleQuickFollowup(studentId, event) {
+    if (event) event.stopPropagation();
+    const s = studentsData.find(item => item.id === studentId);
+    if (!s) return;
+    const hasFu = s.followupStatus && s.followupStatus !== 'بدون' && !s.followupStatus.includes('لم');
+    const newStatus = hasFu ? 'بدون' : 'تم تليفونياً';
+    recordQuickFollowup(studentId, newStatus);
+  }
+
+  function recordQuickCallFollowup(studentId) {
+    const s = studentsData.find(item => item.id === studentId);
+    if (!s) return;
+    if (!s.followupStatus || s.followupStatus === 'بدون' || s.followupStatus.includes('لم')) {
+      recordQuickFollowup(studentId, 'تم تليفونياً');
+    }
+  }
+
+  function recordQuickWhatsAppFollowup(studentId) {
+    const s = studentsData.find(item => item.id === studentId);
+    if (!s) return;
+    if (!s.followupStatus || s.followupStatus === 'بدون' || s.followupStatus.includes('لم')) {
+      recordQuickFollowup(studentId, 'واتساب');
+    }
+  }
+
   async function saveStudentChanges(studentId) {
     const s = studentsData.find(item => item.id === studentId);
     if (!s) return;
@@ -3137,7 +3317,7 @@
       servant: g(`editServant-${studentId}`),
       phoneStudent: g(`editPhoneStudent-${studentId}`),
       phoneParent1: g(`editPhoneParent1-${studentId}`),
-      phoneParent2: g(`editPhoneParent2-${studentId}`),
+      phoneParent2: (document.getElementById(`editPhoneParent2-${studentId}`) ? g(`editPhoneParent2-${studentId}`) : (s.phoneParent2 || '')),
       area: g(`editArea-${studentId}`),
       birthDate: g(`editBirthDate-${studentId}`),
       address: g(`editAddress-${studentId}`),
@@ -3452,7 +3632,6 @@
     if (!tbody) return;
     tbody.innerHTML = filteredData.map(s => `
       <tr>
-        <td><span class="student-code">#${escapeHtml(s.code)}</span></td>
         <td><strong>${escapeHtml(s.name)}</strong></td>
         <td>${escapeHtml(s.servant)}</td>
         <td>${escapeHtml(s.area)}</td>
@@ -3594,14 +3773,13 @@
     const tbody = document.getElementById('followupLogBody');
     if (!tbody) return;
     if (!log.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">لا توجد سجلات افتقاد بعد.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">لا توجد سجلات افتقاد بعد.</td></tr>`;
       return;
     }
     tbody.innerHTML = [...log].reverse().map(r => `
       <tr>
         <td>${escapeHtml(r.date)}</td>
         <td>${escapeHtml(r.friday)}</td>
-        <td><span class="student-code">#${escapeHtml(r.code)}</span></td>
         <td><strong>${escapeHtml(r.name)}</strong></td>
         <td>${escapeHtml(r.servant)}</td>
         <td><span class="badge bg-primary">${escapeHtml(r.type || 'بدون')}</span></td>
@@ -3613,7 +3791,7 @@
   function exportTableToExcel() {
     if (!studentsData.length) return alert('لا توجد بيانات للتصدير!');
     const data = studentsData.map(s => ({
-      'الكود': s.code, 'الاسم': s.name, 'الأشبين': s.servant,
+      'الاسم': s.name, 'الأشبين': s.servant,
       'المنطقة': s.area, 'إجمالي الحضور': s.attendanceTotal, 'حضور الشهر': s.attendanceMonth,
       'الافتقاد': s.followupStatus, 'الملاحظات': s.notes
     }));
@@ -3636,10 +3814,10 @@
       </div>
       <table border="1" style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: center;">
         <thead style="background: #12344d; color: white;">
-          <tr><th>الكود</th><th>الاسم</th><th>الأشبين</th><th>المنطقة</th><th>إجمالي الحضور</th><th>حضور الشهر</th></tr>
+          <tr><th>الاسم</th><th>الأشبين</th><th>المنطقة</th><th>إجمالي الحضور</th><th>حضور الشهر</th></tr>
         </thead>
         <tbody>
-          ${filteredData.map(s => `<tr><td>${s.code}</td><td><strong>${s.name}</strong></td><td>${s.servant}</td><td>${s.area}</td><td>${s.attendanceTotal}</td><td>${s.attendanceMonth}</td></tr>`).join('')}
+          ${filteredData.map(s => `<tr><td><strong>${s.name}</strong></td><td>${s.servant}</td><td>${s.area}</td><td>${s.attendanceTotal}</td><td>${s.attendanceMonth}</td></tr>`).join('')}
         </tbody>
       </table>
     `;
@@ -3648,7 +3826,11 @@
 
   function exportFollowupToExcel() {
     if (!window._followupLogData.length) return alert('لا توجد بيانات سجل للتصدير!');
-    const ws = XLSX.utils.json_to_sheet(window._followupLogData);
+    const exportData = window._followupLogData.map(r => ({
+      'التاريخ': r.date, 'أسبوع الجمعة': r.friday, 'الاسم': r.name,
+      'الأشبين': r.servant, 'النوع': r.type, 'الملاحظات': r.notes || '-'
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "سجل الافتقاد");
     XLSX.writeFile(wb, `سجل_الافتقاد_${currentSheetName}.xlsx`);
@@ -3667,10 +3849,10 @@
       </div>
       <table border="1" style="width: 100%; border-collapse: collapse; font-size: 10px; text-align: center;">
         <thead style="background: #12344d; color: white;">
-          <tr><th>التاريخ</th><th>أسبوع الجمعة</th><th>الكود</th><th>الاسم</th><th>الأشبين</th><th>النوع</th><th>الملاحظات</th></tr>
+          <tr><th>التاريخ</th><th>أسبوع الجمعة</th><th>الاسم</th><th>الأشبين</th><th>النوع</th><th>الملاحظات</th></tr>
         </thead>
         <tbody>
-          ${window._followupLogData.map(r => `<tr><td>${r.date}</td><td>${r.friday}</td><td>${r.code}</td><td><strong>${r.name}</strong></td><td>${r.servant}</td><td>${r.type}</td><td>${r.notes || '-'}</td></tr>`).join('')}
+          ${window._followupLogData.map(r => `<tr><td>${r.date}</td><td>${r.friday}</td><td><strong>${r.name}</strong></td><td>${r.servant}</td><td>${r.type}</td><td>${r.notes || '-'}</td></tr>`).join('')}
         </tbody>
       </table>
     `;
@@ -3696,6 +3878,14 @@
     document.getElementById('activeAreaBadge').classList.remove('visible');
     fetchLiveGoogleSheetData();
   });
+
+  document.addEventListener('touchstart', (e) => {
+    const card = e.target.closest('.student-card');
+    document.querySelectorAll('.student-card.hover-active').forEach(c => {
+      if (c !== card) c.classList.remove('hover-active');
+    });
+    if (card) card.classList.add('hover-active');
+  }, { passive: true });
 
   document.addEventListener('DOMContentLoaded', () => {
     updateOfflineQueueUI();
