@@ -1,0 +1,6 @@
+{
+  "name": "St.Gorge-Dashboard",
+  "description": "تطبيق PWA لمتابعة وإدارة مخدومي فصل الشهيد مارجرجس مع دعم العمل أوفلاين والمزامنة اللحظية",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
