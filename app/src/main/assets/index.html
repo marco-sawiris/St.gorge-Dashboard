@@ -184,9 +184,11 @@
       perspective: 1000px;
       padding: 20px;
       pointer-events: all;
+      cursor: pointer;
     }
     #splashScreen.splash-hide {
       animation: splashOut 500ms ease-in forwards;
+      pointer-events: none;
     }
 
     .hero-logo-wrap {
@@ -321,10 +323,11 @@
       gap: 12px;
     }
     .sidebar-brand-img {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
+      width: 46px;
+      height: 46px;
+      border-radius: 0;
       object-fit: contain;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.25));
     }
     .sidebar-brand h3 {
       font-family: 'Almarai', sans-serif;
@@ -626,10 +629,11 @@
       gap: 10px;
     }
     .top-bar-app-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      border-radius: 0;
       object-fit: contain;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
     }
     .top-bar-title {
       font-family: 'Almarai', sans-serif;
@@ -1413,10 +1417,11 @@
       margin: 0 0 16px;
     }
     .about-hero-ext-icon {
-      width: 110px;
-      height: 110px;
-      border-radius: 50%;
+      width: 120px;
+      height: 120px;
+      border-radius: 0;
       object-fit: contain;
+      filter: drop-shadow(0 6px 20px rgba(0,0,0,0.35));
       margin-bottom: 12px;
     }
 
@@ -2147,7 +2152,7 @@
     })[ch]);
   }
 
-  /* شاشة البداية الذكية - تختفي عند جاهزية التطبيق وبحد أقصى 1.5 ثانية */
+  /* شاشة البداية الذكية - تختفي عند جاهزية التطبيق وبحد أقصى 1.5 ثانية أو بالنقر */
   let splashScreenHidden = false;
   function hideSplashScreen() {
     if (splashScreenHidden) return;
@@ -2158,8 +2163,11 @@
       setTimeout(() => { splash.style.display = 'none'; }, 400);
     }
   }
-  // إخفاء فوري بعد 1.5 ثانية كحد أقصى
+  // إخفاء فوري بعد 1.5 ثانية كحد أقصى أو عند النقر المباشر
   setTimeout(hideSplashScreen, 1500);
+  window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('splashScreen')?.addEventListener('click', hideSplashScreen);
+  });
 
   /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
   function updateScrollProgress() {
@@ -2762,16 +2770,6 @@
     if (syncText) {
       syncText.textContent = isAutoSync ? 'تحديث تلقائي...' : 'جاري المزامنة...';
     }
-    const requested = currentSheetName;
-    const reqSeq = ++sheetLoadSequence;
-    const spinIcon = document.getElementById('syncSpinIcon');
-    const syncText = document.getElementById('syncText');
-    const loadingState = document.getElementById('loadingState');
-    document.getElementById('loadingSheetLabel').textContent = `الشيت: ${requested}`;
-
-    if (spinIcon) spinIcon.classList.add('fa-spin');
-    loadingState.classList.remove('d-none');
-    syncText.textContent = 'جاري المزامنة...';
 
     try {
       if (requested === '__ALL__') {
