@@ -2835,8 +2835,8 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     }
 
     askGeminiAI(prompt, (success, result) => {
-      box.style.color = 'var(--text-main)';
-      box.style.borderColor = 'var(--border)';
+      box.style.color = success ? 'var(--text-main)' : 'var(--red-status)';
+      box.style.borderColor = success ? 'var(--border)' : 'var(--red-status)';
       box.innerHTML = formatGeminiResponse(result);
     });
   }
@@ -2850,8 +2850,8 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     box.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Gemini يفكر في الإجابة...</span>';
 
     askGeminiAI(query, (success, result) => {
-      box.style.color = 'var(--text-main)';
-      box.style.borderColor = 'var(--border)';
+      box.style.color = success ? 'var(--text-main)' : 'var(--red-status)';
+      box.style.borderColor = success ? 'var(--border)' : 'var(--red-status)';
       box.innerHTML = formatGeminiResponse(result);
     });
   }
