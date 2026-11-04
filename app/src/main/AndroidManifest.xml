@@ -37,6 +37,11 @@
                 <action android:name="com.example.ACTION_SEND_REMINDER" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".NotificationActionReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>
