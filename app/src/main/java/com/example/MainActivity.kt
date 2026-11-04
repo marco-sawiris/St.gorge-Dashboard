@@ -245,7 +245,10 @@ fun DashboardWebView() {
             databaseEnabled = true
             allowFileAccess = true
             allowContentAccess = true
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            // Keep local Android assets accessible, but never grant file-origin access to other files or origins.
+            allowFileAccessFromFileURLs = false
+            allowUniversalAccessFromFileURLs = false
             useWideViewPort = true
             loadWithOverviewMode = true
             cacheMode = WebSettings.LOAD_DEFAULT
