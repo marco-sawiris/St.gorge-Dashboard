@@ -4371,6 +4371,12 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       if (!option) return;
       const value = option.dataset.filterValue || '';
       const kind = root.dataset.filterKind;
+      root.querySelector('.app-filter-label').textContent = option.textContent.trim();
+      root.querySelectorAll('.app-filter-option').forEach(item => {
+        const selected = item === option;
+        item.classList.toggle('selected', selected);
+        item.setAttribute('aria-selected', String(selected));
+      });
       closeAppFilterDropdowns();
       if (kind === 'servant') {
         setServantFilter(value);
