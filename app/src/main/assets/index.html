@@ -3589,6 +3589,12 @@
     const beforeMonth = s.attendanceMonth;
     const beforeFridayVal = s.att ? s.att[date] : undefined;
 
+    // تجاهل تسجيل الحالة نفسها مرة أخرى حتى لا تتكرر زيادة أو خصم العدادات
+    if (beforeFridayVal === isPresent) {
+      pendingAttendanceSet.delete(studentId);
+      return;
+    }
+
     // تعطيل الأزرار بصرياً لمنع النقرات المتكررة
     const cardEl = document.getElementById(`card-${studentId}`);
     const attButtons = cardEl ? cardEl.querySelectorAll('.btn-quick-att') : [];
