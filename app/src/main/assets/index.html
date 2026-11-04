@@ -2430,9 +2430,10 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     if (splash) {
       splash.style.transition = "opacity 400ms ease";
       splash.style.opacity = "0";
-      splash.addEventListener('transitionend', () => {
-        splash.remove();
-      }, { once: true });
+      setTimeout(() => {
+          splash.style.display = "none";
+          splash.remove();
+      }, 400);
     }
   }
   // إخفاء فوري بعد 1.5 ثانية كحد أقصى أو عند النقر المباشر

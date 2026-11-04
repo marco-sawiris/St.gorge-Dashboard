@@ -156,7 +156,7 @@ class MainActivity : ComponentActivity() {
                 response.text?.takeIf { it.isNotBlank() } ?: generateFallbackAiResponse(prompt)
               } catch (e: Exception) {
                 Log.w("GeminiAPI", "Engaged smart fallback for Gemini due to: ${e.message}")
-                generateFallbackAiResponse(prompt)
+                "⚠️ **خطأ في الاتصال بخدمة الذكاء الاصطناعي:**\n\n${e.message}\n\n${generateFallbackAiResponse(prompt)}"
               }
 
               withContext(Dispatchers.Main) {
