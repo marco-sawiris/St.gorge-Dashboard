@@ -765,7 +765,7 @@
       overscroll-behavior: contain;
       touch-action: pan-y;
     }
-    /* Generated items are buttons (.alpha-letter), not spans. */
+    /* Android Arabic keyboard-inspired alphabet keycaps */
     .alpha-scroll-shell {
       position: fixed !important;
       left: max(5px, env(safe-area-inset-left, 0px));
@@ -784,60 +784,109 @@
       position: static !important;
       display: flex;
       flex-direction: column;
-      align-items: stretch;
+      align-items: center;
       justify-content: flex-start;
       flex: 0 1 auto;
       box-sizing: border-box;
-      width: 38px;
-      min-width: 38px;
+      width: 42px;
+      min-width: 42px;
       max-height: 78dvh;
       overflow-x: hidden;
       overflow-y: auto;
-      gap: 3px;
-      padding: 7px 4px;
-      border: 1px solid var(--primary);
-      border-radius: 12px;
+      gap: 5px;
+      padding: 7px 5px;
+      border: 1px solid rgba(100,116,139,.22);
+      border-radius: 15px;
+      background: rgba(220, 226, 234, .92);
+      box-shadow: 0 5px 18px rgba(15,23,42,.20);
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
       touch-action: pan-y;
-      scrollbar-width: thin;
-      scrollbar-color: var(--primary) var(--input-bg);
+      scrollbar-width: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
+    .alpha-scroll-bar::-webkit-scrollbar { display: none; }
     .alpha-scroll-bar .alpha-letter {
       appearance: none;
       -webkit-appearance: none;
       box-sizing: border-box;
       display: flex;
-      flex: 0 0 27px;
+      flex: 0 0 31px;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      min-width: 28px;
-      height: 27px;
-      min-height: 27px;
+      width: 31px;
+      min-width: 31px;
+      height: 31px;
+      min-height: 31px;
       margin: 0;
       padding: 0;
-      border: 0;
+      border: 1px solid rgba(15,23,42,.10);
       border-radius: 7px;
-      background: transparent;
-      color: var(--text-main);
+      background: #fff;
+      color: #17212b;
+      box-shadow: 0 2px 0 rgba(15,23,42,.18), 0 1px 3px rgba(15,23,42,.10);
       font-family: 'Almarai', sans-serif !important;
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 800;
       line-height: 1;
       white-space: nowrap;
       text-align: center;
       writing-mode: horizontal-tb;
       cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+      transition: transform 90ms ease, background 90ms ease, box-shadow 90ms ease;
+    }
+    .alpha-scroll-bar .alpha-letter:active {
+      transform: translateY(2px);
+      box-shadow: 0 0 0 rgba(15,23,42,0);
+      background: #dbeafe;
     }
     .alpha-scroll-bar .alpha-letter:focus-visible,
     .alpha-scroll-bar .alpha-letter.active {
       color: #fff;
       background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 2px 0 color-mix(in srgb, var(--primary) 65%, #000);
       outline: none;
     }
-    .alpha-scroll-toggle { flex: 0 0 25px; width: 25px; min-width: 25px; }
+    .alpha-scroll-toggle {
+      appearance: none;
+      -webkit-appearance: none;
+      box-sizing: border-box;
+      flex: 0 0 27px;
+      width: 27px;
+      min-width: 27px;
+      height: 43px;
+      border: 1px solid rgba(100,116,139,.25);
+      border-radius: 0 9px 9px 0;
+      background: #fff;
+      color: var(--primary);
+      box-shadow: 0 3px 9px rgba(15,23,42,.16);
+    }
+    [data-theme="dark"] .alpha-scroll-bar {
+      background: rgba(38, 50, 63, .96);
+      border-color: rgba(203,213,225,.18);
+    }
+    [data-theme="dark"] .alpha-scroll-bar .alpha-letter {
+      background: #e8edf3;
+      color: #17212b;
+      border-color: rgba(15,23,42,.12);
+      box-shadow: 0 2px 0 rgba(0,0,0,.30);
+    }
+    [data-theme="dark"] .alpha-scroll-bar .alpha-letter.active,
+    [data-theme="dark"] .alpha-scroll-bar .alpha-letter:focus-visible {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    [data-theme="dark"] .alpha-scroll-toggle {
+      background: #26323f;
+      color: #93c5fd;
+      border-color: rgba(203,213,225,.18);
+    }
     .alpha-scroll-shell.collapsed .alpha-scroll-bar { display: none !important; }
 
     .modal-backdrop { z-index: 10900 !important; }
