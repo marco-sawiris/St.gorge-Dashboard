@@ -5,19 +5,16 @@
 
 ---
 
-## 🌐 روابط المعاينة والتحميل المباشر
+## 🌐 روابط التطبيق والمشروع
 
-- **📱 تحميل تطبيق أندرويد المباشر (APK)**:  
-  👉 [تحميل St-Gorge-Dashboard.apk](https://ais-dev-hxspestwy3s46we3q7y3jz-462590052947.europe-west2.run.app/app/St-Gorge-Dashboard.apk) *(حجم التطبيق: ~23 ميجابايت)*
-- **🌐 رابط التطبيق النهائي للتجربة المباشرة (Live Demo)**:  
-  👉 [https://ais-pre-hxspestwy3s46we3q7y3jz-462590052947.europe-west2.run.app](https://ais-pre-hxspestwy3s46we3q7y3jz-462590052947.europe-west2.run.app)
-- **🛠️ بيئة التطوير (Dev Preview)**:  
-  👉 [https://ais-dev-hxspestwy3s46we3q7y3jz-462590052947.europe-west2.run.app](https://ais-dev-hxspestwy3s46we3q7y3jz-462590052947.europe-west2.run.app)
-- **📊 ملف قاعدة البيانات المرتبط (Google Sheets)**:  
-  👉 [عرض شيت البيانات على Google Drive](https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit)  
-  *(لا تضع رموز التوثيق أو المفاتيح السرية داخل ملفات الواجهة أو README.)*
-- **🐙 مستودع الكود على GitHub**:  
-  👉 [https://github.com/marco-sawiris/St.gorge-Dashboard.git](https://github.com/marco-sawiris/St.gorge-Dashboard.git)
+- **📱 تحميل أحدث APK من GitHub:**  
+  [St-Gorge-Dashboard.apk](https://github.com/marco-sawiris/St.gorge-Dashboard/raw/refs/heads/main/app/St-Gorge-Dashboard.apk)
+- **🛠️ متابعة بناء APK تلقائياً:**  
+  [GitHub Actions](https://github.com/marco-sawiris/St.gorge-Dashboard/actions)
+- **📊 ملف قاعدة البيانات المرتبط (Google Sheets):**  
+  [فتح ملف بيانات الخدمة](https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit)
+- **🐙 مستودع الكود:**  
+  [St.Gorge Dashboard على GitHub](https://github.com/marco-sawiris/St.gorge-Dashboard)
 
 ---
 
@@ -40,46 +37,47 @@
 ### 4. 🔤 الخط العربي الموحد (خط Almarai)
 - اعتماد خط **المراعي (Almarai)** من Google Fonts في كامل واجهات التطبيق وأندرويد عبر ملفات موارد النظام `res/font/almarai.ttf` لضمان وضوح وقراءة مريحة ودعم العمل دون اتصال.
 
-### 5. 📊 شريط التمرير الأفقي الذكي (Top Scroll Progress Bar)
-- شريط أفقي ناعم مثبت بأعلى الشاشة يتمدد بنعومة بنسبة من `0%` إلى `100%` ليعكس بدقة موضع التمرير ونسبة تصفح قائمة الكروت.
+### 5. 📊 مؤشرات التمرير والتنقل
+- شريط تقدم أفقي أعلى المحتوى يوضح نسبة التمرير.
+- شريط حروف جانبي يعرض الحروف الموجودة فعلياً في أسماء المخدومين بعد تطبيق الفلاتر، مع إمكانية إخفائه وإظهاره والتنقل لأول كارت يبدأ بالحرف.
 
 ### 6. 📱 القائمة الجانبية المحسنة (Drawer Menu)
 - قائمة جانبية تنبثق بنعومة من اليمين (RTL) بأيقونة واحدة مخصصة لكل عنصر.
 - تنقل فوري بين: الكروت، جدول الحضور، الإحصائيات، سجل الافتقاد، فلترة المناطق السكنية، ومساعد الاستخدام، مع إبقاء قسم «عن التطبيق» في نهاية القائمة.
 
-### 7. 🛡️ أيقونة التطبيق وشاشة البداية الملكية (Splash Screen)
-- الحفاظ على الأيقونة الأصلية للشهيد مارجرجس على الحصان بدقة كاملة في كافة أبعاد أيقونات الأندرويد والويب.
-- شاشة بداية سينمائية متحركة ترسم وتبرز لوجو الشهيد مارجرجس مع تأثيرات الانبثاق والضوء.
+### 7. 🛡️ أيقونة التطبيق وشاشة البداية
+- استخدام هوية الشهيد مارجرجس في أيقونة التطبيق وشاشة البداية.
+- شاشة بداية متحركة قبل فتح لوحة المتابعة.
 
-### 8. 📈 إحصائيات متقدمة وتصدير شامل
-- لوحة تحكم ذكية تعرض مؤشرات الأداء الرئيسية (KPIs)، متوسط الحضور، توزيع المخدومين على الخدام والمناطق.
-- تصدير فوري لجداول البيانات إلى ملفات Excel (`.xlsx`)، تقارير PDF جاهزة للطباعة، ومشاركة التقارير بنقرة واحدة عبر WhatsApp.
+### 8. 📈 إحصائيات وتقارير الخدمة
+- مؤشرات لنسب الحضور والافتقاد والانتظام والغياب المتكرر.
+- رسوم لتوزيع المخدومين على الأشبين والمناطق، ووسائل الافتقاد، وتطور الحضور الأسبوعي.
+- تصدير Excel وPDF ومشاركة تقارير الحضور والافتقاد عبر WhatsApp. لا يوجد زر طباعة مباشر داخل التطبيق حالياً.
 
 ---
 
 ## 🛠️ التقنيات المستخدمة
 
-- **نظام التشغيل والتطبيق الأصلي**: Android (Kotlin, Jetpack Compose, Material 3, Android WebView Bridge).
-- **المساعدة داخل التطبيق**: قاعدة معرفة محلية وإجابات إرشادية تعمل دون اتصال بخدمات ذكاء اصطناعي خارجية.
-- **تطبيق الويب PWA**: HTML5, CSS3 Custom Properties, JavaScript (ES6+), Bootstrap 5 RTL, FontAwesome 6.
-- **الخطوط والطباعة**: Almarai Font Family (Google Fonts) مدمجة محلياً.
-- **قواعد البيانات والمزامنة**: Google Sheets API, Google Apps Script Web App.
-- **الرسوم البيانية والتصدير**: Chart.js 4, SheetJS (XLSX), html2pdf.js.
+- **تطبيق Android:** Kotlin مع Android WebView وواجهة JavaScript Bridge للتكامل مع وظائف أندرويد.
+- **واجهة التطبيق:** HTML5 وCSS3 وJavaScript، مع Bootstrap RTL وFont Awesome.
+- **الخط العربي:** Almarai مدمج محلياً ضمن موارد التطبيق.
+- **المساعدة:** دليل استخدام محلي مبني على قاعدة معرفة داخل التطبيق، ولا يعتمد على Gemini أو مفتاح API.
+- **البيانات والمزامنة:** Google Sheets وGoogle Apps Script Web App.
+- **الرسوم والتصدير:** Chart.js وD3.js وSheetJS (XLSX) وhtml2pdf.js.
 
 ---
 
 ## 🚀 التشغيل والبناء محلياً
 
-### بناء تطبيق أندرويد (Android Studio / Gradle):
+### بناء تطبيق أندرويد (Android Studio / Gradle)
 ```bash
-# بناء نسخة الـ APK للتجربة
-gradle assembleDebug
-
-# ملف الـ APK الناتج:
-# app/build/outputs/apk/debug/app-debug.apk
-# ومتاح أيضاً في:
-# app/St-Gorge-Dashboard.apk
+gradle --no-daemon :app:assembleDebug
 ```
+
+يتم بناء نسخة Debug APK تلقائياً عند كل تحديث على الفرع `main` من خلال GitHub Actions، ثم تحديث الملف الثابت:
+`app/St-Gorge-Dashboard.apk`.
+
+لتحميل النسخة الناتجة، استخدم رابط APK الموجود أعلى هذا الملف. نجاح GitHub Actions يؤكد اكتمال البناء والنشر، لكنه لا يغني عن اختبار النسخة على جهاز Android فعلي.
 
 ### استنساخ المشروع ودفعه إلى GitHub:
 ```bash
