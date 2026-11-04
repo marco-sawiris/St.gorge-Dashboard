@@ -3,6 +3,12 @@ package com.example
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
+import android.util.Base64
+import android.content.ContentValues
+import android.os.Environment
+import android.provider.MediaStore
+import java.io.File
+import java.io.FileOutputStream
 import android.webkit.JavascriptInterface
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
@@ -127,6 +133,46 @@ class ServiceWebBridge(private val webView: WebView) {
       Intent(Intent.ACTION_VIEW, uri),
       "تعذر فتح الرابط في المتصفح"
     )
+  }
+
+  @JavascriptInterface
+  fun openGoogleSheet() {
+    val uri = Uri.parse("https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit")
+    launchExternalIntent(Intent(Intent.ACTION_VIEW, uri), "تعذر فتح ملف Google Sheets")
+  }
+
+  @JavascriptInterface
+  fun saveBase64File(fileName: String, mimeType: String, base64Data: String): String {
+    return try {
+      val safeName = fileName.substringAfterLast('/').substringAfterLast('\\').replace(Regex("[^\\p{L}\\p{N}._-]"), "_")
+      if (safeName.isBlank() || base64Data.isBlank()) return "بيانات الملف غير صالحة"
+      val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+      if (bytes.isEmpty()) return "الملف فارغ"
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val values = ContentValues().apply {
+          put(MediaStore.Downloads.DISPLAY_NAME, safeName)
+          put(MediaStore.Downloads.MIME_TYPE, mimeType)
+          put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/StGorgeDashboard")
+          put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val resolver = webView.context.contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+          ?: return "تعذر إنشاء ملف داخل مجلد التنزيلات"
+        resolver.openOutputStream(uri)?.use { it.write(bytes) }
+          ?: return "تعذر كتابة الملف"
+        values.clear()
+        values.put(MediaStore.Downloads.IS_PENDING, 0)
+        resolver.update(uri, values, null, null)
+      } else {
+        val directory = File(webView.context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "StGorgeDashboard")
+        if (!directory.exists() && !directory.mkdirs()) return "تعذر إنشاء مجلد التنزيلات"
+        FileOutputStream(File(directory, safeName)).use { it.write(bytes) }
+      }
+      "OK"
+    } catch (error: Exception) {
+      Log.e("DashboardWebView", "Unable to save exported file", error)
+      error.message ?: "حدث خطأ أثناء حفظ الملف"
+    }
   }
 
   @JavascriptInterface
