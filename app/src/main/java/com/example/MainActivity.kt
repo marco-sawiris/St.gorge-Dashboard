@@ -152,25 +152,22 @@ class MainActivity : ComponentActivity() {
         DashboardWebView(
           onAskGemini = { prompt, callbackId, webView ->
             lifecycleScope.launch(Dispatchers.IO) {
-              val resultText = try {
-                val response = withTimeout(15_000L) {
+              val result = try {
+                val response = withTimeout(20_000L) {
                   geminiModel.generateContent(prompt)
                 }
-                if (response.text.isNullOrBlank()) {
-                  Log.w("GeminiAPI", "Model returned blank response.")
-                  generateFallbackAiResponse(prompt)
-                } else {
-                  response.text!!
-                }
+                val text = response.text?.takeIf { it.isNotBlank() }
+                  ?: throw IllegalStateException("Gemini returned an empty response.")
+                true to text
               } catch (e: Exception) {
                 Log.e("GeminiAPI", "Gemini API call failed: ${e.message}", e)
-                "⚠️ **خطأ في الاتصال بخدمة الذكاء الاصطناعي:**\n\n${e.message}\n\n${generateFallbackAiResponse(prompt)}"
+                false to "تعذر الاتصال بمساعد Gemini الحقيقي. تحقق من اتصال الإنترنت وإعدادات Firebase وApp Check، ثم حاول مرة أخرى.\n\nالتفاصيل: ${e.message ?: "خطأ غير معروف"}"
               }
 
               withContext(Dispatchers.Main) {
-                val quotedText = JSONObject.quote(resultText)
+                val quotedText = JSONObject.quote(result.second)
                 webView.evaluateJavascript(
-                  "window.onGeminiResponse && window.onGeminiResponse('$callbackId', true, $quotedText);",
+                  "window.onGeminiResponse && window.onGeminiResponse('$callbackId', ${result.first}, $quotedText);",
                   null
                 )
               }
