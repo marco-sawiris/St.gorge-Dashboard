@@ -14,6 +14,8 @@ import android.webkit.WebViewClient
 import android.os.Build
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -60,6 +62,52 @@ class MainActivity : ComponentActivity() {
 }
 
 class ServiceWebBridge(private val webView: WebView) {
+  private fun launchExternalIntent(intent: Intent, failureMessage: String) {
+    webView.post {
+      try {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        webView.context.startActivity(intent)
+      } catch (error: ActivityNotFoundException) {
+        Log.e("DashboardWebView", failureMessage, error)
+        Toast.makeText(webView.context, failureMessage, Toast.LENGTH_LONG).show()
+      } catch (error: Exception) {
+        Log.e("DashboardWebView", failureMessage, error)
+        Toast.makeText(webView.context, failureMessage, Toast.LENGTH_LONG).show()
+      }
+    }
+  }
+
+  @JavascriptInterface
+  fun openDialer(phone: String) {
+    val digits = phone.filter { it.isDigit() }
+    if (digits.isBlank()) {
+      webView.post { Toast.makeText(webView.context, "رقم الهاتف غير متاح", Toast.LENGTH_SHORT).show() }
+      return
+    }
+    launchExternalIntent(
+      Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", digits, null)),
+      "تعذر فتح تطبيق الاتصال"
+    )
+  }
+
+  @JavascriptInterface
+  fun openWhatsApp(phone: String) {
+    val digits = phone.filter { it.isDigit() }
+    if (digits.isBlank()) {
+      webView.post { Toast.makeText(webView.context, "رقم الهاتف غير متاح", Toast.LENGTH_SHORT).show() }
+      return
+    }
+    val international = when {
+      digits.startsWith("00") -> digits.drop(2)
+      digits.startsWith("20") -> digits
+      else -> "20" + digits.trimStart('0')
+    }
+    launchExternalIntent(
+      Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$international")),
+      "تعذر فتح واتساب أو المتصفح"
+    )
+  }
+
   @JavascriptInterface
   fun isAvailable(): Boolean = true
 
@@ -140,11 +188,10 @@ fun DashboardWebView() {
               val uri = Uri.parse(url)
               val scheme = uri.scheme?.lowercase()
               if (scheme == "tel") {
-                val dialIntent = Intent(Intent.ACTION_DIAL, uri)
-                if (dialIntent.resolveActivity(context.packageManager) != null) {
-                  context.startActivity(dialIntent)
-                } else {
-                  Log.e("DashboardWebView", "No dialer available for $url")
+                try {
+                  context.startActivity(Intent(Intent.ACTION_DIAL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (error: Exception) {
+                  Log.e("DashboardWebView", "Unable to open dialer for $url", error)
                 }
                 return true
               }
@@ -153,11 +200,10 @@ fun DashboardWebView() {
               val isWhatsAppLink = scheme == "https" &&
                 (host == "wa.me" || host == "whatsapp.com" || host.endsWith(".whatsapp.com"))
               if (isWhatsAppLink) {
-                val viewIntent = Intent(Intent.ACTION_VIEW, uri)
-                if (viewIntent.resolveActivity(context.packageManager) != null) {
-                  context.startActivity(viewIntent)
-                } else {
-                  Log.e("DashboardWebView", "No app or browser can open $url")
+                try {
+                  context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (error: Exception) {
+                  Log.e("DashboardWebView", "Unable to open WhatsApp link $url", error)
                 }
                 return true
               }
