@@ -718,9 +718,128 @@
       box-shadow: var(--shadow-sm);
     }
     
-    /* تثبيت الشريط العلوي وإظهار طبقة القوائم فوق المحتوى */
-    .top-bar { isolation: isolate; }
-    body.modal-open { overflow: hidden !important; }
+    /* Stable WebView page scrolling and sticky header */
+    html { overflow-x: hidden; }
+    body { overflow-x: hidden; overflow-y: visible; }
+    .main-app { overflow: visible !important; transform: none !important; }
+    .top-bar {
+      position: -webkit-sticky !important;
+      position: sticky !important;
+      top: env(safe-area-inset-top, 0px) !important;
+      z-index: 1050 !important;
+      align-self: flex-start;
+      flex-shrink: 0;
+      transform: none !important;
+      will-change: auto !important;
+    }
+    html.modal-open, body.modal-open {
+      overflow: hidden !important;
+      overscroll-behavior: none !important;
+      touch-action: none;
+    }
+    .modal { overflow: hidden !important; overscroll-behavior: contain; touch-action: pan-y; }
+    .modal-dialog {
+      max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px));
+      margin-top: max(12px, env(safe-area-inset-top, 0px));
+      margin-bottom: 12px;
+    }
+    .modal-content {
+      max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-body {
+      min-height: 0;
+      overflow-y: auto !important;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+    }
+    #helpModal .modal-dialog { max-width: min(720px, calc(100vw - 24px)); }
+    #helpModal .modal-body { display: flex; flex-direction: column; }
+    #helpModal .help-chat-window {
+      height: min(42dvh, 360px);
+      min-height: 120px;
+      flex: 0 1 auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+    }
+    /* Generated items are buttons (.alpha-letter), not spans. */
+    .alpha-scroll-shell {
+      position: fixed !important;
+      left: max(5px, env(safe-area-inset-left, 0px));
+      top: 50%;
+      bottom: auto;
+      transform: translate3d(0, -50%, 0);
+      z-index: 1080 !important;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 3px;
+      max-height: 78dvh;
+      pointer-events: auto;
+    }
+    .alpha-scroll-bar {
+      position: static !important;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      flex: 0 1 auto;
+      box-sizing: border-box;
+      width: 38px;
+      min-width: 38px;
+      max-height: 78dvh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      gap: 3px;
+      padding: 7px 4px;
+      border: 1px solid var(--primary);
+      border-radius: 12px;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      scrollbar-width: thin;
+      scrollbar-color: var(--primary) var(--input-bg);
+    }
+    .alpha-scroll-bar .alpha-letter {
+      appearance: none;
+      -webkit-appearance: none;
+      box-sizing: border-box;
+      display: flex;
+      flex: 0 0 27px;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      min-width: 28px;
+      height: 27px;
+      min-height: 27px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--text-main);
+      font-family: 'Almarai', sans-serif !important;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+      text-align: center;
+      writing-mode: horizontal-tb;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .alpha-scroll-bar .alpha-letter:focus-visible,
+    .alpha-scroll-bar .alpha-letter.active {
+      color: #fff;
+      background: var(--primary);
+      outline: none;
+    }
+    .alpha-scroll-toggle { flex: 0 0 25px; width: 25px; min-width: 25px; }
+    .alpha-scroll-shell.collapsed .alpha-scroll-bar { display: none !important; }
+
     .modal-backdrop { z-index: 10900 !important; }
     .modal { z-index: 11000 !important; }
     .modal-backdrop.show { opacity: .58; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
@@ -4820,6 +4939,16 @@
     });
     bar.style.display = byInitial.size ? 'flex' : 'none';
   }
+  // Lock the document scroll whenever a Bootstrap modal is open.
+  document.addEventListener('show.bs.modal', () => {
+    document.documentElement.classList.add('modal-open');
+  });
+  document.addEventListener('hidden.bs.modal', () => {
+    if (!document.querySelector('.modal.show')) {
+      document.documentElement.classList.remove('modal-open');
+    }
+  });
+
   document.addEventListener('DOMContentLoaded', () => {
     const alphaShell = document.getElementById('alphaScrollShell');
     const alphaToggle = document.getElementById('alphaScrollToggle');
