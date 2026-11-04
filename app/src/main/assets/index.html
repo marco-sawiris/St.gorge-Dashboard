@@ -23,11 +23,125 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- مكتبات الرسوم والتصدير -->
+document.querySelectorAll(".card-flip-container").forEach(container => {
+  container.addEventListener("touchstart", () => {
+    container.querySelector(".student-card")?.classList.add("hover-active");
+  }, { passive: true });
+  container.addEventListener("touchend", () => {
+    setTimeout(() => {
+      container.querySelector(".student-card")?.classList.remove("hover-active");
+    }, 1200);
+  }, { passive: true });
+});
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+document.querySelectorAll(".card-flip-container").forEach(container => {
+  container.addEventListener("touchstart", () => {
+    container.querySelector(".student-card")?.classList.add("hover-active");
+  }, { passive: true });
+  container.addEventListener("touchend", () => {
+    setTimeout(() => {
+      container.querySelector(".student-card")?.classList.remove("hover-active");
+    }, 1200);
+  }, { passive: true });
+});
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.2/dist/xlsx.full.min.js"></script>
+document.querySelectorAll(".card-flip-container").forEach(container => {
+  container.addEventListener("touchstart", () => {
+    container.querySelector(".student-card")?.classList.add("hover-active");
+  }, { passive: true });
+  container.addEventListener("touchend", () => {
+    setTimeout(() => {
+      container.querySelector(".student-card")?.classList.remove("hover-active");
+    }, 1200);
+  }, { passive: true });
+});
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <style>
+.splash-text-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 0 20px;
+}
+.splash-line1 {
+  font-family: 'Almarai', sans-serif;
+  font-size: clamp(18px, 5vw, 26px);
+  font-weight: 900;
+  color: #fbd68b;
+  margin: 0;
+  text-shadow: 0 4px 18px rgba(251, 214, 139, 0.45);
+  animation: wordIn 800ms cubic-bezier(0.34,1.56,0.64,1) 900ms both;
+  letter-spacing: -0.3px;
+}
+.splash-line2 {
+  font-family: 'Almarai', sans-serif;
+  font-size: clamp(13px, 3.5vw, 17px);
+  font-weight: 700;
+  color: #d1e2ed;
+  margin: 0;
+  opacity: 0.9;
+  animation: wordIn 800ms cubic-bezier(0.34,1.56,0.64,1) 1050ms both;
+}
+.splash-line3 {
+  font-family: 'Almarai', sans-serif;
+  font-size: clamp(11px, 2.8vw, 14px);
+  font-weight: 600;
+  color: #4da3ff;
+  margin: 0;
+  opacity: 0.85;
+  animation: wordIn 800ms cubic-bezier(0.34,1.56,0.64,1) 1200ms both;
+}
+.alpha-scroll-bar {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 0;
+  background: rgba(26, 115, 232, 0.08);
+  border-radius: 0 10px 10px 0;
+  border-right: 2px solid var(--primary);
+  min-width: 28px;
+  max-height: 80vh;
+  overflow: hidden;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 2px 0 12px rgba(26, 115, 232, 0.15);
+  transition: background 200ms ease;
+}
+.alpha-scroll-bar:active {
+  background: rgba(26, 115, 232, 0.18);
+}
+.alpha-letter-indicator {
+  position: fixed;
+  left: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--primary);
+  color: white;
+  padding: 12px;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+.alpha-scroll-bar:active .alpha-letter-indicator {
+  opacity: 1;
+}
     @font-face {
       font-family: 'Almarai';
       src: url('fonts/almarai.ttf') format('truetype');
@@ -954,34 +1068,20 @@
       transform: rotateY(180deg);
     }
 
-    /* الكارت أبيض وأسود افتراضياً ويتحول إلى ألوان كاملة عند الوقوف عليه */
-    .student-card {
-      background: var(--card-bg);
-      border-radius: var(--radius-xl);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
-      padding: 16px;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
-      height: 100%;
-      filter: grayscale(100%);
-      opacity: 0.94;
-      transition: filter 320ms cubic-bezier(0.4, 0, 0.2, 1),
-                  opacity 320ms ease,
-                  transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    /* الكارت بألوانه الكاملة دائماً */
+    .student-card {      background: var(--card-bg);      border-radius: var(--radius-xl);      border: 1px solid var(--border);      box-shadow: var(--shadow-sm);      padding: 16px;      position: relative;      display: flex;      flex-direction: column;      justify-content: space-between;      backface-visibility: hidden;      -webkit-backface-visibility: hidden;      height: 100%;      filter: grayscale(100%);      opacity: 0.88;      transition: filter 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 320ms ease, transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 320ms ease;    }
+    .student-card .track-segment.att-on,
+    .student-card .track-segment.fu-first-pending,
+    .student-card .track-segment.fu-first-done {
+      filter: saturate(10) !important;
+      opacity: 1 !important;
+    }
                   box-shadow 320ms ease;
     }
 
-    /* عند الوقوف بالماوس أو اللمس أو التركيز يتحول الكارت إلى ألوان كاملة */
+    /* تأثير الوقوف بالماوس أو اللمس */
     .card-flip-container:hover .student-card,
     .card-flip-container:focus-within .student-card,
-    .card-flip-container:active .student-card,
-    .student-card:hover,
-    .student-card:focus-within,
     .student-card.hover-active,
     .student-card.editing,
     .card-flip-inner.flipped .student-card {
@@ -1762,40 +1862,25 @@
 <!-- شاشة البداية / التحميل باللوجو الأصلي للداش بورد -->
 <div id="splashScreen">
   <div class="hero-logo-wrap">
-    <svg class="hero-logo" id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 737.01 708.66" role="img" aria-label="شعار فصل مارجرجس">
-      <defs>
-        <style>
-    @font-face {
-      font-family: 'Almarai';
-      src: url('fonts/almarai.ttf') format('truetype');
-      font-weight: 100 900;
-      font-style: normal;
-      font-display: swap;
-    }
-
-          .st0 { stroke: #f9ff00; stroke-width: 16.2px; }
-          .st0, .st1, .st2 { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-          .st1 { stroke: #ffffff; stroke-width: 15px; }
-          .st2 { stroke: #fbd68b; stroke-width: 15px; }
-        </style>
-      </defs>
-      <path class="st2 trim-part trim-0" pathLength="100" style="--trim-delay:0ms" d="M487.59,532.22s16.85,40.39,13.94,60.29c-.78,5.31-7.36,7.36-11.06,3.48l-71.86-75.92h-94.58s-55.54,61.61-67.68,59.87"/>
-      <path class="st2 spear-shaft trim-part trim-1" pathLength="100" style="--trim-delay:0ms" d="M219.4 7.5 L538.04 531.41"/>
-      <path class="st2 spear-tip trim-part trim-2" pathLength="100" style="--trim-delay:0ms" d="M212.35 51.41 L261.37 17.71"/>
-      <path class="st1 trim-part trim-3" pathLength="100" style="--trim-delay:0ms" d="M254.62,61.51l-27.24,45.82c-11.44,21.02-8.02,47.02,8.47,64.36l73.85,77.64s-54.76,99.37-98.78,85.56c-2.68-.84-4.36-3.5-4.04-6.29,1.15-9.87,14.31-41.1,14.31-41.1,0,0-62.48,96.32-112.81,59.44,0,0,59.01-180.92,132.76-128.86s50.76,225.61,50.76,225.61h59.8c21.05,0,38.11,17.06,38.11,38.11v.71-.71h70.43l-69.42-104.79"/>
-      <path class="st1 trim-part trim-4" pathLength="100" style="--trim-delay:0ms" d="M389.97,375.15l-139.88-1.54c-12.75-.14-25.48,1.67-37.58,5.71-17.86,5.95-30.36,15.57-34.27,60.48h0s-13.14,79.51-43.43,93.86c-7.01,3.32-15.25-.96-16.54-8.61-4.5-26.71-14.55-98.08,2.26-119.09,20.83-26.03,86.34-10.85,84.17,51.63v22.64c0,8.11-2.93,16.04-8.6,21.84-7.64,7.82-14.56,26.11,7.3,67.02l33.84,81.57s-107.2-.3-117.61-71.89c0,0,35.61,34.14,92.02,18.09"/>
-      <path class="st2 trim-part trim-5" pathLength="100" style="--trim-delay:0ms" d="M294.37,644.81c.48.51.97,1.02,1.46,1.52l17.79-21.26-24.3-21.69s63.78,72.89,148.82,27.77c0,0-22.56-34.71-33.41-64.21-9.58-26.07-77.66-20.83-62.48,15.62,13.99,33.57,52.93,15.19,42.52-6.07"/>
-      <path class="st1 trim-part trim-6" pathLength="100" style="--trim-delay:0ms" d="M313.18,471.47s-32.54,53.8-74.63,62.91c0,0,19.86,72.24,55.81,110.42"/>
-      <path class="st2 trim-part trim-7" pathLength="100" style="--trim-delay:0ms" d="M431.19,623.76s77.66,53.37,134.5-16.49h47.29l-75.49-127.12"/>
-      <path class="st1 trim-part trim-8" pathLength="100" style="--trim-delay:0ms" d="M503.65,474.51l63.78-39.92,32.11,49.03,37.31-12.15-55.97-92.41-78.96,23.86s25.16-78.1-31.24-137.97l82.87,22.13,9.98-33.84-82.44-73.32-6.94-60.74-69.42,91.98,14.36,38.89c3.64,9.85-1.01,20.83-10.61,25.07l-80.98,35.83,38.61-52.06"/>
-      <path class="st1 trim-part trim-9" pathLength="100" style="--trim-delay:0ms" d="M269.97,115.39l-21.44,38.06s67.17,23.76,108.56,14.95c19.01-4.04,32.62-21.26,30.82-40.61-.25-2.64-.77-5.25-1.7-7.8-6.46-18.37-31.45-22.99-46.57-16.39-.38.16-.76.33-1.13.51-8.89,4.23-14.7,13.02-15.72,22.8-2.59,24.95,21.38,60.74,90.6,69.92"/>
-      <path class="st0 trim-part trim-10" pathLength="100" style="--trim-delay:0ms" d="M298.82,100.49c10.65-21.09,32.51-35.55,57.75-35.55,35.7,0,64.65,28.94,64.65,64.65,0,9.64-2.11,18.79-5.9,27.02"/>
-      <path class="st2 trim-part trim-11" pathLength="100" style="--trim-delay:0ms" d="M31.48 657.23 L705.53 657.23"/>
-    </svg>
+    <img
+      src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png"
+      alt="الشهيد مارجرجس"
+      style="
+        width: auto;
+        height: clamp(200px, 45vw, 280px);
+        object-fit: contain;
+        filter: drop-shadow(0 10px 28px rgba(0,0,0,0.5));
+        animation: wordIn 1200ms cubic-bezier(0.34,1.56,0.64,1) 300ms both,
+                   logoFloat 8s ease-in-out 1500ms infinite;
+      "
+    >
   </div>
-  <h1 class="splash-title">فصل الشهيد مارجرجس</h1>
-  <p class="splash-subtitle">كنيسة السيدة العذراء مريم بالزيتون</p>
-  <div class="splash-badge"><i class="fa-solid fa-shield-halved"></i> لوحة الخدمة والمتابعة التفاعلية</div>
+  <div class="splash-text-block">
+    <h1 class="splash-line1">فصل الشهيد العظيم مارجرجس</h1>
+    <p class="splash-line2">بكنيسة السيدة العذراء مريم بالزيتون</p>
+    <p class="splash-line3">لوحة الخدمة والمتابعة التفاعلية</p>
+  </div>
+</div>
 </div>
 
 <!-- الـ Sidebar (أيقونة واحدة لكل عنصر - عن التطبيق آخر حاجة) -->
@@ -1803,7 +1888,18 @@
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-header">
     <div class="sidebar-brand">
-      <img src="app_icon.png" alt="St.Gorge" class="sidebar-brand-img">
+<img 
+  src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png"
+  alt="St.Gorge"
+  class="sidebar-brand-img"
+  style="
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+    border-radius: 0;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.25));
+  "
+>
       <div>
         <h3>St.Gorge-Dashboard</h3>
         <p>فصل الشهيد مارجرجس</p>
@@ -1892,7 +1988,18 @@
       <i class="fa-solid fa-bars"></i>
     </button>
     <div class="top-bar-title-wrap">
-      <img src="app_icon.png" alt="Icon" class="top-bar-app-icon">
+<img 
+  src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png"
+  alt="St.Gorge"
+  class="top-bar-app-icon"
+  style="
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    border-radius: 0;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+  "
+>
       <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
     </div>
     <div class="top-actions-group">
@@ -2021,7 +2128,7 @@
           </div>
           <div class="kpi-value" style="color: var(--green-status);" id="kpiAttendanceRate">0%</div>
           <div class="small text-muted" id="kpiAttendanceCount">0 من 0 حاضر</div>
-          <div class="kpi-progress"><div class="kpi-bar" id="kpiAttendanceBar" style="background: var(--green-status); width: 0%;"></div></div>
+          <div class="kpi-progress"><div class="kpi-bar" id="kpiAttendanceBar" style="background: var(--green-status); width: 0%;"></div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -2032,7 +2139,7 @@
           </div>
           <div class="kpi-value text-primary" id="kpiFollowupRate">0%</div>
           <div class="small text-muted" id="kpiFollowupCount">0 تم افتقادهم</div>
-          <div class="kpi-progress"><div class="kpi-bar bg-primary" id="kpiFollowupBar" style="width: 0%;"></div></div>
+          <div class="kpi-progress"><div class="kpi-bar bg-primary" id="kpiFollowupBar" style="width: 0%;"></div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -2043,7 +2150,7 @@
           </div>
           <div class="kpi-value" style="color: #0f8679;" id="kpiRegularRate">0%</div>
           <div class="small text-muted" id="kpiRegularCount">0 مستمرون</div>
-          <div class="kpi-progress"><div class="kpi-bar" id="kpiRegularBar" style="background: #0f8679; width: 0%;"></div></div>
+          <div class="kpi-progress"><div class="kpi-bar" id="kpiRegularBar" style="background: #0f8679; width: 0%;"></div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -2054,7 +2161,7 @@
           </div>
           <div class="kpi-value" style="color: var(--red-status);" id="kpiAlertCount">0</div>
           <div class="small text-muted" id="kpiAlertRate">0% نسبة الغياب</div>
-          <div class="kpi-progress"><div class="kpi-bar" id="kpiAlertBar" style="background: var(--red-status); width: 0%;"></div></div>
+          <div class="kpi-progress"><div class="kpi-bar" id="kpiAlertBar" style="background: var(--red-status); width: 0%;"></div>
         </div>
       </div>
     </div>
@@ -2287,6 +2394,16 @@
   </div>
 </div>
 
+document.querySelectorAll(".card-flip-container").forEach(container => {
+  container.addEventListener("touchstart", () => {
+    container.querySelector(".student-card")?.classList.add("hover-active");
+  }, { passive: true });
+  container.addEventListener("touchend", () => {
+    setTimeout(() => {
+      container.querySelector(".student-card")?.classList.remove("hover-active");
+    }, 1200);
+  }, { passive: true });
+});
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -2329,14 +2446,17 @@
   function hideSplashScreen() {
     if (splashScreenHidden) return;
     splashScreenHidden = true;
-    const splash = document.getElementById('splashScreen');
+    const splash = document.getElementById("splashScreen");
     if (splash) {
-      splash.classList.add('splash-hide');
-      setTimeout(() => { splash.style.display = 'none'; }, 400);
+      splash.style.transition = "opacity 400ms ease";
+      setTimeout(() => {
+        splash.style.display = "none";
+        splash.remove();
+      }, 400);
     }
   }
   // إخفاء فوري بعد 1.5 ثانية كحد أقصى أو عند النقر المباشر
-  setTimeout(hideSplashScreen, 1500);
+  setTimeout(hideSplashScreen, 3000);
   window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('splashScreen')?.addEventListener('click', hideSplashScreen);
   });
@@ -2688,7 +2808,7 @@
     const toast = document.createElement('div');
     toast.className = `toast-msg ${type}`;
     const icon = type === 'error' ? '❌' : (type === 'warning' ? '⚠️' : '✅');
-    toast.innerHTML = `<span>${icon}</span> <div><strong>${escapeHtml(title)}</strong><div class="small opacity-75">${escapeHtml(message)}</div></div>`;
+    toast.innerHTML = `<span>${icon}</span> <div><strong>${escapeHtml(title)}</strong><div class="small opacity-75">${escapeHtml(message)}</div>`;
     stack.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = '0';
@@ -3081,7 +3201,9 @@
     emptyState.classList.add('d-none');
 
     const fridayLabel = getNearestFridayString();
-    const animClass = isFirstLoad ? 'card-enter' : '';
+    const arabicCollator = new Intl.Collator("ar", { sensitivity: "base" });
+    const dataToRender = [...filteredData].sort((a, b) => arabicCollator.compare(a.name || "", b.name || ""));
+    container.innerHTML = dataToRender.map((s, idx) => {
 
     container.innerHTML = filteredData.map((s, idx) => {
       const isPresent = s.attendanceStatus.includes('حاضر');
@@ -4019,6 +4141,19 @@
     startAutoSyncTimer();
     updateScrollProgress();
   });
+document.querySelectorAll(".card-flip-container").forEach(container => {
+  container.addEventListener("touchstart", () => {
+    container.querySelector(".student-card")?.classList.add("hover-active");
+  }, { passive: true });
+  container.addEventListener("touchend", () => {
+    setTimeout(() => {
+      container.querySelector(".student-card")?.classList.remove("hover-active");
+    }, 1200);
+  }, { passive: true });
+});
 </script>
+<div id="alphaScrollBar" class="alpha-scroll-bar">
+  <div id="alphaLetterIndicator" class="alpha-letter-indicator"></div>
+</div>
 </body>
 </html>
