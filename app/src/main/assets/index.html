@@ -1071,14 +1071,19 @@
     }
     .card-flip-container {
       perspective: 1200px;
+      -webkit-perspective: 1200px;
+      height: 480px;
       min-height: 480px;
+      position: relative;
     }
     .card-flip-inner {
       position: relative;
       width: 100%;
       height: 100%;
+      min-height: 480px;
       transition: transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
       transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
     }
     .card-flip-inner.flipped {
       transform: rotateY(180deg);
@@ -1551,7 +1556,7 @@
       color: var(--text-muted);
       margin-bottom: 1px;
     }
-    .edit-field-group input, .edit-field-group select {
+    .edit-field-group input, .edit-field-group select, .edit-field-group textarea {
       padding: 4px 8px;
       height: 29px;
       font-size: 11.5px;
@@ -1562,7 +1567,7 @@
       font-family: inherit;
       outline: none;
     }
-    .edit-field-group input:focus, .edit-field-group select:focus {
+    .edit-field-group input:focus, .edit-field-group select:focus, .edit-field-group textarea:focus {
       border-color: var(--primary);
       background: var(--card-bg);
     }
@@ -3232,20 +3237,13 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
                   <span class="address-text">${escapeHtml(s.address)}</span>
                 </div>
 
-                <!-- خانة الملاحظات: تعديل سريع بالنقر -->
-                <div class="note-inline-box" onclick="activateNoteEditor(${s.id}, event)">
+                <!-- الملاحظات للقراءة فقط؛ التعديل من زر تعديل بيانات المخدوم -->
+                <div class="note-inline-box">
                   <div class="note-header">
-                    <span><i class="fa-solid fa-note-sticky"></i> ملاحظات الافتقاد (انقر للتعديل السريع)</span>
+                    <span><i class="fa-solid fa-note-sticky"></i> ملاحظات الافتقاد</span>
                   </div>
-                  <div class="note-view-wrap" id="noteView-${s.id}">
-                    <p class="note-content-text">${s.notes ? escapeHtml(s.notes) : '<span class="text-muted fst-italic">لا توجد ملاحظات... انقر هنا للكتابة</span>'}</p>
-                  </div>
-                  <div class="note-editor-wrap" id="noteEditWrap-${s.id}">
-                    <textarea id="noteInput-${s.id}" rows="2" onclick="event.stopPropagation()">${escapeHtml(s.notes)}</textarea>
-                    <div class="note-editor-actions" onclick="event.stopPropagation()">
-                      <button class="btn-note-cancel" onclick="cancelNoteEdit(${s.id})">إلغاء</button>
-                      <button class="btn-note-save" onclick="saveNoteEdit(${s.id})">حفظ</button>
-                    </div>
+                  <div class="note-view-wrap">
+                    <p class="note-content-text">${s.notes ? escapeHtml(s.notes) : '<span class="text-muted fst-italic">لا توجد ملاحظات مسجلة</span>'}</p>
                   </div>
                 </div>
               </div>
@@ -3301,8 +3299,14 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
                   </div>
                   <div class="col-6">
                     <div class="edit-field-group">
-                      <label>موبايل ولي الأمر</label>
+                      <label>موبايل ولي الأمر الأول</label>
                       <input type="text" id="editPhoneParent1-${s.id}" value="${escapeHtml(s.phoneParent1 || '')}" dir="ltr" style="text-align: right;">
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="edit-field-group">
+                      <label>موبايل ولي الأمر الثاني</label>
+                      <input type="text" id="editPhoneParent2-${s.id}" value="${escapeHtml(s.phoneParent2 || '')}" dir="ltr" style="text-align: right;">
                     </div>
                   </div>
                   <div class="col-6">
@@ -3327,6 +3331,12 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
                     <div class="edit-field-group">
                       <label>العنوان السكني</label>
                       <input type="text" id="editAddress-${s.id}" value="${escapeHtml(s.address || '')}">
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <div class="edit-field-group">
+                      <label>ملاحظات الافتقاد</label>
+                      <textarea id="editNotes-${s.id}" rows="2" style="min-height:48px; resize:vertical; border-radius:6px; border:1px solid var(--border); background:var(--input-bg); color:var(--text-main); font:inherit; font-size:11.5px; padding:5px 8px;">${escapeHtml(s.notes || '')}</textarea>
                     </div>
                   </div>
                 </div>
@@ -3506,10 +3516,11 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       servant: g(`editServant-${studentId}`),
       phoneStudent: g(`editPhoneStudent-${studentId}`),
       phoneParent1: g(`editPhoneParent1-${studentId}`),
-      phoneParent2: (document.getElementById(`editPhoneParent2-${studentId}`) ? g(`editPhoneParent2-${studentId}`) : (s.phoneParent2 || '')),
+      phoneParent2: g(`editPhoneParent2-${studentId}`),
       area: g(`editArea-${studentId}`),
       birthDate: g(`editBirthDate-${studentId}`),
       address: g(`editAddress-${studentId}`),
+      notes: g(`editNotes-${studentId}`),
       followupStatus: g(`editFollowup-${studentId}`)
     };
 
