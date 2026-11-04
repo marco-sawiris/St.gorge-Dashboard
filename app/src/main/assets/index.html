@@ -4254,6 +4254,9 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
 
     // أمان: إخفاء شاشة البداية بعد 10 ثوانٍ إذا استمرت في الظهور
     setTimeout(hideSplashScreen, 10000);
+    
+    // إخفاء الشاشة في حال حدوث أي خطأ جافاسكريبت جسيم
+    window.onerror = () => { setTimeout(hideSplashScreen, 500); return false; };
 
     // إضافة مستمعي اللمس للكروت باستخدام Delegation
     document.addEventListener('touchstart', (e) => {
