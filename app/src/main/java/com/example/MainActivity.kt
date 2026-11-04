@@ -153,9 +153,14 @@ class MainActivity : ComponentActivity() {
                 val response = withTimeout(15_000L) {
                   geminiModel.generateContent(prompt)
                 }
-                response.text?.takeIf { it.isNotBlank() } ?: generateFallbackAiResponse(prompt)
+                if (response.text.isNullOrBlank()) {
+                  Log.w("GeminiAPI", "Model returned blank response.")
+                  generateFallbackAiResponse(prompt)
+                } else {
+                  response.text!!
+                }
               } catch (e: Exception) {
-                Log.w("GeminiAPI", "Engaged smart fallback for Gemini due to: ${e.message}")
+                Log.e("GeminiAPI", "Gemini API call failed: ${e.message}", e)
                 "⚠️ **خطأ في الاتصال بخدمة الذكاء الاصطناعي:**\n\n${e.message}\n\n${generateFallbackAiResponse(prompt)}"
               }
 

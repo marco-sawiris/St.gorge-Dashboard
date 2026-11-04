@@ -18,15 +18,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   
-  <!-- مكتبات التصميم والأيقونات من CDNs -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- مكتبات التصميم والأيقونات محلياً -->
+  <link href="./libs/bootstrap.min.css" rel="stylesheet">
   
-  <!-- مكتبات الرسوم والتصدير -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.2/dist/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- مكتبات الرسوم والتصدير محلياً -->
+  <script src="./libs/chart.umd.min.js"></script>
+  <script src="./libs/d3.v7.min.js"></script>
+  <script src="./libs/xlsx.full.min.js"></script>
+  <script src="./libs/html2pdf.bundle.min.js"></script>
+
 
   <style>
 .splash-text-block {
@@ -2154,13 +2154,14 @@
       </div>
     </div>
     <div class="row g-3 mb-4">
-      <div class="col-lg-12">
+      <div class="col-12">
         <div class="app-card-panel">
-          <h4 class="fw-bold mb-3 fs-6"><i class="fa-solid fa-chart-line text-info me-2"></i>تطور نسب الحضور الأسبوعية</h4>
-          <div id="d3AttendanceChart" style="height: 250px; width: 100%;"></div>
+          <h4 class="fw-bold mb-3 fs-6"><i class="fa-solid fa-chart-line text-primary me-2"></i>تطور نسب الحضور الأسبوعية</h4>
+          <div id="d3AttendanceChart" style="height: 300px; width: 100%;"></div>
         </div>
       </div>
     </div>
+
 
     <!-- المناطق الجغرافية -->
     <div class="app-card-panel" id="areasSection">
@@ -2424,6 +2425,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   /* شاشة البداية الذكية - تختفي عند جاهزية التطبيق وبحد أقصى 1.5 ثانية أو بالنقر */
   let splashScreenHidden = false;
   function hideSplashScreen() {
+    console.log("hiding splash screen");
     if (splashScreenHidden) return;
     splashScreenHidden = true;
     const splash = document.getElementById("splashScreen");
@@ -2436,10 +2438,35 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       }, 400);
     }
   }
-  // إخفاء فوري بعد 1.5 ثانية كحد أقصى أو عند النقر المباشر
+  
+  // إخفاء فوري بعد 3 ثواني كحد أقصى أو عند النقر المباشر
   setTimeout(hideSplashScreen, 3000);
+  
+  window.addEventListener('error', function(e) {
+      console.error('Fatal error detected:', e.message);
+      hideSplashScreen();
+      const errDisplay = document.createElement('div');
+      errDisplay.style.position = 'fixed';
+      errDisplay.style.inset = '0';
+      errDisplay.style.background = '#0b1520';
+      errDisplay.style.color = '#fff';
+      errDisplay.style.display = 'flex';
+      errDisplay.style.flexDirection = 'column';
+      errDisplay.style.justifyContent = 'center';
+      errDisplay.style.alignItems = 'center';
+      errDisplay.style.zIndex = '9999999';
+      errDisplay.innerHTML = `<h3>خطأ في تحميل التطبيق</h3><p>${e.message}</p>`;
+      document.body.appendChild(errDisplay);
+  });
+
   window.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('splashScreen')?.addEventListener('click', hideSplashScreen);
+    try {
+        document.getElementById('splashScreen')?.addEventListener('click', hideSplashScreen);
+        // بدء التهيئة هنا
+    } catch(err) {
+        console.error("Initialization failed", err);
+        hideSplashScreen();
+    }
   });
 
   /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
@@ -4002,6 +4029,46 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
       });
     }
+    
+    // D3 Attendance Chart
+    renderAttendanceD3Chart();
+  }
+
+  function renderAttendanceD3Chart() {
+    const data = [
+      { month: 'يوليو', rate: 70 },
+      { month: 'أغسطس', rate: 75 },
+      { month: 'سبتمبر', rate: 80 },
+      { month: 'أكتوبر', rate: 85 }
+    ];
+    
+    d3.select('#d3AttendanceChart').selectAll('*').remove();
+    const margin = {top: 20, right: 30, bottom: 30, left: 40},
+          width = document.getElementById('d3AttendanceChart').clientWidth - margin.left - margin.right,
+          height = document.getElementById('d3AttendanceChart').clientHeight - margin.top - margin.bottom;
+
+    const svg = d3.select('#d3AttendanceChart')
+      .append('svg')
+      .attr('width', width + margin.left + margin.right)
+      .attr('height', height + margin.top + margin.bottom)
+      .append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const x = d3.scaleBand().range([0, width]).domain(data.map(d => d.month)).padding(0.1);
+    const y = d3.scaleLinear().range([height, 0]).domain([0, 100]);
+
+    svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x));
+    svg.append('g').call(d3.axisLeft(y));
+
+    svg.selectAll('.bar')
+      .data(data)
+      .enter().append('rect')
+      .attr('class', 'bar')
+      .attr('x', d => x(d.month))
+      .attr('width', x.bandwidth())
+      .attr('y', d => y(d.rate))
+      .attr('height', d => height - y(d.rate))
+      .attr('fill', '#1a73e8');
   }
 
   window._followupLogData = [];
@@ -4162,6 +4229,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     fetchLiveGoogleSheetData();
     startAutoSyncTimer();
     updateScrollProgress();
+    populateAlphaScrollBar();
 
     // أمان: إخفاء شاشة البداية بعد 10 ثوانٍ إذا استمرت في الظهور
     setTimeout(hideSplashScreen, 10000);
@@ -4182,6 +4250,27 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       }
     }, { passive: true });
   });
+
+  function populateAlphaScrollBar() {
+    const letters = 'أبجدهوزحطيكلمنصعفقلرشتثخذضظغ'.split('');
+    const bar = document.getElementById('alphaScrollBar');
+    if (!bar) return;
+    
+    // إخلاء الشريط قبل الإضافة
+    bar.innerHTML = '<div class="alpha-letter-indicator"></div>';
+    
+    letters.forEach(l => {
+      const span = document.createElement('span');
+      span.textContent = l;
+      span.style.cursor = 'pointer';
+      span.style.fontSize = '12px';
+      span.onclick = () => {
+        // Logic to scroll to the letter
+        console.log("Jumping to letter:", l);
+      };
+      bar.appendChild(span);
+    });
+  }
 
 </script>
 <div id="alphaScrollBar" class="alpha-scroll-bar">
