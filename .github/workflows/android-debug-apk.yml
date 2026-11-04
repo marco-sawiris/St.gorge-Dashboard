@@ -10,6 +10,11 @@ on:
 permissions:
   contents: write
 
+# Keep only the newest APK build active for the main branch.
+concurrency:
+  group: android-debug-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-debug-apk:
     runs-on: ubuntu-latest
@@ -70,6 +75,11 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: bash
         run: |
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "Skipping APK publication because this run is not for the latest main commit."
+            exit 0
+          fi
           install -D "app/build/outputs/apk/debug/app-debug.apk" "app/St-Gorge-Dashboard.apk"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
