@@ -709,7 +709,7 @@
     
     /* تثبيت الشريط العلوي وإظهار طبقة القوائم فوق المحتوى */
     .top-bar { isolation: isolate; }
-    body.modal-open { overflow: hidden !important; touch-action: none; }
+    body.modal-open { overflow: hidden !important; }
     .modal-backdrop { z-index: 10900 !important; }
     .modal { z-index: 11000 !important; }
     .modal-backdrop.show { opacity: .58; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
@@ -1858,6 +1858,8 @@
       margin: 0 0 16px;
     }
     .about-hero-ext-icon {
+      display: block;
+      background: transparent;
       width: 120px;
       height: 120px;
       border-radius: 0;
@@ -2619,18 +2621,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   window.addEventListener('error', function(e) {
       console.error('Fatal error detected:', e.message);
       hideSplashScreen();
-      const errDisplay = document.createElement('div');
-      errDisplay.style.position = 'fixed';
-      errDisplay.style.inset = '0';
-      errDisplay.style.background = '#0b1520';
-      errDisplay.style.color = '#fff';
-      errDisplay.style.display = 'flex';
-      errDisplay.style.flexDirection = 'column';
-      errDisplay.style.justifyContent = 'center';
-      errDisplay.style.alignItems = 'center';
-      errDisplay.style.zIndex = '9999999';
-      errDisplay.innerHTML = `<h3>خطأ في تحميل التطبيق</h3><p>${e.message}</p>`;
-      document.body.appendChild(errDisplay);
+      console.error('[Dashboard runtime error]', e.message, e.filename, e.lineno);
   });
 
   window.addEventListener('DOMContentLoaded', () => {
@@ -4092,7 +4083,10 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
 
   function renderStats() {
     const total = studentsData.length;
-    const presentCount = studentsData.filter(s => s.attendanceStatus.includes('حاضر')).length;
+    const presentCount = studentsData.filter(s => {
+      const status = String(s.attendanceStatus || '').trim();
+      return status.includes('حاضر') && !status.includes('غير حاضر') && !status.includes('غائب');
+    }).length;
     const attRate = total > 0 ? Math.round((presentCount / total) * 100) : 0;
     
     document.getElementById('kpiAttendanceRate').textContent = `${attRate}%`;
@@ -4164,10 +4158,14 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     const x = d3.scalePoint().domain(data.map(d => d.label)).range([0, width]).padding(0.35);
     const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);
 
+    const axisColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b';
     svg.append('g')
       .attr('transform', `translate(0,${height})`)
-      .call(d3.axisBottom(x));
-    svg.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(value => value + '%'));
+      .call(d3.axisBottom(x))
+      .selectAll('text').attr('fill', axisColor).style('font-family', 'Almarai');
+    svg.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(value => value + '%'))
+      .selectAll('text').attr('fill', axisColor).style('font-family', 'Almarai');
+    svg.selectAll('.domain, .tick line').attr('stroke', axisColor);
 
     svg.append('path')
       .datum(data)
@@ -4210,7 +4208,14 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
           labels: Object.keys(servantCounts),
           datasets: [{ label: 'عدد المخدومين', data: Object.values(servantCounts), backgroundColor: '#1a73e8', borderRadius: 8 }]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { titleColor: '#fff', bodyColor: '#fff' } },
+          scales: {
+            x: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--border').trim() } },
+            y: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--border').trim() } }
+          }
+        }
       });
     }
 
@@ -4223,7 +4228,10 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
           labels: ['تليفونياً', 'زيارة منزلية', 'لم يتم بعد'],
           datasets: [{ data: [phone, visit, pending], backgroundColor: ['#1a73e8', '#f59e0b', '#e53935'] }]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim(), font: { family: 'Almarai' } } } }
+        }
       });
     }
 
@@ -4357,6 +4365,25 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     filter.value = servants.includes(selected) ? selected : '';
   }
 
+  function openExternalSheet(event) {
+    event?.preventDefault();
+    const url = 'https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit';
+    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openExternalPage === 'function') {
+      AndroidServiceBridge.openExternalPage(url);
+    } else {
+      window.location.href = url;
+    }
+    return false;
+  }
+
+  function openExternalShareUrl(url) {
+    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openExternalPage === 'function') {
+      AndroidServiceBridge.openExternalPage(url);
+    } else {
+      window.location.href = url;
+    }
+  }
+
   function shareFollowupViaWhatsApp() {
     const filter = document.getElementById('followupServantReportFilter');
     const selectedServant = filter ? filter.value : '';
@@ -4402,7 +4429,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     });
 
     message += '_لوحة المتابعة التفاعلية_';
-    window.open('https://wa.me/?text=' + encodeURIComponent(message), '_blank');
+    openExternalShareUrl('https://wa.me/?text=' + encodeURIComponent(message));
   }
 
   function exportFollowupToExcel() {
@@ -4442,12 +4469,15 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
 
   function shareViaWhatsApp() {
     const total = studentsData.length;
-    const present = studentsData.filter(s => s.attendanceStatus.includes('حاضر')).length;
+    const present = studentsData.filter(s => {
+      const status = String(s.attendanceStatus || '').trim();
+      return status.includes('حاضر') && !status.includes('غير حاضر') && !status.includes('غائب');
+    }).length;
     let text = `📊 *تقرير مخدومي فصل الشهيد مارجرجس*\n`;
     text += `📋 الشيت: ${currentSheetName} | إجمالي: ${total}\n`;
     text += `✅ الحضور الحالي: ${present} مخدوم\n`;
     text += `📅 التاريخ: ${new Date().toLocaleDateString('ar-EG')}\n`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    openExternalShareUrl(`https://wa.me/?text=${encodeURIComponent(text)}`);
   }
 
   function renderAppFilterDropdown(id, options, selectedValue) {
@@ -4571,7 +4601,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   function normalizeArabicInitial(value) {
     return String(value || '')
       .trim()
-      .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
+      .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
       .replace(/[أإآٱ]/g, 'ا')
       .replace(/ى/g, 'ي')
       .charAt(0);
