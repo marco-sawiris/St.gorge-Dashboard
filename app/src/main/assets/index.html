@@ -24,6 +24,7 @@
   
   <!-- مكتبات الرسوم والتصدير -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.2/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
@@ -259,6 +260,7 @@
       font-family: 'Almarai' !important;
       min-height: 100vh;
       overflow-x: hidden;
+      overflow-y: auto;
       padding-top: env(safe-area-inset-top);
       padding-bottom: env(safe-area-inset-bottom);
       transition: background-color 300ms ease, color 300ms ease;
@@ -2151,6 +2153,14 @@
         </div>
       </div>
     </div>
+    <div class="row g-3 mb-4">
+      <div class="col-lg-12">
+        <div class="app-card-panel">
+          <h4 class="fw-bold mb-3 fs-6"><i class="fa-solid fa-chart-line text-info me-2"></i>تطور نسب الحضور الأسبوعية</h4>
+          <div id="d3AttendanceChart" style="height: 250px; width: 100%;"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- المناطق الجغرافية -->
     <div class="app-card-panel" id="areasSection">
@@ -3905,6 +3915,47 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     document.getElementById('kpiAlertBar').style.width = `${dropRate}%`;
 
     renderCharts(phone, visit, pending);
+    renderD3AttendanceChart();
+  }
+
+  function renderD3AttendanceChart() {
+    const container = document.getElementById('d3AttendanceChart');
+    container.innerHTML = '';
+    const margin = {top: 20, right: 30, bottom: 40, left: 40};
+    const width = container.clientWidth - margin.left - margin.right;
+    const height = container.clientHeight - margin.top - margin.bottom;
+
+    const svg = d3.select('#d3AttendanceChart')
+      .append('svg')
+      .attr('width', width + margin.left + margin.right)
+      .attr('height', height + margin.top + margin.bottom)
+      .append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Dummy data for trends
+    const data = [
+      { week: 'الأسبوع 1', rate: 75 },
+      { week: 'الأسبوع 2', rate: 82 },
+      { week: 'الأسبوع 3', rate: 78 },
+      { week: 'الأسبوع 4', rate: 85 },
+      { week: 'الأسبوع 5', rate: 90 }
+    ];
+
+    const x = d3.scaleBand().range([0, width]).domain(data.map(d => d.week)).padding(0.1);
+    const y = d3.scaleLinear().range([height, 0]).domain([0, 100]);
+
+    svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x));
+    svg.append('g').call(d3.axisLeft(y));
+
+    svg.append('path')
+      .datum(data)
+      .attr('fill', 'none')
+      .attr('stroke', '#1a73e8')
+      .attr('stroke-width', 2)
+      .attr('d', d3.line()
+        .x(d => x(d.week) + x.bandwidth() / 2)
+        .y(d => y(d.rate))
+      );
   }
 
   function renderCharts(phone, visit, pending) {
