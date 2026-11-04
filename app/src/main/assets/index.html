@@ -1976,7 +1976,91 @@
       from { opacity: 0; transform: translateX(20px); }
       to { opacity: 1; transform: translateX(0); }
     }
-  </style>
+  
+    /* Alphabet navigator: fixed, separated touch targets, no overlapping flex items */
+    #alphaScrollShell {
+      position: fixed !important;
+      left: 5px !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      z-index: 9800 !important;
+      display: flex !important;
+      flex-direction: row !important;
+      direction: ltr !important;
+      align-items: center !important;
+      gap: 4px !important;
+      max-width: 54px !important;
+    }
+    #alphaScrollBar {
+      position: static !important;
+      transform: none !important;
+      display: flex;
+      flex-direction: column !important;
+      align-items: stretch !important;
+      justify-content: flex-start !important;
+      flex: 0 0 40px !important;
+      width: 40px !important;
+      max-height: 62vh !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+      gap: 3px !important;
+      padding: 6px 4px !important;
+      border: 1px solid var(--primary) !important;
+      border-radius: 10px !important;
+      background: var(--card-bg) !important;
+      box-shadow: 0 3px 14px rgba(0,0,0,.2) !important;
+      scrollbar-width: thin !important;
+      scrollbar-color: var(--primary) var(--input-bg) !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    #alphaScrollBar::-webkit-scrollbar { display: block !important; width: 4px !important; }
+    #alphaScrollBar::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 8px; }
+    #alphaScrollBar .alpha-letter {
+      appearance: none !important;
+      -webkit-appearance: none !important;
+      display: flex !important;
+      flex: 0 0 29px !important;
+      width: 30px !important;
+      min-width: 30px !important;
+      height: 29px !important;
+      min-height: 29px !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+      align-items: center !important;
+      justify-content: center !important;
+      border: 0 !important;
+      border-radius: 6px !important;
+      background: transparent !important;
+      color: var(--text-main) !important;
+      font: 800 15px/1 'Almarai', sans-serif !important;
+      text-align: center !important;
+      cursor: pointer !important;
+    }
+    #alphaScrollBar .alpha-letter:active,
+    #alphaScrollBar .alpha-letter.active {
+      background: var(--primary) !important;
+      color: #fff !important;
+    }
+    #alphaScrollToggle {
+      flex: 0 0 27px !important;
+      width: 27px !important;
+      min-width: 27px !important;
+      height: 44px !important;
+      padding: 0 !important;
+      border: 1px solid var(--primary) !important;
+      border-radius: 0 9px 9px 0 !important;
+      background: var(--card-bg) !important;
+      color: var(--primary) !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-shadow: 0 3px 12px rgba(0,0,0,.18) !important;
+    }
+    #alphaScrollShell.collapsed { max-width: 31px !important; }
+    #alphaScrollShell.collapsed #alphaScrollBar { display: none !important; }
+    #alphaScrollShell.collapsed #alphaScrollToggle i { transform: rotate(180deg); }
+
+</style>
 </head>
 <body>
 
@@ -2562,16 +2646,7 @@
   </div>
 </div>
 
-document.querySelectorAll(".card-flip-container").forEach(container => {
-  container.addEventListener("touchstart", () => {
-    container.querySelector(".student-card")?.classList.add("hover-active");
-  }, { passive: true });
-  container.addEventListener("touchend", () => {
-    setTimeout(() => {
-      container.querySelector(".student-card")?.classList.remove("hover-active");
-    }, 1200);
-  }, { passive: true });
-});
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -4287,15 +4362,23 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       const iType = idx('النوع');
       const iNotes = idx('ملاحظات');
 
-      window._followupLogData = rows.map(r => ({
-        date: String(r[iDate] || '').trim(),
-        friday: String(r[iFriday] || '').trim(),
-        code: String(r[iCode] || '').trim(),
-        name: String(r[iName] || '').trim(),
-        servant: String(r[iServant] || '').trim(),
-        type: String(r[iType] || '').trim(),
-        notes: String(r[iNotes] || '').trim()
-      })).filter(r => r.name || r.code);
+      const studentsByCode = new Map((studentsData || []).map(student => [String(student.code || '').trim(), student]));
+      const studentsByName = new Map((studentsData || []).map(student => [String(student.name || '').trim(), student]));
+      window._followupLogData = rows.map(r => {
+        const code = String(r[iCode] || '').trim();
+        const name = String(r[iName] || '').trim();
+        const linkedStudent = (code && studentsByCode.get(code)) || (name && studentsByName.get(name));
+        const recordedServant = String(r[iServant] || '').trim();
+        return {
+          date: String(r[iDate] || '').trim(),
+          friday: String(r[iFriday] || '').trim(),
+          code,
+          name,
+          servant: recordedServant || String(linkedStudent?.servant || '').trim(),
+          type: String(r[iType] || '').trim(),
+          notes: String(r[iNotes] || '').trim()
+        };
+      }).filter(r => r.name || r.code);
 
       renderFollowupLog();
     } catch (e) {
@@ -4327,43 +4410,67 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     `).join('');
   }
 
+  function saveExportBase64(fileName, mimeType, base64) {
+    if (!window.AndroidServiceBridge || typeof AndroidServiceBridge.saveBase64File !== 'function') {
+      showToast('تعذر حفظ الملف', 'حدّث التطبيق إلى أحدث نسخة ثم أعد المحاولة.', 'error');
+      return false;
+    }
+    const result = AndroidServiceBridge.saveBase64File(fileName, mimeType, base64);
+    if (result === 'OK') showToast('تم التصدير', 'تم حفظ الملف داخل مجلد Download/StGorgeDashboard.', 'success');
+    else showToast('فشل التصدير', String(result || 'تعذر حفظ الملف.'), 'error');
+    return result === 'OK';
+  }
+
   function exportTableToExcel() {
     if (!studentsData.length) return alert('لا توجد بيانات للتصدير!');
-    const data = studentsData.map(s => ({
-      'الاسم': s.name, 'الأشبين': s.servant,
-      'المنطقة': s.area, 'إجمالي الحضور': s.attendanceTotal, 'حضور الشهر': s.attendanceMonth,
-      'الافتقاد': s.followupStatus, 'الملاحظات': s.notes
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "المخدومين");
-    XLSX.writeFile(wb, `مخدومي_مارجرجس_${currentSheetName}.xlsx`);
+    if (!window.XLSX || !XLSX.utils) return showToast('مكتبة Excel غير متاحة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.', 'error');
+    try {
+      const data = studentsData.map(s => ({
+        'الاسم': s.name, 'الأشبين': s.servant,
+        'المنطقة': s.area, 'إجمالي الحضور': s.attendanceTotal, 'حضور الشهر': s.attendanceMonth,
+        'الافتقاد': s.followupStatus, 'الملاحظات': s.notes
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "المخدومين");
+      const base64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+      saveExportBase64('مخدومي_مارجرجس_' + currentSheetName + '.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64);
+    } catch (error) {
+      console.error('Excel export failed', error);
+      showToast('فشل تصدير Excel', error.message || 'حدث خطأ أثناء تجهيز الملف.', 'error');
+    }
   }
 
   function exportTableToPDF() {
     if (!filteredData.length) return alert('لا توجد بيانات!');
+    if (typeof html2pdf !== 'function') return showToast('مكتبة PDF غير متاحة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.', 'error');
     const el = document.createElement('div');
     el.dir = 'rtl';
     el.style.padding = '16px';
     el.style.fontFamily = "'Almarai', sans-serif";
     el.innerHTML = `
-      <div style="text-align: center; margin-bottom: 16px;">
-        <h3 style="color: #0b1e2c; margin: 0;">فصل الشهيد مارجرجس (${escapeHtml(currentSheetName)})</h3>
-        <p style="font-size: 11px; color: #64748b;">تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')}</p>
+      <div style="text-align:center;margin-bottom:16px;">
+        <h3 style="color:#0b1e2c;margin:0;">فصل الشهيد مارجرجس (${escapeHtml(currentSheetName)})</h3>
+        <p style="font-size:11px;color:#64748b;">تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')}</p>
       </div>
-      <table border="1" style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: center;">
-        <thead style="background: #12344d; color: white;">
-          <tr><th>الاسم</th><th>الأشبين</th><th>المنطقة</th><th>إجمالي الحضور</th><th>حضور الشهر</th></tr>
-        </thead>
-        <tbody>
-          ${filteredData.map(s => `<tr><td><strong>${s.name}</strong></td><td>${s.servant}</td><td>${s.area}</td><td>${s.attendanceTotal}</td><td>${s.attendanceMonth}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    `;
-    html2pdf().set({ margin: 8, filename: `تقرير_مارجرجس_${currentSheetName}.pdf` }).from(el).save();
+      <table border="1" style="width:100%;border-collapse:collapse;font-size:11px;text-align:center;">
+        <thead style="background:#12344d;color:white;"><tr><th>الاسم</th><th>الأشبين</th><th>المنطقة</th><th>إجمالي الحضور</th><th>حضور الشهر</th></tr></thead>
+        <tbody>${filteredData.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.servant)}</td><td>${escapeHtml(s.area)}</td><td>${escapeHtml(s.attendanceTotal)}</td><td>${escapeHtml(s.attendanceMonth)}</td></tr>`).join('')}</tbody>
+      </table>`;
+    html2pdf().set({ margin: 8, filename: 'تقرير_مارجرجس_' + currentSheetName + '.pdf',
+      html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } })
+      .from(el).outputPdf('datauristring').then(dataUri => {
+        const base64 = String(dataUri).split(',')[1] || '';
+        if (base64) saveExportBase64('تقرير_مارجرجس_' + currentSheetName + '.pdf', 'application/pdf', base64);
+        else showToast('فشل تصدير PDF', 'لم يتم إنشاء ملف PDF.', 'error');
+      }).catch(error => {
+        console.error('PDF export failed', error);
+        showToast('فشل تصدير PDF', error.message || 'حدث خطأ أثناء تجهيز الملف.', 'error');
+      });
   }
 
-  function getFollowupMethodLabel(type) {
+  function getFollowupMethodLabel(type)  function getFollowupMethodLabel(type) {
     const value = String(type || '').trim();
     if (/زيار|منزل/i.test(value)) return 'زيارة';
     if (/تليفون|اتصال|مكالمة|phone|call/i.test(value)) return 'اتصال';
@@ -4374,8 +4481,10 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     const filter = document.getElementById('followupServantReportFilter');
     if (!filter) return;
     const selected = filter.value;
-    const servants = [...new Set((window._followupLogData || []).map(r => r.servant).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'ar'));
+    const servants = [...new Set([
+      ...(studentsData || []).map(student => String(student.servant || '').trim()),
+      ...(window._followupLogData || []).map(record => String(record.servant || '').trim())
+    ].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
     filter.innerHTML = '<option value="">كل الأشابين</option>' + servants.map(name =>
       '<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + '</option>'
     ).join('');
@@ -4385,7 +4494,9 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   function openExternalSheet(event) {
     event?.preventDefault();
     const url = 'https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit';
-    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openExternalPage === 'function') {
+    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openGoogleSheet === 'function') {
+      AndroidServiceBridge.openGoogleSheet();
+    } else if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openExternalPage === 'function') {
       AndroidServiceBridge.openExternalPage(url);
     } else {
       window.location.href = url;
@@ -4450,41 +4561,56 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   }
 
   function exportFollowupToExcel() {
-    if (!window._followupLogData.length) return alert('لا توجد بيانات سجل للتصدير!');
-    const exportData = window._followupLogData.map(r => ({
-      'التاريخ': r.date, 'أسبوع الجمعة': r.friday, 'الاسم': r.name,
-      'الأشبين': r.servant, 'النوع': r.type, 'الملاحظات': r.notes || '-'
-    }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "سجل الافتقاد");
-    XLSX.writeFile(wb, `سجل_الافتقاد_${currentSheetName}.xlsx`);
+    const records = window._followupLogData || [];
+    if (!records.length) return alert('لا توجد بيانات سجل للتصدير!');
+    if (!window.XLSX || !XLSX.utils) return showToast('مكتبة Excel غير متاحة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.', 'error');
+    try {
+      const exportData = records.map(r => ({
+        'التاريخ': r.date, 'أسبوع الجمعة': r.friday, 'الاسم': r.name,
+        'الأشبين': r.servant, 'النوع': r.type, 'الملاحظات': r.notes || '-'
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "سجل الافتقاد");
+      const base64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+      saveExportBase64('سجل_الافتقاد_' + currentSheetName + '.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64);
+    } catch (error) {
+      console.error('Follow-up Excel export failed', error);
+      showToast('فشل تصدير Excel', error.message || 'حدث خطأ أثناء تجهيز الملف.', 'error');
+    }
   }
 
   function exportFollowupToPDF() {
-    if (!window._followupLogData.length) return alert('لا توجد بيانات سجل!');
+    const records = window._followupLogData || [];
+    if (!records.length) return alert('لا توجد بيانات سجل!');
+    if (typeof html2pdf !== 'function') return showToast('مكتبة PDF غير متاحة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.', 'error');
     const el = document.createElement('div');
     el.dir = 'rtl';
     el.style.padding = '16px';
     el.style.fontFamily = "'Almarai', sans-serif";
     el.innerHTML = `
-      <div style="text-align: center; margin-bottom: 16px;">
-        <h3 style="color: #0b1e2c; margin: 0;">سجل الافتقاد — فصل الشهيد مارجرجس</h3>
-        <p style="font-size: 11px; color: #64748b;">تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')}</p>
+      <div style="text-align:center;margin-bottom:16px;">
+        <h3 style="color:#0b1e2c;margin:0;">سجل الافتقاد — فصل الشهيد مارجرجس</h3>
+        <p style="font-size:11px;color:#64748b;">تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')}</p>
       </div>
-      <table border="1" style="width: 100%; border-collapse: collapse; font-size: 10px; text-align: center;">
-        <thead style="background: #12344d; color: white;">
-          <tr><th>التاريخ</th><th>أسبوع الجمعة</th><th>الاسم</th><th>الأشبين</th><th>النوع</th><th>الملاحظات</th></tr>
-        </thead>
-        <tbody>
-          ${window._followupLogData.map(r => `<tr><td>${r.date}</td><td>${r.friday}</td><td><strong>${r.name}</strong></td><td>${r.servant}</td><td>${r.type}</td><td>${r.notes || '-'}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    `;
-    html2pdf().set({ margin: 8, filename: `سجل_الافتقاد_${currentSheetName}.pdf` }).from(el).save();
+      <table border="1" style="width:100%;border-collapse:collapse;font-size:10px;text-align:center;">
+        <thead style="background:#12344d;color:white;"><tr><th>التاريخ</th><th>أسبوع الجمعة</th><th>الاسم</th><th>الأشبين</th><th>النوع</th><th>الملاحظات</th></tr></thead>
+        <tbody>${records.map(r => `<tr><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.friday)}</td><td><strong>${escapeHtml(r.name)}</strong></td><td>${escapeHtml(r.servant)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.notes || '-')}</td></tr>`).join('')}</tbody>
+      </table>`;
+    html2pdf().set({ margin: 8, filename: 'سجل_الافتقاد_' + currentSheetName + '.pdf',
+      html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } })
+      .from(el).outputPdf('datauristring').then(dataUri => {
+        const base64 = String(dataUri).split(',')[1] || '';
+        if (base64) saveExportBase64('سجل_الافتقاد_' + currentSheetName + '.pdf', 'application/pdf', base64);
+        else showToast('فشل تصدير PDF', 'لم يتم إنشاء ملف PDF.', 'error');
+      }).catch(error => {
+        console.error('Follow-up PDF export failed', error);
+        showToast('فشل تصدير PDF', error.message || 'حدث خطأ أثناء تجهيز الملف.', 'error');
+      });
   }
 
-  function shareViaWhatsApp() {
+  function shareViaWhatsApp()  function shareViaWhatsApp() {
     const total = studentsData.length;
     const present = studentsData.filter(s => {
       const status = String(s.attendanceStatus || '').trim();
@@ -4646,62 +4772,31 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   function populateAlphaScrollBar() {
     const bar = document.getElementById('alphaScrollBar');
     if (!bar) return;
-
     const source = Array.isArray(filteredData) ? filteredData : [];
     const byInitial = new Map();
-
     source.forEach(student => {
       const initial = normalizeArabicInitial(student && student.name);
       if (initial && !byInitial.has(initial)) byInitial.set(initial, student);
     });
 
-    bar.innerHTML = '';
-    const indicator = document.createElement('div');
-    indicator.className = 'alpha-letter-indicator';
-    indicator.setAttribute('aria-hidden', 'true');
-    bar.appendChild(indicator);
-
+    bar.replaceChildren();
     ARABIC_ALPHABET.forEach(letter => {
       const student = byInitial.get(letter);
-      const item = document.createElement('span');
+      if (!student) return;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'alpha-letter';
       item.textContent = letter;
-      item.tabIndex = student ? 0 : -1;
-      item.setAttribute('role', 'button');
-      item.setAttribute('aria-label', student
-        ? 'انتقل إلى الأسماء التي تبدأ بحرف ' + letter
-        : 'لا توجد أسماء تبدأ بحرف ' + letter);
-      if (!student) {
-        return;
-      }
-
-      const jumpToLetter = () => {
-        if (!student) return;
+      item.setAttribute('aria-label', 'انتقل إلى الأسماء التي تبدأ بحرف ' + letter);
+      item.addEventListener('click', () => {
         const card = document.getElementById('flipContainer-' + student.id);
         if (!card) return;
-
-        bar.querySelectorAll('span.active').forEach(el => el.classList.remove('active'));
+        bar.querySelectorAll('.alpha-letter.active').forEach(el => el.classList.remove('active'));
         item.classList.add('active');
         scrollToStudentCard(card);
-        indicator.textContent = letter;
-        indicator.style.opacity = '1';
-        window.clearTimeout(populateAlphaScrollBar.indicatorTimer);
-        populateAlphaScrollBar.indicatorTimer = window.setTimeout(() => {
-          indicator.style.opacity = '0';
-        }, 700);
-      };
-
-      if (student) {
-        item.addEventListener('click', jumpToLetter);
-        item.addEventListener('keydown', event => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            jumpToLetter();
-          }
-        });
-      }
+      });
       bar.appendChild(item);
     });
-
     bar.style.display = byInitial.size ? 'flex' : 'none';
   }
   document.addEventListener('DOMContentLoaded', () => {
