@@ -3195,9 +3195,17 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     container.innerHTML = dataToRender.map((s, idx) => {
       const isPresent = s.attendanceStatus.includes('حاضر');
       const hasFollowup = s.followupStatus && s.followupStatus !== 'بدون' && !s.followupStatus.includes('لم');
-      const rawPhone = s.phoneStudent ? { num: s.phoneStudent, label: 'المخدوم' }
-                     : (s.phoneParent1 ? { num: s.phoneParent1, label: 'ولي الأمر' } : null);
-      const cleanPhone = rawPhone ? rawPhone.num.replace(/\D/g, '') : '';
+      // الاتصال والواتساب للمخدوم أولاً، ثم ولي الأمر الأول كبديل فقط.
+      const rawPhone = (s.phoneStudent && String(s.phoneStudent).trim())
+        ? { num: s.phoneStudent, label: 'المخدوم' }
+        : ((s.phoneParent1 && String(s.phoneParent1).trim())
+          ? { num: s.phoneParent1, label: 'ولي الأمر الأول' } : null);
+      const cleanPhone = rawPhone ? String(rawPhone.num).replace(/\D/g, '') : '';
+      const whatsappPhone = cleanPhone
+        ? (cleanPhone.startsWith('00') ? cleanPhone.slice(2)
+          : cleanPhone.startsWith('20') ? cleanPhone
+          : '20' + cleanPhone.replace(/^0+/, ''))
+        : '';
 
       return `
         <div class="card-flip-container" style="--i:${idx}" id="flipContainer-${s.id}">
@@ -3294,7 +3302,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
               <div class="contact-actions">
                 ${cleanPhone 
                   ? `<a href="tel:${cleanPhone}" class="btn-card-action btn-call" onclick="recordQuickCallFollowup(${s.id})"><i class="fa-solid fa-phone"></i><span>اتصال</span></a>
-                     <a href="https://wa.me/2${cleanPhone}" target="_blank" class="btn-card-action btn-whatsapp" onclick="recordQuickWhatsAppFollowup(${s.id})"><i class="fa-brands fa-whatsapp"></i><span>واتساب</span></a>`
+                     <a href="https://wa.me/${whatsappPhone}" class="btn-card-action btn-whatsapp" onclick="recordQuickWhatsAppFollowup(${s.id})"><i class="fa-brands fa-whatsapp"></i><span>واتساب</span></a>`
                   : `<span class="btn-card-action bg-light text-muted" style="grid-column: span 2;">لا يوجد هاتف</span>`}
                 <button class="btn-flip-edit" onclick="flipCardToEdit(${s.id})" title="تعديل بيانات المخدوم"><i class="fa-solid fa-pen-to-square"></i></button>
               </div>
