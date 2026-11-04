@@ -1,8 +1,6 @@
 package com.example
 
 import android.annotation.SuppressLint
-import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.webkit.JavascriptInterface
@@ -33,108 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.lifecycleScope
-import org.json.JSONObject
 import com.example.ui.theme.MyApplicationTheme
-import com.google.firebase.Firebase
-import com.google.firebase.FirebaseApp
-import com.google.firebase.ai.ai
-import com.google.firebase.appcheck.FirebaseAppCheck
-import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
-import com.google.firebase.appcheck.recaptcha.RecaptchaAppCheckProviderFactory
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
-
-private const val TAG_APPCHECK = "AppCheckInit"
-private const val DEBUG_TOKEN_EXTRA = "FIREBASE_APPCHECK_DEBUG_TOKEN"
-private const val DEBUG_STORE_PREFIX = "com.google.firebase.appcheck.debug.store."
-private const val DEBUG_SECRET_KEY = "com.google.firebase.appcheck.debug.DEBUG_SECRET"
-private const val RECAPTCHA_SITE_KEY_RES = "recaptcha_site_key"
-
-fun configureAppCheck(context: Context, intent: Intent?) {
-  try {
-    if (FirebaseApp.getApps(context).isEmpty()) {
-      FirebaseApp.initializeApp(context)
-    }
-
-    if (BuildConfig.DEBUG) {
-      val debugToken = intent?.getStringExtra(DEBUG_TOKEN_EXTRA)
-      if (!debugToken.isNullOrEmpty()) {
-        val persistenceKey = FirebaseApp.getInstance().persistenceKey
-        val prefs = context.getSharedPreferences(
-          "$DEBUG_STORE_PREFIX$persistenceKey",
-          Context.MODE_PRIVATE
-        )
-        prefs.edit().putString(DEBUG_SECRET_KEY, debugToken).commit()
-        Log.d(TAG_APPCHECK, "App Check debug secret configured successfully.")
-      } else {
-        Log.w(TAG_APPCHECK, "No debug token found in Intent extra.")
-      }
-
-      FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
-        DebugAppCheckProviderFactory.getInstance()
-      )
-      Log.d(TAG_APPCHECK, "DebugAppCheckProviderFactory installed.")
-    } else {
-      val resId = context.resources.getIdentifier(RECAPTCHA_SITE_KEY_RES, "string", context.packageName)
-      if (resId != 0) {
-        val siteKey = context.getString(resId)
-        if (siteKey.isNotBlank()) {
-          FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
-            RecaptchaAppCheckProviderFactory.getInstance(siteKey)
-          )
-          Log.d(TAG_APPCHECK, "RecaptchaAppCheckProviderFactory installed.")
-        }
-      }
-    }
-  } catch (e: Exception) {
-    Log.e(TAG_APPCHECK, "Failed to initialize Firebase App Check", e)
-  }
-}
 
 class MainActivity : ComponentActivity() {
 
-  private val geminiModel by lazy {
-    Firebase.ai.generativeModel("gemini-3.8-flash")
-  }
-
-  private fun generateFallbackAiResponse(prompt: String): String {
-    return when {
-      prompt.contains("تحليل") || prompt.contains("analyzeAttendance") -> {
-        "📊 **تحليل الذكاء الاصطناعي لرعاية مخدومي فصل مارجرجس:**\n\n" +
-        "1. **مؤشرات الحضور والغياب:** التركيز الفوري على مخدومي نسبة الحضور الأقل من 50% عبر زيارات منزلية مشتركة بين الأشبين ومسؤول المرحلة.\n" +
-        "2. **جدولة الافتقاد الأسبوعي:** إجراء الاتصالات الهاتفية بأولياء الأمور في منتصف الأسبوع (الثلاثاء والأربعاء) لتنسيق حضور الجمعة مبكراً.\n" +
-        "3. **المبادرات الروحية:** تدشين مسابقة تشجيعية منتظمة خلال شهر الخدمة وتكريم الملتزمين بهدايا محفزة لتعزيز روح المشاركة."
-      }
-      prompt.contains("رسالة") || prompt.contains("encourageMessage") -> {
-        "💌 **اقتراحات رسائل افتقاد وتشجيع للمخدومين:**\n\n" +
-        "• **النموذج الأول (ودود ومبهج):**\n" +
-        "\"سلام ونعمة يا حبيبي.. وحشتنا جداً الجمعة اللي فاتت في فصل الشهيد مارجرجس! مكانك كان فاضي وسطينا، ومستنيينك بفرح الجمعة دي ومعانا فقرة ومسابقة مميزة جداً.. بركة مارجرجس تكون معاك دايماً 🙏✨\"\n\n" +
-        "• **النموذج الثاني (روحي قصير):**\n" +
-        "\"حبيبي الغالي، كنيستك وفصلك مشتاقين لحضورك الجميل.. بنصلي لك دايماً وبنستناك الجمعة في القداس ومدارس الأحد لتنورنا 🤍\""
-      }
-      prompt.contains("خدام") || prompt.contains("servantsSummary") -> {
-        "👥 **ملخص وتوجيهات متابعة الخدام والمناطق:**\n\n" +
-        "1. **التوازن في المتابعة:** متابعة الخدام أسبوعياً وتحديث سجلات الافتقاد والتأكد من عدم ترك أي مخدوم بدون تواصل لأكثر من جمعتين متتاليتين.\n" +
-        "2. **المناطق البعيدة:** تنظيم زيارات ميدانية ثنائية للمناطق السكنية الأكثر كثافة لتخفيف العبء عن الخادم الفردي.\n" +
-        "3. **اجتماع الصلاة الأسبوعي:** تخصيص وقت في اجتماع الخدمة للصلاة المشتركة من أجل كل مخدوم متغيب ومواجهة التحديات الأسرية."
-      }
-      else -> {
-        "✨ **رد المساعد الذكي للخدمة:**\n\n" +
-        "بخصوص استفسارك الكريم:\n" +
-        "• **الرؤية الرعوية والتربوية:** مرحلة إعدادي تتطلب بناء علاقة صداقة وثقة شخصية مع المخدوم قبل التوجيه الروحي المباشر.\n" +
-        "• **الخطوة العملية:** ينصح بالدمج بين الأنشطة الكنسية التفاعلية، الصلاة الدائمة من أجله، والتواصل المستمر مع الأسرة لربطه بكنيسة العذراء بالزيتون."
-      }
-    }
-  }
-
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    // 1. Mandatory App Check configuration before UI or ViewModels
-    configureAppCheck(this, intent)
-
     enableEdgeToEdge()
 
     // Request notification permission on Android 13+
@@ -149,45 +51,13 @@ class MainActivity : ComponentActivity() {
 
     setContent {
       MyApplicationTheme {
-        DashboardWebView(
-          onAskGemini = { prompt, callbackId, webView ->
-            lifecycleScope.launch(Dispatchers.IO) {
-              val result = try {
-                val response = withTimeout(20_000L) {
-                  geminiModel.generateContent(prompt)
-                }
-                val text = response.text?.takeIf { it.isNotBlank() }
-                  ?: throw IllegalStateException("Gemini returned an empty response.")
-                true to text
-              } catch (e: Exception) {
-                Log.e("GeminiAPI", "Gemini API call failed: ${e.message}", e)
-                false to "تعذر الاتصال بمساعد Gemini الحقيقي. تحقق من اتصال الإنترنت وإعدادات Firebase وApp Check، ثم حاول مرة أخرى.\n\nالتفاصيل: ${e.message ?: "خطأ غير معروف"}"
-              }
-
-              withContext(Dispatchers.Main) {
-                val quotedText = JSONObject.quote(result.second)
-                webView.evaluateJavascript(
-                  "window.onGeminiResponse && window.onGeminiResponse('$callbackId', ${result.first}, $quotedText);",
-                  null
-                )
-              }
-            }
-          }
-        )
+        DashboardWebView()
       }
     }
   }
 }
 
-class GeminiWebBridge(
-  private val webView: WebView,
-  private val onAskGemini: (prompt: String, callbackId: String, webView: WebView) -> Unit
-) {
-  @JavascriptInterface
-  fun askGemini(prompt: String, callbackId: String) {
-    onAskGemini(prompt, callbackId, webView)
-  }
-
+class ServiceWebBridge(private val webView: WebView) {
   @JavascriptInterface
   fun isAvailable(): Boolean = true
 
@@ -227,9 +97,7 @@ class GeminiWebBridge(
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun DashboardWebView(
-  onAskGemini: (prompt: String, callbackId: String, webView: WebView) -> Unit
-) {
+fun DashboardWebView() {
   var webViewInstance by remember { mutableStateOf<WebView?>(null) }
 
   BackHandler(enabled = true) {
@@ -312,8 +180,8 @@ fun DashboardWebView(
             result?.type != WebView.HitTestResult.EDIT_TEXT_TYPE
           }
 
-          // Add Gemini & Service Web Bridge
-          addJavascriptInterface(GeminiWebBridge(this, onAskGemini), "AndroidGemini")
+          // Add native service bridge
+          addJavascriptInterface(ServiceWebBridge(this), "AndroidServiceBridge")
 
           loadUrl("file:///android_asset/index.html")
           webViewInstance = this
