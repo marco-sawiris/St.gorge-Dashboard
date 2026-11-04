@@ -12,6 +12,8 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.os.Build
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -134,6 +136,47 @@ fun DashboardWebView() {
             cacheMode = WebSettings.LOAD_DEFAULT
           }
           webViewClient = object : WebViewClient() {
+            private fun openExternalUrl(url: String): Boolean {
+              val uri = Uri.parse(url)
+              val scheme = uri.scheme?.lowercase()
+              if (scheme == "tel") {
+                val dialIntent = Intent(Intent.ACTION_DIAL, uri)
+                if (dialIntent.resolveActivity(context.packageManager) != null) {
+                  context.startActivity(dialIntent)
+                } else {
+                  Log.e("DashboardWebView", "No dialer available for $url")
+                }
+                return true
+              }
+
+              val host = uri.host?.lowercase().orEmpty()
+              val isWhatsAppLink = scheme == "https" &&
+                (host == "wa.me" || host == "whatsapp.com" || host.endsWith(".whatsapp.com"))
+              if (isWhatsAppLink) {
+                val viewIntent = Intent(Intent.ACTION_VIEW, uri)
+                if (viewIntent.resolveActivity(context.packageManager) != null) {
+                  context.startActivity(viewIntent)
+                } else {
+                  Log.e("DashboardWebView", "No app or browser can open $url")
+                }
+                return true
+              }
+              return false
+            }
+
+            override fun shouldOverrideUrlLoading(
+              view: WebView?,
+              request: WebResourceRequest?
+            ): Boolean {
+              val url = request?.url?.toString() ?: return false
+              return openExternalUrl(url)
+            }
+
+            @Suppress("DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+              return url?.let { openExternalUrl(it) } ?: false
+            }
+
             override fun onReceivedError(
               view: WebView?,
               request: WebResourceRequest?,
