@@ -3739,6 +3739,10 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     const beforeTotal = s.attendanceTotal;
     const beforeMonth = s.attendanceMonth;
     const beforeFridayVal = s.att ? s.att[date] : undefined;
+    // Count only a real status change; repeated taps must not inflate totals.
+    const previousFridayPresent = !!beforeFridayVal;
+    const attendanceDelta = (isPresent ? 1 : 0) - (previousFridayPresent ? 1 : 0);
+    const isCurrentMonth = date.slice(0, 7) === fmtLocalDate(new Date()).slice(0, 7);
 
     // تعطيل الأزرار بصرياً لمنع النقرات المتكررة
     const cardEl = document.getElementById(`card-${studentId}`);
@@ -3753,8 +3757,8 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     s.attendanceStatus = isPresent ? 'حاضر' : 'غائب';
     if (!s.att) s.att = {};
     s.att[date] = isPresent;
-    s.attendanceTotal = Math.max(0, beforeTotal + (isPresent ? 1 : -1));
-    s.attendanceMonth = Math.max(0, beforeMonth + (isPresent ? 1 : -1));
+    s.attendanceTotal = Math.max(0, beforeTotal + attendanceDelta);
+    s.attendanceMonth = Math.max(0, beforeMonth + (isCurrentMonth ? attendanceDelta : 0));
     applyFilters();
     renderStats();
 
