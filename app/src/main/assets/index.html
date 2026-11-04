@@ -2731,29 +2731,31 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
 
   function askGeminiAI(prompt, onResult) {
     const callbackId = 'cb_' + (++geminiCallbackCounter);
-    geminiCallbacks[callbackId] = onResult;
-
     let responded = false;
-    const safeOnResult = (success, text) => {
+
+    const finish = (success, message) => {
       if (responded) return;
       responded = true;
-      onResult(success, text);
+      delete geminiCallbacks[callbackId];
+      onResult(success, message);
     };
 
-    if (window.AndroidGemini && typeof window.AndroidGemini.askGemini === 'function') {
+    geminiCallbacks[callbackId] = finish;
+
+    if (!window.AndroidGemini || typeof window.AndroidGemini.askGemini !== 'function') {
+      finish(false, 'المساعد الذكي غير متصل في هذه النسخة. افتح التطبيق بعد إعداد اتصال Gemini بشكل صحيح.');
+      return;
+    }
+
+    try {
       window.AndroidGemini.askGemini(prompt, callbackId);
-      // حماية ضد تأخر استجابة الجسر: الانتقال التلقائي للتحليل الذكي إذا تأخر الرد
       setTimeout(() => {
-        if (!responded && geminiCallbacks[callbackId]) {
-          delete geminiCallbacks[callbackId];
-          safeOnResult(true, generateWebSmartInsights(prompt));
+        if (!responded) {
+          finish(false, 'انتهت مهلة الاتصال بـ Gemini. تحقق من الإنترنت وإعدادات Firebase ثم حاول مرة أخرى.');
         }
-      }, 7000);
-    } else {
-      setTimeout(() => {
-        let response = generateWebSmartInsights(prompt);
-        safeOnResult(true, response);
-      }, 600);
+      }, 20000);
+    } catch (error) {
+      finish(false, 'تعذر بدء الاتصال بـ Gemini: ' + (error && error.message ? error.message : 'خطأ غير معروف'));
     }
   }
 
