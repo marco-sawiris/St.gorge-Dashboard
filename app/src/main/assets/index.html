@@ -3549,7 +3549,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openDialer === 'function') {
       AndroidServiceBridge.openDialer(String(phone || ''));
     } else if (phone) {
-      window.location.href = 'tel:' + String(phone).replace(/\\D/g, '');
+      window.location.href = 'tel:' + String(phone).replace(/\D/g, '');
     }
     return false;
   }
@@ -3563,7 +3563,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openWhatsApp === 'function') {
       AndroidServiceBridge.openWhatsApp(String(phone || ''));
     } else if (phone) {
-      window.location.href = 'https://wa.me/' + String(phone).replace(/\\D/g, '');
+      window.location.href = 'https://wa.me/' + String(phone).replace(/\D/g, '');
     }
     return false;
   }
