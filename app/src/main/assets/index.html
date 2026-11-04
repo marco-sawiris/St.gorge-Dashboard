@@ -3235,8 +3235,6 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     const arabicCollator = new Intl.Collator("ar", { sensitivity: "base" });
     const dataToRender = [...filteredData].sort((a, b) => arabicCollator.compare(a.name || "", b.name || ""));
     container.innerHTML = dataToRender.map((s, idx) => {
-
-    container.innerHTML = filteredData.map((s, idx) => {
       const isPresent = s.attendanceStatus.includes('حاضر');
       const hasFollowup = s.followupStatus && s.followupStatus !== 'بدون' && !s.followupStatus.includes('لم');
       const rawPhone = s.phoneStudent ? { num: s.phoneStudent, label: 'المخدوم' }
@@ -3244,7 +3242,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       const cleanPhone = rawPhone ? rawPhone.num.replace(/\D/g, '') : '';
 
       return `
-        <div class="card-flip-container ${animClass}" style="--i:${idx}" id="flipContainer-${s.id}">
+        <div class="card-flip-container" style="--i:${idx}" id="flipContainer-${s.id}">
           <div class="card-flip-inner" id="flipInner-${s.id}">
             
             <!-- الوجه الأمامي للكارت -->
