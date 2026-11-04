@@ -36,8 +36,14 @@ class ReminderReceiver : BroadcastReceiver() {
     if (action == ACTION_BIRTHDAY) {
       val name = intent.getStringExtra(EXTRA_STUDENT_NAME) ?: "مخدوم"
       val title = "🎂 عيد ميلاد اليوم: $name"
-      val body = "كل سنة والمخدوم $name طيب وبخير وسنة حلوة مع يسوع ومارجرجس 🎉"
-      NotificationScheduler.showLocalNotification(context, title, body, (300 + name.hashCode() % 1000).let { if (it < 0) -it else it }, CHANNEL_ID_BIRTHDAYS)
+      val body = "كل سنة والمخدوم $name طيب وبخير وسنة حلوة مع يسوع ومارجرجس 🎉\n\nاضغط هنا لنسخ رسالة التهنئة للواتساب"
+      
+      // اقتراح رسالة تهنئة
+      val greeting = "كل سنة وأنت طيب يا $name، يا بطل! سنة حلوة مع يسوع ومارجرجس، ومستنيين نشوفك الجمعة في الفصل وتنورنا! 🎂🎉✨"
+      
+      NotificationScheduler.showLocalNotificationWithAction(
+        context, title, body, greeting, (300 + name.hashCode() % 1000).let { if (it < 0) -it else it }, CHANNEL_ID_BIRTHDAYS
+      )
       return
     }
 
@@ -46,6 +52,24 @@ class ReminderReceiver : BroadcastReceiver() {
     val notifId = intent?.getIntExtra(EXTRA_NOTIFICATION_ID, 100) ?: 100
 
     NotificationScheduler.showLocalNotification(context, title, body, notifId, CHANNEL_ID_REMINDERS)
+  }
+}
+
+class NotificationActionReceiver : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent?) {
+    if (intent?.action == "com.example.ACTION_COPY_GREETING") {
+      val greeting = intent.getStringExtra("greeting") ?: ""
+      val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+      val clip = android.content.ClipData.newPlainText("Birthday Greeting", greeting)
+      clipboard.setPrimaryClip(clip)
+      
+      // Notify user
+      android.widget.Toast.makeText(context, "تم نسخ التهنئة للواتساب!", android.widget.Toast.LENGTH_SHORT).show()
+      
+      // Cancel notification
+      val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      notificationManager.cancel(intent.getIntExtra(EXTRA_NOTIFICATION_ID, 100))
+    }
   }
 }
 
@@ -113,6 +137,42 @@ object NotificationScheduler {
       .setStyle(NotificationCompat.BigTextStyle().bigText(body))
       .setPriority(NotificationCompat.PRIORITY_HIGH)
       .setContentIntent(pendingIntent)
+      .setAutoCancel(true)
+      .build()
+
+    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    notificationManager.notify(notificationId, notification)
+  }
+
+  fun showLocalNotificationWithAction(
+    context: Context,
+    title: String,
+    body: String,
+    greeting: String,
+    notificationId: Int,
+    channelId: String = CHANNEL_ID_REMINDERS
+  ) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+    }
+    createNotificationChannels(context)
+
+    // Action to copy greeting to clipboard
+    val copyIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+      action = "com.example.ACTION_COPY_GREETING"
+      putExtra("greeting", greeting)
+    }
+    val copyPendingIntent = PendingIntent.getBroadcast(
+      context, notificationId, copyIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    val notification = NotificationCompat.Builder(context, channelId)
+      .setSmallIcon(R.drawable.app_icon_fg)
+      .setContentTitle(title)
+      .setContentText(body)
+      .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+      .setPriority(NotificationCompat.PRIORITY_HIGH)
+      .addAction(0, "نسخ التهنئة للواتساب", copyPendingIntent)
       .setAutoCancel(true)
       .build()
 
