@@ -4317,7 +4317,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   function normalizeArabicInitial(value) {
     return String(value || '')
       .trim()
-      .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
+      .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
       .replace(/[أإآٱ]/g, 'ا')
       .charAt(0);
   }
