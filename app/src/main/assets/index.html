@@ -829,7 +829,7 @@
       align-items: center;
       gap: 8px;
     }
-    .btn-gemini-quick {
+    .btn-help-quick {
       background: linear-gradient(135deg, #7c3aed, #4f46e5);
       color: #fff;
       border: none;
@@ -1801,44 +1801,17 @@
       font-weight: 700;
     }
 
-    /* مودال ومساعد Gemini الذكي */
-    .gemini-header-box {
-      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-      color: #fff;
-      padding: 18px 20px;
-      border-radius: 16px 16px 0 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .gemini-quick-prompts {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 14px;
-    }
-    .btn-quick-prompt {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      color: var(--text-main);
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 11.5px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .gemini-response-box {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
-      min-height: 120px;
-      max-height: 300px;
-      overflow-y: auto;
-      font-size: 13px;
-      line-height: 1.6;
-      white-space: pre-wrap;
-    }
+    /* مساعد الاستخدام داخل التطبيق */
+    .help-header-box { background: linear-gradient(135deg, #12344d 0%, #24649a 100%); color:#fff; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; }
+    .help-chat-window { display:flex; flex-direction:column; gap:10px; height:min(48vh,430px); min-height:260px; overflow-y:auto; padding:12px; background:var(--input-bg); border:1px solid var(--border); border-radius:14px; }
+    .help-message { max-width:90%; padding:10px 13px; border-radius:14px; font-size:13px; line-height:1.75; white-space:pre-line; overflow-wrap:anywhere; }
+    .help-message.bot { align-self:flex-start; background:var(--card-bg); color:var(--text-main); border:1px solid var(--border); border-bottom-right-radius:4px; }
+    .help-message.user { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-left-radius:4px; }
+    .help-quick-prompts { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:10px; }
+    .btn-help-prompt { background:var(--input-bg); border:1px solid var(--border); color:var(--text-main); padding:7px 11px; border-radius:20px; font-size:11.5px; font-weight:700; cursor:pointer; }
+    .btn-help-prompt:hover { border-color:var(--primary); color:var(--primary); }
+    .help-input-row { display:flex; gap:8px; margin-top:10px; }
+    .help-input-row input { min-width:0; flex:1; }
 
     .loading-banner {
       background: var(--card-bg);
@@ -1970,10 +1943,10 @@
       <i class="fa-solid fa-map-location-dot"></i>
       <span>المناطق السكنية</span>
     </button>
-    <!-- ميزة Gemini API الذكية -->
-    <button class="sidebar-nav-item" style="--i:5" onclick="openGeminiModal()">
-      <i class="fa-solid fa-wand-magic-sparkles"></i>
-      <span>مساعد Gemini الذكي</span>
+    <!-- مساعد إرشادي لوظائف التطبيق -->
+    <button class="sidebar-nav-item" style="--i:5" onclick="openHelpModal()">
+      <i class="fa-solid fa-circle-question"></i>
+      <span>مساعد الاستخدام</span>
     </button>
     <a href="https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit" 
        target="_blank" class="sidebar-nav-item" style="--i:6">
@@ -2047,9 +2020,9 @@
         <i class="fa-solid fa-bell"></i>
         <span class="notif-badge-dot d-none" id="notifBadgeDot">0</span>
       </button>
-      <button class="btn-gemini-quick" onclick="openGeminiModal()" title="مساعد الذكاء الاصطناعي Gemini">
-        <i class="fa-solid fa-wand-magic-sparkles"></i>
-        <span>Gemini</span>
+      <button class="btn-help-quick" onclick="openHelpModal()" title="مساعد استخدام التطبيق">
+        <i class="fa-solid fa-circle-question"></i>
+        <span>مساعدة</span>
       </button>
       <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
         <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
@@ -2308,45 +2281,34 @@
   </div>
 </div>
 
-<!-- مودال مساعد الذكاء الاصطناعي Gemini API -->
-<div class="modal fade" id="geminiModal" tabindex="-1" aria-hidden="true">
+<!-- مساعد الاستخدام المحلي -->
+<!-- مساعد الاستخدام: دليل إرشادي يعمل دون إنترنت -->
+<div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden" style="background: var(--card-bg); color: var(--text-main);">
-      <div class="gemini-header-box">
+    <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden" style="background:var(--card-bg);color:var(--text-main);">
+      <div class="help-header-box">
         <div class="d-flex align-items-center gap-2">
-          <i class="fa-solid fa-wand-magic-sparkles fs-5"></i>
-          <div>
-            <h5 class="m-0 fw-bold fs-6">مساعد Gemini الذكي للخدمة</h5>
-            <small style="opacity: 0.85;">تحليل الحضور والغياب وصياغة رسائل الافتقاد الروحية</small>
-          </div>
+          <i class="fa-solid fa-circle-question fs-5"></i>
+          <div><h5 class="m-0 fw-bold fs-6">مساعد استخدام التطبيق</h5><small style="opacity:.88;">اسألني إزاي تستخدم أي وظيفة في St.Gorge Dashboard</small></div>
         </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق"></button>
       </div>
       <div class="modal-body p-3">
-        <div class="gemini-quick-prompts">
-          <button class="btn-quick-prompt" onclick="runGeminiQuickPrompt('analyzeAttendance')">
-            <i class="fa-solid fa-chart-line text-primary me-1"></i> تحليل الغياب والافتقاد العاجل
-          </button>
-          <button class="btn-quick-prompt" onclick="runGeminiQuickPrompt('encourageMessage')">
-            <i class="fa-solid fa-message text-success me-1"></i> اقتراح رسالة افتقاد وتشجيع
-          </button>
-          <button class="btn-quick-prompt" onclick="runGeminiQuickPrompt('servantsSummary')">
-            <i class="fa-solid fa-users-gear text-warning me-1"></i> ملخص أداء ومتابعة الخدام
-          </button>
+        <div class="help-quick-prompts">
+          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أضيف مخدوم جديد؟')">إضافة مخدوم</button>
+          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أعدل بيانات مخدوم؟')">تعديل البيانات</button>
+          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أبحث عن مخدوم؟')">البحث</button>
+          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أسجل الافتقاد؟')">الافتقاد</button>
+          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أستخدم فلتر المناطق؟')">المناطق</button>
         </div>
-
-        <div class="mb-3">
-          <label class="form-label small fw-bold text-muted">أو اسأل Gemini استفساراً مخصصاً عن المخدومين:</label>
-          <div class="input-group">
-            <input type="text" id="geminiCustomInput" class="app-input" placeholder="اكتب سؤالك أو موضوع الرسالة المطلوبة...">
-            <button class="btn btn-primary px-3 fw-bold" id="btnSendGemini" onclick="sendCustomGeminiQuery()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none;">
-              <i class="fa-solid fa-paper-plane me-1"></i> إرسال
-            </button>
-          </div>
+        <div id="helpChatWindow" class="help-chat-window" role="log" aria-live="polite">
+          <div class="help-message bot">أهلاً بيك 👋
+أنا مساعدك في استخدام St.Gorge Dashboard.
+اسألني عن أي وظيفة، وهشرحلك خطواتها. إجاباتي مبنية على دليل التطبيق، ولو معلومة مش مؤكدة هقولك بصراحة.</div>
         </div>
-
-        <div class="gemini-response-box" id="geminiResponseBox">
-          <span class="text-muted">اختر أحد التحليلات السريعة أعلاه أو اكتب سؤالك لتلقي الرد الذكي من Gemini...</span>
+        <div class="help-input-row">
+          <input type="text" id="helpChatInput" class="app-input" placeholder="اكتب سؤالك هنا..." autocomplete="off" aria-label="اكتب سؤالك">
+          <button type="button" class="btn btn-primary px-3 fw-bold" onclick="sendHelpQuestion()" aria-label="إرسال السؤال"><i class="fa-solid fa-paper-plane"></i></button>
         </div>
       </div>
     </div>
@@ -2365,7 +2327,7 @@
         
         <img src="app_icon.png" alt="St. George" class="about-hero-ext-icon">
         <h2>لوحة الخدمة <span>والإحصائيات الذكية</span></h2>
-        <p>متابعة نسب الحضور والغياب، إحصائيات الافتقاد اللحظية، ومساعد Gemini الذكي لرعاية مخدومي إعدادي بكنيسة السيدة العذراء مريم بالزيتون.</p>
+        <p>متابعة نسب الحضور والغياب، إحصائيات الافتقاد اللحظية، ومساعد إرشادي يشرح وظائف التطبيق وخطوات استخدامها بكنيسة السيدة العذراء مريم بالزيتون.</p>
       </div>
     </div>
   </div>
@@ -2684,177 +2646,73 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   }
 
   /* ============================================================
-     تكامل Gemini API الذكي
+     مساعد الاستخدام المحلي — دليل وظائف التطبيق
      ============================================================ */
-  let geminiCallbacks = {};
-  let geminiCallbackCounter = 0;
-
-  function openGeminiModal() {
+  function openHelpModal() {
     closeSidebar();
-    const modal = new bootstrap.Modal(document.getElementById('geminiModal'));
-    modal.show();
+    new bootstrap.Modal(document.getElementById('helpModal')).show();
+    setTimeout(() => document.getElementById('helpChatInput')?.focus(), 250);
   }
 
-  window.onGeminiResponse = function(callbackId, success, resultText) {
-    if (geminiCallbacks[callbackId]) {
-      geminiCallbacks[callbackId](success, resultText);
-      delete geminiCallbacks[callbackId];
-    }
-  };
-
-  function askGeminiAI(prompt, onResult) {
-    const callbackId = 'cb_' + (++geminiCallbackCounter);
-    geminiCallbacks[callbackId] = onResult;
-
-    if (window.AndroidGemini && typeof window.AndroidGemini.askGemini === 'function') {
-      window.AndroidGemini.askGemini(prompt, callbackId);
-    } else {
-      // محاكاة فورية ذكية عند التجربة في متصفحات الويب العادية
-      setTimeout(() => {
-        let response = generateWebSmartInsights(prompt);
-        onResult(true, response);
-      }, 1000);
-    }
+  function normalizeHelpQuestion(value) {
+    return String(value || '').toLowerCase()
+      .replace(/[\u064B-\u065F\u0670]/g, '')
+      .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+      .replace(/[؟?!.,،؛:]/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
-  function formatGeminiResponse(raw) {
-    if (!raw) return '';
-    let html = escapeHtml(raw);
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    html = html.replace(/^[•\-\*]\s*(.*?)$/gm, '<li class="mb-1 ms-3">$1</li>');
-    html = html.replace(/((?:<li.*?>.*?<\/li>\s*)+)/g, '<ul class="p-0 my-2" style="list-style-type: disc;">$1</ul>');
-    html = html.replace(/\n\n/g, '<div class="my-2"></div>');
-    html = html.replace(/\n/g, '<br>');
-    return html;
+  const APP_HELP_KNOWLEDGE = [
+    { keys:['اضافه مخدوم','اضيف مخدوم','مخدوم جديد','تسجيل مخدوم','شخص جديد'], answer:'لإضافة مخدوم جديد:\n1. افتح قائمة التطبيق الجانبية.\n2. اختار «إضافة مخدوم جديد».\n3. اكتب البيانات المطلوبة، والاسم بالكامل من البيانات الأساسية.\n4. راجع البيانات ثم احفظ.\nلو زر الإضافة مش ظاهر، ابعتلي اسم الشاشة اللي واقف فيها.' },
+    { keys:['تعديل بيانات','اعدل بيانات','تعديل مخدوم','تغيير بيانات','تصحيح بيانات'], answer:'لتعديل بيانات مخدوم:\n1. افتح عرض الكروت.\n2. دور على كارت المخدوم.\n3. اضغط أيقونة التعديل الموجودة على الكارت.\n4. عدّل الحقول المطلوبة واضغط حفظ.\nلو التعديل مش بيفتح أو الحفظ مش بيتم، دي مشكلة محتاجة فحص مش مجرد خطوة استخدام.' },
+    { keys:['بحث','ادور','ابحث','مش لاقي','البحث عن مخدوم','اسم مخدوم'], answer:'للبحث عن مخدوم:\n1. استخدم مربع البحث أعلى قائمة المخدومين.\n2. اكتب الاسم أو جزءًا منه.\n3. امسح نص البحث لو عايز ترجع كل النتائج.\nلو النتيجة مش ظاهرة، راجع الفلاتر النشطة؛ ممكن تكون مخفية بسبب فلتر فصل أو حالة.' },
+    { keys:['افتقاد','اسجل افتقاد','تسجيل افتقاد','سجل الافتقاد','اتصل بمخدوم'], answer:'للوصول لمتابعة الافتقاد:\n1. افتح القائمة الجانبية.\n2. اختار «سجل الافتقاد».\n3. راجع السجل وحدد المخدوم المطلوب.\n4. استخدم خيارات التسجيل المتاحة في الشاشة وسجّل المتابعة بعد تنفيذها فعليًا.\nلو تقصد تسجيل افتقاد من كارت المخدوم، وضّحلي وهنحدد مكانه بدقة.' },
+    { keys:['منطقه','المناطق','فلتر المناطق','المنطقه السكنيه','عنوان'], answer:'لتصفية المخدومين حسب المنطقة:\n1. افتح القائمة الجانبية.\n2. اختار «المناطق السكنية».\n3. اختار المنطقة المطلوبة لتطبيق الفلتر.\n4. لإلغاء التصفية، افتح فلتر المناطق واختار إلغاء الفلتر.' },
+    { keys:['فصل','البابا شنوده','فصل البابا شنوده','كل الفصول'], answer:'لتغيير الفصل أو عرضه، استخدم خيارات الفصول الموجودة في شريط التصفية أعلى قائمة المخدومين. لو فصل «البابا شنودة» مش بيظهر أو بيعرض «لا توجد نتائج»، امسح البحث والفلاتر الأول؛ ولو المشكلة مستمرة فهي محتاجة إصلاح في البيانات أو منطق الفلترة.' },
+    { keys:['تنبيه','التنبيهات','عيد ميلاد','تذكير','اشعار'], answer:'لمراجعة التنبيهات والتذكيرات، اضغط أيقونة الجرس في الشريط العلوي لفتح مركز التنبيهات وأعياد الميلاد. تأكد كمان إن إشعارات التطبيق مسموح بيها من إعدادات الموبايل.' },
+    { keys:['داكن','فاتح','الوضع الليلي','الوان التطبيق','السمة'], answer:'لتغيير مظهر التطبيق، افتح القائمة الجانبية، ثم قسم «السمة ومظهر التطبيق»، واختار الوضع الفاتح أو الداكن.' },
+    { keys:['شيت','جوجل شيت','ملف البيانات','جدول البيانات'], answer:'لفتح ملف البيانات المرتبط بالتطبيق، افتح القائمة الجانبية واضغط «فتح ملف الشيت». هيفتح ملف Google Sheets المرتبط بالتطبيق.' },
+    { keys:['مزامنه','تحديث البيانات','مش متزامن','الانترنت','بدون نت','اوفلاين'], answer:'حالة المزامنة بتظهر في الشريط العلوي. اضغط على حالة المزامنة لطلب تحديث فوري. ولو فيه عمليات معلقة بدون إنترنت، هيظهر مؤشر العمليات المعلقة؛ اضغط عليه بعد رجوع الاتصال لمحاولة المزامنة.' },
+    { keys:['حذف','حذف مخدوم','مسح بيانات'], answer:'مش هديك خطوات حذف غير مؤكدة حفاظًا على بيانات المخدومين. قلّي اسم العنصر اللي عايز تحذفه أو ابعت وصف الشاشة عشان أحدد الطريقة الصحيحة.' }
+  ];
+
+  function findAppHelpAnswer(question) {
+    const normalized = normalizeHelpQuestion(question);
+    if (!normalized) return 'اكتب سؤالك الأول، وأنا هحاول أوصلك للخطوات الصحيحة.';
+    const match = APP_HELP_KNOWLEDGE.find(item => item.keys.some(key => normalized.includes(normalizeHelpQuestion(key))));
+    return match ? match.answer : 'مش لاقي في دليل التطبيق شرح مؤكد للسؤال ده، ومش هخمن عليك. جرّب تسأل بكلمات زي: إضافة مخدوم، تعديل بيانات، البحث، الافتقاد، المناطق، التنبيهات، أو المزامنة. ولو سؤالك عن مشكلة ظهرتلك، اكتبلي نص رسالة الخطأ أو اسم الشاشة.';
   }
 
-  function askGeminiAI(prompt, onResult) {
-    const callbackId = 'cb_' + (++geminiCallbackCounter);
-    let responded = false;
-
-    const finish = (success, message) => {
-      if (responded) return;
-      responded = true;
-      delete geminiCallbacks[callbackId];
-      onResult(success, message);
-    };
-
-    geminiCallbacks[callbackId] = finish;
-
-    if (!window.AndroidGemini || typeof window.AndroidGemini.askGemini !== 'function') {
-      finish(false, 'المساعد الذكي غير متصل في هذه النسخة. افتح التطبيق بعد إعداد اتصال Gemini بشكل صحيح.');
-      return;
-    }
-
-    try {
-      window.AndroidGemini.askGemini(prompt, callbackId);
-      setTimeout(() => {
-        if (!responded) {
-          finish(false, 'انتهت مهلة الاتصال بـ Gemini. تحقق من الإنترنت وإعدادات Firebase ثم حاول مرة أخرى.');
-        }
-      }, 20000);
-    } catch (error) {
-      finish(false, 'تعذر بدء الاتصال بـ Gemini: ' + (error && error.message ? error.message : 'خطأ غير معروف'));
-    }
+  function appendHelpMessage(message, type) {
+    const chat = document.getElementById('helpChatWindow');
+    if (!chat) return;
+    const bubble = document.createElement('div');
+    bubble.className = 'help-message ' + (type === 'user' ? 'user' : 'bot');
+    bubble.textContent = message;
+    chat.appendChild(bubble);
+    chat.scrollTop = chat.scrollHeight;
   }
 
-  function generateWebSmartInsights(prompt) {
-    const total = studentsData.length;
-    const presentCount = studentsData.filter(s => s.attendanceStatus.includes('حاضر')).length;
-    const rate = total > 0 ? Math.round((presentCount / total) * 100) : 0;
-    const absentTotal = studentsData.filter(s => s.attendanceMonth === 0).length;
-    const servantsList = [...new Set(studentsData.map(s => s.servant).filter(s => s && s !== 'غير محدد'))];
-    const areasList = [...new Set(studentsData.map(s => s.area).filter(a => a && a !== 'غير محددة'))];
-
-    if (prompt.includes('analyzeAttendance') || prompt.includes('تحليل') || prompt.includes('إحصائيات')) {
-      return `📊 **تحليل Gemini الذكي لمتابعة مخدومي فصل مارجرجس:**\n\n` +
-        `• **إجمالي المخدومين المسجلين:** ${total} مخدوم (${presentCount} حاضرين بنسبة ${rate}%).\n` +
-        `• **مؤشر الغياب الشهري:** ${absentTotal} مخدوم متغيب طوال الشهر ويحتاجون لتدخل رعوي سريع.\n\n` +
-        `**التوصيات الرعوية والتنفيذية:**\n` +
-        `1. **الافتقاد المشترك:** تكثيف الزيارات المنزلية الثنائية للمتغيبين خلال منتصف الأسبوع مع إشراك أمين المرحلة.\n` +
-        `2. **متابعة أولياء الأمور:** التنسيق هاتفياً مع الأسر قبل يوم الأربعاء لمعرفة سبب الغياب وترتيب حضورهم بالقداس.\n` +
-        `3. **حافز الحضور:** تنظيم فقرة مميزة ومسابقة سريعة الجمعة القادمة مع هدية تشجيعية رمزية لجميع المنتظمين.`;
-    } else if (prompt.includes('encourageMessage') || prompt.includes('رسالة') || prompt.includes('تشجيع')) {
-      return `💌 **نماذج رسائل افتقاد وتشجيع من Gemini:**\n\n` +
-        `• **النموذج الأول (رسالة دافئة ومبهجة):**\n` +
-        `"سلام ونعمة يا بطل! 🌟 وحشتنا جداً الجمعة اللي فاتت في فصل الشهيد مارجرجس.. مكانك كان فاضي وسطينا، ومستنيينك تفرح معانا الجمعة دي في القداس ومدارس الأحد ومجهزين لك مسابقة قوية! بركة مارجرجس تكون معاك دايماً 🙏✨"\n\n` +
-        `• **النموذج الثاني (رسالة روحية محبة):**\n` +
-        `"حبيبي الغالي، كنيستك وفصلك مشتاقين لنورك الجميل.. بنصلي لك دايماً في كل قداس، ومستنيينك الجمعة الجاية تنور فصل مارجرجس وسطيكم إخوتك وخدامك 🤍"`;
-    } else if (prompt.includes('servantsSummary') || prompt.includes('خدام') || prompt.includes('أداء') || prompt.includes('مناطق')) {
-      return `👥 **تقرير ومتابعة الخدام والمناطق من Gemini:**\n\n` +
-        `• **الخدام المشاركون بالخدمة:** ${servantsList.length} خادم ومخدومة.\n` +
-        `• **المناطق السكنية المغطاة:** ${areasList.length} منطقة سكنية.\n` +
-        `• **متوسط نصيب الخادم:** حوالي ${servantsList.length > 0 ? Math.round(total / servantsList.length) : 0} مخدوم لكل خادم.\n\n` +
-        `**نصائح تنظيمية لرفع كفاءة الخدمة:**\n` +
-        `1. تخصيص جدول أسبوعي لكل خادم لتسجيل حالة الافتقاد أولاً بأول داخل التطبيق.\n` +
-        `2. مساندة الخدام الذين لديهم عدد أكبر من المخدومين في المناطق البعيدة بزيارات مشتركة.\n` +
-        `3. الاجتماع لمدة 10 دقائق بعد الصلاة الأسبوعية لمناقشة الحالات الخاصة وتثبيت متابعة الغياب.`;
-    } else {
-      // إجابة مخصصة ذكية بحسب سؤال المستخدم
-      let contextTip = "";
-      if (prompt.includes('نشاط') || prompt.includes('مسابقة') || prompt.includes('ألعاب')) {
-        contextTip = `**اقتراح أنشطة ومسابقات:**\n` +
-          `• مسابقة كنز الكتاب المقدس في فناء الكنيسة أو قاعة الفصل.\n` +
-          `• مسابقة سريعة عبر ألعاب الهواتف (Kahoot) حول سيرة الشهيد مارجرجس وتاريخ الكنيسة.\n` +
-          `• يوم رياضي ولقاء محبة يجمع المخدومين عقب القداس لزيادة الترابط.`;
-      } else if (prompt.includes('صلاة') || prompt.includes('اعتراف') || prompt.includes('روحي')) {
-        contextTip = `**الإرشاد الروحي:**\n` +
-          `• مساعدة المخدوم على التدرج في صلاة الأجبية وقراءة إنجيل يومي بسيط.\n` +
-          `• تشجيعه على ممارسة سر الاعتراف بمرافقة خادمه كأب وصديق روحي دون توبيخ أو ضغط.`;
-      } else {
-        contextTip = `**التوجيه الرعوي:**\n` +
-          `• في مرحلة إعدادي، الاستماع الصادق وبناء الثقة المتبادلة هو المفتاح لقلب المخدوم.\n` +
-          `• الربط بين المحبة الفردية والتواجد المستمر في الكنيسة يزرع الانتماء الدائم.`;
-      }
-
-      return `✨ **إجابة مساعد Gemini الذكي للخدمة:**\n\n` +
-        `بخصوص سؤالك: "${escapeHtml(prompt.replace(/سؤال من خادم فصل مارجرجس:/g, '').trim())}"\n\n` +
-        `${contextTip}\n\n` +
-        `• إجمالي المخدومين المسجلين: ${total} | نسبة الحضور الحالية: ${rate}%.\n` +
-        `• بركة صلوات وشفاعة الشهيد العظيم مارجرجس وأمنا العذراء مريم ترافق خدمتكم دائماً.`;
-    }
+  function sendHelpQuestion() {
+    const input = document.getElementById('helpChatInput');
+    const question = (input?.value || '').trim();
+    if (!question) return;
+    appendHelpMessage(question, 'user');
+    input.value = '';
+    appendHelpMessage(findAppHelpAnswer(question), 'bot');
+    input?.focus();
   }
 
-  function runGeminiQuickPrompt(type) {
-    const box = document.getElementById('geminiResponseBox');
-    box.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-2"></i>جاري تحليل البيانات عبر Gemini API...</span>';
+  function askHelpSuggestion(question) {
+    const input = document.getElementById('helpChatInput');
+    if (input) input.value = question;
+    sendHelpQuestion();
+  }
 
-    let prompt = "";
-    const totalCount = studentsData.length;
-    const attendedCount = studentsData.filter(s => s.attendanceStatus.includes('حاضر')).length;
-    const absentMonthCount = studentsData.filter(s => s.attendanceMonth === 0).length;
-    const rate = totalCount > 0 ? Math.round((attendedCount / totalCount) * 100) : 0;
-
-    if (type === 'analyzeAttendance') {
-      prompt = `analyzeAttendance: إجمالي ${totalCount} حاضر ${attendedCount} (${rate}%) غائب ${absentMonthCount}`;
-    } else if (type === 'encourageMessage') {
-      prompt = `encourageMessage: اقتراح رسائل افتقاد وتشجيع روحية بالعامية المصرية لسن إعدادي`;
-    } else {
-      prompt = `servantsSummary: ملخص أداء ومتابعة الخدام والمناطق`;
-    }
-
-    askGeminiAI(prompt, (success, result) => {
-      box.style.color = success ? 'var(--text-main)' : 'var(--red-status)';
-      box.style.borderColor = success ? 'var(--border)' : 'var(--red-status)';
-      box.innerHTML = formatGeminiResponse(result);
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('helpChatInput')?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); sendHelpQuestion(); }
     });
-  }
-
-  function sendCustomGeminiQuery() {
-    const input = document.getElementById('geminiCustomInput');
-    const query = input.value.trim();
-    if (!query) return;
-
-    const box = document.getElementById('geminiResponseBox');
-    box.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Gemini يفكر في الإجابة...</span>';
-
-    askGeminiAI(query, (success, result) => {
-      box.style.color = success ? 'var(--text-main)' : 'var(--red-status)';
-      box.style.borderColor = success ? 'var(--border)' : 'var(--red-status)';
-      box.innerHTML = formatGeminiResponse(result);
-    });
-  }
+  });
 
   /* PWA Manifest */
   try {
@@ -3240,8 +3098,8 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       loadFollowupLog();
       
       // مزامنة أعياد الميلاد مع الأندرويد
-      if (window.AndroidGemini && window.AndroidGemini.scheduleBirthdayAlarms) {
-          window.AndroidGemini.scheduleBirthdayAlarms(JSON.stringify(studentsData));
+      if (window.AndroidServiceBridge && window.AndroidServiceBridge.scheduleBirthdayAlarms) {
+          window.AndroidServiceBridge.scheduleBirthdayAlarms(JSON.stringify(studentsData));
       }
     }
   }
