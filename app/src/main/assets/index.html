@@ -4693,15 +4693,17 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
 
     bar.style.display = byInitial.size ? 'flex' : 'none';
   }
-  const alphaShell = document.getElementById('alphaScrollShell');
-  const alphaToggle = document.getElementById('alphaScrollToggle');
-  if (alphaShell && alphaToggle) {
-    alphaToggle.addEventListener('click', () => {
-      const collapsed = alphaShell.classList.toggle('collapsed');
-      alphaToggle.setAttribute('aria-expanded', String(!collapsed));
-      alphaToggle.setAttribute('aria-label', collapsed ? 'إظهار شريط الحروف' : 'إخفاء شريط الحروف');
-    });
-  }
+  document.addEventListener('DOMContentLoaded', () => {
+    const alphaShell = document.getElementById('alphaScrollShell');
+    const alphaToggle = document.getElementById('alphaScrollToggle');
+    if (alphaShell && alphaToggle) {
+      alphaToggle.addEventListener('click', () => {
+        const collapsed = alphaShell.classList.toggle('collapsed');
+        alphaToggle.setAttribute('aria-expanded', String(!collapsed));
+        alphaToggle.setAttribute('aria-label', collapsed ? 'إظهار شريط الحروف' : 'إخفاء شريط الحروف');
+      });
+    }
+  }, { once: true });
 </script>
 <div id="alphaScrollShell" class="alpha-scroll-shell">
   <div id="alphaScrollBar" class="alpha-scroll-bar" aria-label="التنقل حسب الحروف العربية"></div>
