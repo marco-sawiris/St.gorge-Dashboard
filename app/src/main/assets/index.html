@@ -97,39 +97,53 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  padding: 8px 0;
-  background: rgba(26, 115, 232, 0.08);
-  border-radius: 0 10px 10px 0;
+  gap: 0;
+  padding: 5px 0;
+  background: rgba(26, 115, 232, 0.10);
+  border-radius: 0 9px 9px 0;
   border-right: 2px solid var(--primary);
-  min-width: 28px;
-  max-height: 80vh;
+  width: 27px;
+  max-height: 84vh;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   box-shadow: 2px 0 12px rgba(26, 115, 232, 0.15);
-  transition: background 200ms ease;
+  transition: background 180ms ease;
 }
+.alpha-scroll-bar::-webkit-scrollbar { display: none; }
 .alpha-scroll-bar span {
-  display: block;
-  min-width: 28px;
-  padding: 2px 0;
+  display: flex;
+  flex: 0 0 17px;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  min-width: 25px;
+  height: 17px;
+  padding: 0;
   text-align: center;
   color: var(--text-main);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
-  line-height: 1.35;
+  line-height: 1;
   cursor: pointer;
   user-select: none;
-  border-radius: 5px;
+  border-radius: 4px;
+  transition: color 120ms ease, background 120ms ease, opacity 120ms ease;
 }
 .alpha-scroll-bar span:hover,
-.alpha-scroll-bar span:focus-visible {
+.alpha-scroll-bar span:focus-visible,
+.alpha-scroll-bar span.active {
   color: #ffffff;
   background: var(--primary);
   outline: none;
+}
+.alpha-scroll-bar span.unavailable {
+  opacity: 0.28;
+  cursor: default;
 }
 .alpha-scroll-bar:active {
   background: rgba(26, 115, 232, 0.18);
@@ -4287,12 +4301,34 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     }, { passive: true });
   });
 
+  const ARABIC_ALPHABET = ['ا','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز','س','ش','ص','ض','ط','ظ','ع','غ','ف','ق','ك','ل','م','ن','ه','و','ي'];
+
   function normalizeArabicInitial(value) {
     return String(value || '')
       .trim()
-      .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+      .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
       .replace(/[أإآٱ]/g, 'ا')
+      .replace(/ى/g, 'ي')
       .charAt(0);
+  }
+
+  function scrollToStudentCard(card) {
+    const targetTop = card.getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop);
+    const destination = Math.max(0, targetTop - Math.max(90, window.innerHeight * 0.18));
+    const startTop = window.scrollY || document.documentElement.scrollTop || 0;
+    const distance = destination - startTop;
+    const duration = 260;
+    const startTime = performance.now();
+
+    if (window._alphaScrollFrame) cancelAnimationFrame(window._alphaScrollFrame);
+    const animate = now => {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      window.scrollTo(0, startTop + distance * eased);
+      if (progress < 1) window._alphaScrollFrame = requestAnimationFrame(animate);
+      else window._alphaScrollFrame = null;
+    };
+    window._alphaScrollFrame = requestAnimationFrame(animate);
   }
 
   function populateAlphaScrollBar() {
@@ -4307,51 +4343,56 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       if (initial && !byInitial.has(initial)) byInitial.set(initial, student);
     });
 
-    const letters = Array.from(byInitial.keys()).sort((a, b) =>
-      new Intl.Collator('ar', { sensitivity: 'base' }).compare(a, b)
-    );
-
     bar.innerHTML = '';
     const indicator = document.createElement('div');
     indicator.className = 'alpha-letter-indicator';
     indicator.setAttribute('aria-hidden', 'true');
     bar.appendChild(indicator);
 
-    letters.forEach(letter => {
+    ARABIC_ALPHABET.forEach(letter => {
+      const student = byInitial.get(letter);
       const item = document.createElement('span');
       item.textContent = letter;
-      item.tabIndex = 0;
+      item.tabIndex = student ? 0 : -1;
       item.setAttribute('role', 'button');
-      item.setAttribute('aria-label', 'انتقل إلى الأسماء التي تبدأ بحرف ' + letter);
+      item.setAttribute('aria-label', student
+        ? 'انتقل إلى الأسماء التي تبدأ بحرف ' + letter
+        : 'لا توجد أسماء تبدأ بحرف ' + letter);
+      if (!student) {
+        item.classList.add('unavailable');
+        item.setAttribute('aria-disabled', 'true');
+      }
 
       const jumpToLetter = () => {
-        const student = byInitial.get(letter);
         if (!student) return;
         const card = document.getElementById('flipContainer-' + student.id);
         if (!card) return;
 
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        bar.querySelectorAll('span.active').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+        scrollToStudentCard(card);
         indicator.textContent = letter;
         indicator.style.opacity = '1';
         window.clearTimeout(populateAlphaScrollBar.indicatorTimer);
         populateAlphaScrollBar.indicatorTimer = window.setTimeout(() => {
           indicator.style.opacity = '0';
-        }, 900);
+        }, 700);
       };
 
-      item.addEventListener('click', jumpToLetter);
-      item.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          jumpToLetter();
-        }
-      });
+      if (student) {
+        item.addEventListener('click', jumpToLetter);
+        item.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            jumpToLetter();
+          }
+        });
+      }
       bar.appendChild(item);
     });
 
-    bar.style.display = letters.length ? 'flex' : 'none';
-  }
-</script>
+    bar.style.display = source.length ? 'flex' : 'none';
+  }</script>
 <div id="alphaScrollBar" class="alpha-scroll-bar">
   <div id="alphaLetterIndicator" class="alpha-letter-indicator"></div>
 </div>
