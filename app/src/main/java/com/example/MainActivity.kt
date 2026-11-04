@@ -109,6 +109,27 @@ class ServiceWebBridge(private val webView: WebView) {
   }
 
   @JavascriptInterface
+  fun openExternalPage(url: String) {
+    val uri = Uri.parse(url)
+    val scheme = uri.scheme?.lowercase()
+    val host = uri.host?.lowercase().orEmpty()
+    val allowed = scheme == "https" && (
+      host == "docs.google.com" ||
+      host == "wa.me" ||
+      host == "whatsapp.com" ||
+      host.endsWith(".whatsapp.com")
+    )
+    if (!allowed) {
+      webView.post { Toast.makeText(webView.context, "الرابط غير مسموح بفتحه", Toast.LENGTH_SHORT).show() }
+      return
+    }
+    launchExternalIntent(
+      Intent(Intent.ACTION_VIEW, uri),
+      "تعذر فتح الرابط في المتصفح"
+    )
+  }
+
+  @JavascriptInterface
   fun isAvailable(): Boolean = true
 
   @JavascriptInterface
