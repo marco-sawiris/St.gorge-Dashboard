@@ -1016,6 +1016,35 @@
       outline: none;
       cursor: pointer;
     }
+    /* قوائم HTML مخصصة لضمان استخدام Almarai بدل قائمة Android الأصلية */
+    .app-select-native { display: none !important; }
+    .app-filter-dropdown { position: relative; width: 100%; min-width: 0; font-family: 'Almarai', sans-serif !important; }
+    .app-filter-trigger {
+      width: 100%; height: 44px; padding: 0 13px; display: flex; align-items: center;
+      justify-content: space-between; gap: 10px; border-radius: 10px;
+      border: 1.5px solid var(--border); background: var(--input-bg);
+      color: var(--text-main); font: 700 13px 'Almarai', sans-serif !important;
+      text-align: right; cursor: pointer; outline: none;
+    }
+    .app-filter-trigger:focus-visible, .app-filter-dropdown.open .app-filter-trigger {
+      border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,.12);
+    }
+    .app-filter-trigger i { color: var(--text-muted); font-size: 11px; transition: transform 160ms ease; }
+    .app-filter-dropdown.open .app-filter-trigger i { transform: rotate(180deg); }
+    .app-filter-menu {
+      display: none; position: absolute; z-index: 12000; top: calc(100% + 6px); right: 0;
+      width: 100%; max-height: 45vh; overflow-y: auto; padding: 5px;
+      border: 1px solid var(--border); border-radius: 12px; background: var(--card-bg);
+      box-shadow: 0 12px 30px rgba(0,0,0,.18); direction: rtl;
+    }
+    .app-filter-dropdown.open .app-filter-menu { display: block; }
+    .app-filter-option {
+      display: block; width: 100%; padding: 11px 12px; border: 0; border-radius: 8px;
+      background: transparent; color: var(--text-main); text-align: right;
+      font: 700 13px 'Almarai', sans-serif !important; cursor: pointer;
+    }
+    .app-filter-option:active, .app-filter-option:hover { background: var(--input-bg); }
+    .app-filter-option.selected { color: var(--primary); background: rgba(26,115,232,.10); }
     .btn-sync-action {
       height: 44px;
       background: linear-gradient(135deg, var(--primary), var(--navy));
@@ -2078,16 +2107,28 @@
       <input type="text" id="searchInput" class="app-input" placeholder="بحث بالاسم أو الملاحظات...">
     </div>
     
-    <select id="sheetSelector" class="app-select" aria-label="اختيار الشيت أو الحالة">
+    <select id="sheetSelector" class="app-select app-select-native" aria-label="اختيار الشيت أو الحالة" tabindex="-1">
       <option value="نشط" selected>الحالة: نشط</option>
       <option value="غير حاضر">الحالة: غير حاضر</option>
       <option value="فصل البابا شنودة">الحالة: فصل البابا شنودة</option>
       <option value="__ALL__">الحالة: الكل</option>
     </select>
+    <div class="app-filter-dropdown" id="sheetFilterDropdown" data-filter-kind="sheet">
+      <button type="button" class="app-filter-trigger" aria-haspopup="listbox" aria-expanded="false">
+        <span class="app-filter-label">الحالة: نشط</span><i class="fa-solid fa-chevron-down"></i>
+      </button>
+      <div class="app-filter-menu" role="listbox" aria-label="اختيار الشيت أو الحالة"></div>
+    </div>
 
-    <select id="servantFilterSelector" class="app-select" aria-label="فلترة حسب الأشبين">
+    <select id="servantFilterSelector" class="app-select app-select-native" aria-label="فلترة حسب الأشبين" tabindex="-1">
       <option value="">كل الأشابين</option>
     </select>
+    <div class="app-filter-dropdown" id="servantFilterDropdown" data-filter-kind="servant">
+      <button type="button" class="app-filter-trigger" aria-haspopup="listbox" aria-expanded="false">
+        <span class="app-filter-label">كل الأشابين</span><i class="fa-solid fa-chevron-down"></i>
+      </button>
+      <div class="app-filter-menu" role="listbox" aria-label="فلترة حسب الأشبين"></div>
+    </div>
 
     <button class="btn-sync-action" id="btnSync" onclick="fetchLiveGoogleSheetData()">
       <i class="fa-solid fa-arrows-rotate" id="syncSpinIcon"></i>
@@ -2664,6 +2705,10 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
         .concat(servants.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`));
       selector.innerHTML = options.join('');
       selector.value = currentServantFilter;
+      renderAppFilterDropdown('servantFilterDropdown', [
+        { value: '', label: 'كل الأشابين' },
+        ...servants.map(name => ({ value: name, label: name }))
+      ], currentServantFilter);
     }
 
     if (!container) return;
@@ -4291,6 +4336,65 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     text += `📅 التاريخ: ${new Date().toLocaleDateString('ar-EG')}\n`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   }
+
+  function renderAppFilterDropdown(id, options, selectedValue) {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const selected = options.find(option => option.value === selectedValue) || options[0];
+    root.querySelector('.app-filter-label').textContent = selected.label;
+    root.querySelector('.app-filter-menu').innerHTML = options.map(option => `
+      <button type="button" role="option"
+        class="app-filter-option ${option.value === selectedValue ? 'selected' : ''}"
+        aria-selected="${option.value === selectedValue ? 'true' : 'false'}"
+        data-filter-value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</button>
+    `).join('');
+  }
+
+  function closeAppFilterDropdowns(exceptId = '') {
+    document.querySelectorAll('.app-filter-dropdown.open').forEach(root => {
+      if (root.id !== exceptId) {
+        root.classList.remove('open');
+        root.querySelector('.app-filter-trigger')?.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  document.querySelectorAll('.app-filter-dropdown').forEach(root => {
+    root.querySelector('.app-filter-trigger').addEventListener('click', () => {
+      const willOpen = !root.classList.contains('open');
+      closeAppFilterDropdowns(root.id);
+      root.classList.toggle('open', willOpen);
+      root.querySelector('.app-filter-trigger').setAttribute('aria-expanded', String(willOpen));
+    });
+    root.querySelector('.app-filter-menu').addEventListener('click', event => {
+      const option = event.target.closest('.app-filter-option');
+      if (!option) return;
+      const value = option.dataset.filterValue || '';
+      const kind = root.dataset.filterKind;
+      closeAppFilterDropdowns();
+      if (kind === 'servant') {
+        setServantFilter(value);
+      } else if (kind === 'sheet') {
+        const selector = document.getElementById('sheetSelector');
+        selector.value = value;
+        selector.dispatchEvent(new Event('change'));
+      }
+    });
+  });
+
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.app-filter-dropdown')) closeAppFilterDropdowns();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeAppFilterDropdowns();
+  });
+
+  renderAppFilterDropdown('sheetFilterDropdown', [
+    { value: 'نشط', label: 'الحالة: نشط' },
+    { value: 'غير حاضر', label: 'الحالة: غير حاضر' },
+    { value: 'فصل البابا شنودة', label: 'الحالة: فصل البابا شنودة' },
+    { value: '__ALL__', label: 'الحالة: الكل' }
+  ], currentSheetName || 'نشط');
 
   document.getElementById('searchInput').addEventListener('input', applyFilters);
   document.getElementById('servantFilterSelector').addEventListener('change', function() {
