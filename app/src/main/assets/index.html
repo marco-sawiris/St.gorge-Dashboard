@@ -692,8 +692,10 @@
     }
     
         .top-bar {
-      position: relative;
-      overflow: hidden;
+      position: sticky;
+      top: max(0px, env(safe-area-inset-top));
+      z-index: 9500;
+      overflow: visible;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -705,6 +707,48 @@
       box-shadow: var(--shadow-sm);
     }
     
+    /* تثبيت الشريط العلوي وإظهار طبقة القوائم فوق المحتوى */
+    .top-bar { isolation: isolate; }
+    body.modal-open { overflow: hidden !important; touch-action: none; }
+    .modal-backdrop { z-index: 10900 !important; }
+    .modal { z-index: 11000 !important; }
+    .modal-backdrop.show { opacity: .58; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+    .modal-dialog { position: relative; z-index: 1; }
+    .modal-content { background: var(--card-bg) !important; color: var(--text-main) !important; }
+    .modal-header, .modal-footer { border-color: var(--border) !important; }
+    .modal-body { overscroll-behavior: contain; }
+    .about-hero-ext-icon { background: transparent !important; mix-blend-mode: normal; }
+    .alpha-scroll-shell {
+      position: fixed; left: 5px; top: 50%; transform: translateY(-50%);
+      z-index: 9800; display: flex; align-items: center; gap: 3px;
+    }
+    .alpha-scroll-bar {
+      position: static; transform: none; width: 38px; max-height: 78vh;
+      overflow-y: auto; gap: 3px; padding: 7px 4px;
+      border: 1px solid var(--primary); border-radius: 12px;
+      background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+      scrollbar-width: thin; scrollbar-color: var(--primary) var(--input-bg);
+      box-shadow: 0 3px 16px rgba(0,0,0,.22);
+    }
+    .alpha-scroll-bar::-webkit-scrollbar { display: block; width: 4px; }
+    .alpha-scroll-bar::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 8px; }
+    .alpha-scroll-bar span {
+      width: 28px; min-width: 28px; height: 25px; flex-basis: 25px;
+      font-size: 13px; font-weight: 800; border-radius: 7px;
+    }
+    .alpha-scroll-bar span.unavailable { display: none; }
+    .alpha-scroll-toggle {
+      width: 25px; height: 42px; border: 1px solid var(--primary);
+      border-radius: 0 9px 9px 0; background: var(--card-bg);
+      color: var(--primary); display: flex; align-items: center;
+      justify-content: center; box-shadow: 0 3px 12px rgba(0,0,0,.18);
+    }
+    .alpha-scroll-shell.collapsed .alpha-scroll-bar { display: none !important; }
+    .alpha-scroll-shell.collapsed .alpha-scroll-toggle i { transform: rotate(180deg); }
+    [data-theme="dark"] .alpha-scroll-bar { background: rgba(15,31,46,.96); }
+    .kpi-stat-card { height: 100%; min-width: 0; }
+    .kpi-progress { overflow: hidden; border-radius: 99px; }
+    .kpi-bar { min-height: 6px; border-radius: 99px; transition: width .8s ease; }
     .offline-queue-badge {
       display: inline-flex;
       align-items: center;
@@ -2003,7 +2047,7 @@
       <span>مساعد الاستخدام</span>
     </button>
     <a href="https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit" 
-       target="_blank" class="sidebar-nav-item" style="--i:6">
+       onclick="return openExternalSheet(event)" class="sidebar-nav-item" style="--i:6">
       <i class="fa-solid fa-file-excel"></i>
       <span>فتح ملف الشيت</span>
     </a>
@@ -2192,7 +2236,7 @@
       </div>
       
       <div class="export-buttons-panel">
-        <button class="btn-export print" onclick="window.print()"><i class="fa-solid fa-print"></i> طباعة</button>
+        
         <button class="btn-export pdf" onclick="exportTableToPDF()"><i class="fa-solid fa-file-pdf"></i> تصدير PDF</button>
         <button class="btn-export excel" onclick="exportTableToExcel()"><i class="fa-solid fa-file-excel"></i> تصدير إكسل</button>
         <button class="btn-export whatsapp" onclick="shareViaWhatsApp()"><i class="fa-brands fa-whatsapp"></i> واتساب</button>
@@ -2211,7 +2255,7 @@
           </div>
           <div class="kpi-value" style="color: var(--green-status);" id="kpiAttendanceRate">0%</div>
           <div class="small text-muted" id="kpiAttendanceCount">0 من 0 حاضر</div>
-          <div class="kpi-progress"><div class="kpi-bar" id="kpiAttendanceBar" style="background: var(--green-status); width: 0%;"></div>
+          <div class="kpi-progress"><div class="kpi-bar" id="kpiAttendanceBar" style="background: var(--green-status); width: 0%;"></div></div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -2222,7 +2266,7 @@
           </div>
           <div class="kpi-value text-primary" id="kpiFollowupRate">0%</div>
           <div class="small text-muted" id="kpiFollowupCount">0 تم افتقادهم</div>
-          <div class="kpi-progress"><div class="kpi-bar bg-primary" id="kpiFollowupBar" style="width: 0%;"></div>
+          <div class="kpi-progress"><div class="kpi-bar bg-primary" id="kpiFollowupBar" style="width: 0%;"></div></div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -2233,7 +2277,7 @@
           </div>
           <div class="kpi-value" style="color: #0f8679;" id="kpiRegularRate">0%</div>
           <div class="small text-muted" id="kpiRegularCount">0 مستمرون</div>
-          <div class="kpi-progress"><div class="kpi-bar" id="kpiRegularBar" style="background: #0f8679; width: 0%;"></div>
+          <div class="kpi-progress"><div class="kpi-bar" id="kpiRegularBar" style="background: #0f8679; width: 0%;"></div></div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -2244,7 +2288,7 @@
           </div>
           <div class="kpi-value" style="color: var(--red-status);" id="kpiAlertCount">0</div>
           <div class="small text-muted" id="kpiAlertRate">0% نسبة الغياب</div>
-          <div class="kpi-progress"><div class="kpi-bar" id="kpiAlertBar" style="background: var(--red-status); width: 0%;"></div>
+          <div class="kpi-progress"><div class="kpi-bar" id="kpiAlertBar" style="background: var(--red-status); width: 0%;"></div></div>
         </div>
       </div>
     </div>
@@ -2326,7 +2370,7 @@
         <button class="btn-export whatsapp" onclick="shareFollowupViaWhatsApp()"><i class="fa-brands fa-whatsapp"></i> إرسال تقرير الافتقاد واتساب</button>
       </div>
       <div class="export-buttons-panel">
-        <button class="btn-export print" onclick="window.print()"><i class="fa-solid fa-print"></i> طباعة</button>
+        
         <button class="btn-export pdf" onclick="exportFollowupToPDF()"><i class="fa-solid fa-file-pdf"></i> تصدير PDF</button>
         <button class="btn-export excel" onclick="exportFollowupToExcel()"><i class="fa-solid fa-file-excel"></i> تصدير إكسل</button>
       </div>
@@ -2404,7 +2448,30 @@
         
         <img src="app_icon.png" alt="St. George" class="about-hero-ext-icon">
         <h2>لوحة الخدمة <span>والإحصائيات الذكية</span></h2>
-        <p>متابعة نسب الحضور والغياب، إحصائيات الافتقاد اللحظية، ومساعد إرشادي يشرح وظائف التطبيق وخطوات استخدامها بكنيسة السيدة العذراء مريم بالزيتون.</p>
+        <p>تطبيق لخدمة فصل الشهيد مارجرجس: ينظم بيانات المخدومين، ويتابع الحضور والغياب، ويسجل الافتقاد وملاحظاته، ويعرض إحصائيات وتقارير تساعد الخدام على متابعة كل مخدوم. كما يتيح المزامنة مع Google Sheets، والتواصل مع المخدوم أو ولي أمره، ومساعداً إرشادياً يعمل دون إنترنت.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- مركز التنبيهات وأعياد الميلاد -->
+<div class="modal fade" id="remindersModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow-lg">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="fa-solid fa-bell text-primary me-2"></i>مركز التنبيهات</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+      </div>
+      <div class="modal-body">
+        <div class="reminder-card-item">
+          <div class="fw-bold mb-1">تذكيرات الخدمة</div>
+          <div class="small text-muted">التنبيهات الأسبوعية وأعياد الميلاد تُجدول على الجهاز، وقد تحتاج إذن الإشعارات ليتم عرضها.</div>
+        </div>
+        <div class="fw-bold mb-2">أعياد الميلاد القادمة</div>
+        <div id="remindersBirthdayList" aria-live="polite"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
       </div>
     </div>
   </div>
@@ -2576,6 +2643,22 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     }
   });
 
+  /* إبطاء الحركات والانتقالات إلى نصف السرعة دون تغيير تصميمها */
+  (function slowInterfaceMotion() {
+    const slow = () => {
+      document.getAnimations().forEach(animation => {
+        if (animation.playbackRate !== 0.5) animation.playbackRate = 0.5;
+      });
+    };
+    slow();
+    const observer = new MutationObserver(slow);
+    observer.observe(document.documentElement, {
+      subtree: true, attributes: true, attributeFilter: ['class', 'style']
+    });
+    document.addEventListener('shown.bs.modal', slow);
+    document.addEventListener('shown.bs.offcanvas', slow);
+  })();
+
   /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
   function updateScrollProgress() {
     const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
@@ -2740,6 +2823,36 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   /* ============================================================
      مساعد الاستخدام المحلي — دليل وظائف التطبيق
      ============================================================ */
+  function openRemindersModal() {
+    const modalElement = document.getElementById('remindersModal');
+    const list = document.getElementById('remindersBirthdayList');
+    if (!modalElement || !list) {
+      showToast('مركز التنبيهات غير متاح', 'تعذر تحميل نافذة التنبيهات.', 'error');
+      return;
+    }
+    const today = new Date();
+    const upcoming = (Array.isArray(studentsData) ? studentsData : [])
+      .filter(student => String(student.birthDate || '').trim())
+      .map(student => {
+        const raw = String(student.birthDate).trim();
+        const parts = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        if (!parts) return null;
+        const month = Number(parts[2]), day = Number(parts[3]);
+        const date = new Date(today.getFullYear(), month - 1, day);
+        if (date < new Date(today.getFullYear(), today.getMonth(), today.getDate())) date.setFullYear(today.getFullYear() + 1);
+        return { name: student.name || 'بدون اسم', date, days: Math.ceil((date - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000) };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.date - b.date)
+      .slice(0, 10);
+    list.innerHTML = upcoming.length ? upcoming.map(item => `
+      <div class="reminder-card-item d-flex align-items-center justify-content-between gap-2">
+        <div><div class="fw-bold">${escapeHtml(item.name)}</div><small class="text-muted">${item.date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' })}</small></div>
+        <span class="badge bg-primary rounded-pill">${item.days === 0 ? 'اليوم' : 'بعد ' + item.days + ' يوم'}</span>
+      </div>`).join('') : '<p class="text-muted small text-center py-3">لا توجد تواريخ ميلاد مسجلة أو لم يتم تحميل البيانات بعد.</p>';
+    bootstrap.Modal.getOrCreateInstance(modalElement, { backdrop: true, keyboard: true }).show();
+  }
+
   function openHelpModal() {
     closeSidebar();
     new bootstrap.Modal(document.getElementById('helpModal')).show();
@@ -4511,8 +4624,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
         ? 'انتقل إلى الأسماء التي تبدأ بحرف ' + letter
         : 'لا توجد أسماء تبدأ بحرف ' + letter);
       if (!student) {
-        item.classList.add('unavailable');
-        item.setAttribute('aria-disabled', 'true');
+        return;
       }
 
       const jumpToLetter = () => {
@@ -4544,9 +4656,22 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     });
 
     bar.style.display = source.length ? 'flex' : 'none';
-  }</script>
-<div id="alphaScrollBar" class="alpha-scroll-bar">
-  <div id="alphaLetterIndicator" class="alpha-letter-indicator"></div>
+  }
+  const alphaShell = document.getElementById('alphaScrollShell');
+  const alphaToggle = document.getElementById('alphaScrollToggle');
+  if (alphaShell && alphaToggle) {
+    alphaToggle.addEventListener('click', () => {
+      const collapsed = alphaShell.classList.toggle('collapsed');
+      alphaToggle.setAttribute('aria-expanded', String(!collapsed));
+      alphaToggle.setAttribute('aria-label', collapsed ? 'إظهار شريط الحروف' : 'إخفاء شريط الحروف');
+    });
+  }
+</script>
+<div id="alphaScrollShell" class="alpha-scroll-shell">
+  <div id="alphaScrollBar" class="alpha-scroll-bar" aria-label="التنقل حسب الحروف العربية"></div>
+  <button type="button" id="alphaScrollToggle" class="alpha-scroll-toggle" aria-label="إخفاء شريط الحروف" aria-expanded="true">
+    <i class="fa-solid fa-chevron-left"></i>
+  </button>
 </div>
 </body>
 </html>
