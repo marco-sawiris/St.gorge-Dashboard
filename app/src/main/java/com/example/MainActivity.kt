@@ -6,7 +6,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.webkit.JavascriptInterface
+import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -265,8 +268,46 @@ fun DashboardWebView(
             loadWithOverviewMode = true
             cacheMode = WebSettings.LOAD_DEFAULT
           }
-          webViewClient = WebViewClient()
-          webChromeClient = WebChromeClient()
+          webViewClient = object : WebViewClient() {
+            override fun onReceivedError(
+              view: WebView?,
+              request: WebResourceRequest?,
+              error: WebResourceError?
+            ) {
+              super.onReceivedError(view, request, error)
+              Log.e(
+                "DashboardWebView",
+                "Resource load failed: ${request?.url} | code=${error?.errorCode} | ${error?.description}"
+              )
+            }
+
+            @Suppress("DEPRECATION")
+            override fun onReceivedError(
+              view: WebView?,
+              errorCode: Int,
+              description: String?,
+              failingUrl: String?
+            ) {
+              super.onReceivedError(view, errorCode, description, failingUrl)
+              Log.e(
+                "DashboardWebView",
+                "Legacy resource load failed: $failingUrl | code=$errorCode | $description"
+              )
+            }
+          }
+          webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+              consoleMessage?.let { message ->
+                val details = message.message() + " -- line " + message.lineNumber() + " (" + message.sourceId() + ")"
+                when (message.messageLevel()) {
+                  ConsoleMessage.MessageLevel.ERROR -> Log.e("DashboardJS", details)
+                  ConsoleMessage.MessageLevel.WARNING -> Log.w("DashboardJS", details)
+                  else -> Log.d("DashboardJS", details)
+                }
+              }
+              return true
+            }
+          }
 
           // منع تحديد النصوص وظهور شريط النسخ والمشاركة في الأماكن غير القابلة للتعديل
           setOnLongClickListener { v ->
