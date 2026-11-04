@@ -23,38 +23,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- مكتبات الرسوم والتصدير -->
-document.querySelectorAll(".card-flip-container").forEach(container => {
-  container.addEventListener("touchstart", () => {
-    container.querySelector(".student-card")?.classList.add("hover-active");
-  }, { passive: true });
-  container.addEventListener("touchend", () => {
-    setTimeout(() => {
-      container.querySelector(".student-card")?.classList.remove("hover-active");
-    }, 1200);
-  }, { passive: true });
-});
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
-document.querySelectorAll(".card-flip-container").forEach(container => {
-  container.addEventListener("touchstart", () => {
-    container.querySelector(".student-card")?.classList.add("hover-active");
-  }, { passive: true });
-  container.addEventListener("touchend", () => {
-    setTimeout(() => {
-      container.querySelector(".student-card")?.classList.remove("hover-active");
-    }, 1200);
-  }, { passive: true });
-});
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.2/dist/xlsx.full.min.js"></script>
-document.querySelectorAll(".card-flip-container").forEach(container => {
-  container.addEventListener("touchstart", () => {
-    container.querySelector(".student-card")?.classList.add("hover-active");
-  }, { passive: true });
-  container.addEventListener("touchend", () => {
-    setTimeout(() => {
-      container.querySelector(".student-card")?.classList.remove("hover-active");
-    }, 1200);
-  }, { passive: true });
-});
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <style>
@@ -4140,17 +4110,27 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     fetchLiveGoogleSheetData();
     startAutoSyncTimer();
     updateScrollProgress();
+
+    // أمان: إخفاء شاشة البداية بعد 10 ثوانٍ إذا استمرت في الظهور
+    setTimeout(hideSplashScreen, 10000);
+
+    // إضافة مستمعي اللمس للكروت باستخدام Delegation
+    document.addEventListener('touchstart', (e) => {
+      const container = e.target.closest('.card-flip-container');
+      if (container) {
+        container.querySelector(".student-card")?.classList.add("hover-active");
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+      const container = e.target.closest('.card-flip-container');
+      if (container) {
+        setTimeout(() => {
+          container.querySelector(".student-card")?.classList.remove("hover-active");
+        }, 1200);
+      }
+    }, { passive: true });
   });
-document.querySelectorAll(".card-flip-container").forEach(container => {
-  container.addEventListener("touchstart", () => {
-    container.querySelector(".student-card")?.classList.add("hover-active");
-  }, { passive: true });
-  container.addEventListener("touchend", () => {
-    setTimeout(() => {
-      container.querySelector(".student-card")?.classList.remove("hover-active");
-    }, 1200);
-  }, { passive: true });
-});
+
 </script>
 <div id="alphaScrollBar" class="alpha-scroll-bar">
   <div id="alphaLetterIndicator" class="alpha-letter-indicator"></div>
