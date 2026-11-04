@@ -20,11 +20,24 @@ const val EXTRA_NOTIFICATION_TITLE = "extra_notif_title"
 const val EXTRA_NOTIFICATION_BODY = "extra_notif_body"
 const val EXTRA_NOTIFICATION_ID = "extra_notif_id"
 
+const val ACTION_BIRTHDAY = "com.example.ACTION_BIRTHDAY"
+const val EXTRA_STUDENT_NAME = "extra_student_name"
+const val EXTRA_BIRTHDAY_NOTES = "extra_birthday_notes"
+
 class ReminderReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent?) {
-    if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
+    val action = intent?.action
+    if (action == Intent.ACTION_BOOT_COMPLETED) {
       Log.d("ReminderReceiver", "Device rebooted, rescheduling weekly alarms")
       NotificationScheduler.scheduleAllWeeklyReminders(context)
+      return
+    }
+
+    if (action == ACTION_BIRTHDAY) {
+      val name = intent.getStringExtra(EXTRA_STUDENT_NAME) ?: "مخدوم"
+      val title = "🎂 عيد ميلاد اليوم: $name"
+      val body = "كل سنة والمخدوم $name طيب وبخير وسنة حلوة مع يسوع ومارجرجس 🎉"
+      NotificationScheduler.showLocalNotification(context, title, body, (300 + name.hashCode() % 1000).let { if (it < 0) -it else it }, CHANNEL_ID_BIRTHDAYS)
       return
     }
 
@@ -107,59 +120,64 @@ object NotificationScheduler {
     notificationManager.notify(notificationId, notification)
   }
 
-  /**
-   * جدولة كافة التنبيهات الأسبوعية المستمرة:
-   * 1. الأربعاء 11:00 صباحاً (تذكير الافتقاد)
-   * 2. الأربعاء 8:30 مساءً (تذكير التحضير)
-   * 3. الخميس 6:00 مساءً (آخر عملية افتقاد قبل الجمعة)
-   * 4. الجمعة 2:00 ظهراً (تسجيل الحضور والغياب)
-   */
   fun scheduleAllWeeklyReminders(context: Context) {
     createNotificationChannels(context)
 
-    // 1. الأربعاء 11:00 ص — تذكير الافتقاد
-    scheduleWeeklyAlarm(
-      context = context,
-      requestCode = 201,
-      targetDayOfWeek = Calendar.WEDNESDAY,
-      hourOfDay = 11,
-      minute = 0,
-      title = "📞 تذكير الافتقاد الأسبوعي — فصل مارجرجس",
-      body = "منتصف الأسبوع: تابع مخدوميك وافتقد باقي الأسماء لتنسيق الحضور والقداس مبكراً!"
-    )
+    // الأربعاء 11:00 ص — تذكير الافتقاد
+    scheduleWeeklyAlarm(context, 201, Calendar.WEDNESDAY, 11, 0, "📞 تذكير الافتقاد الأسبوعي", "منتصف الأسبوع: تابع مخدوميك وافتقد باقي الأسماء لتنسيق الحضور والقداس!")
 
-    // 2. الأربعاء 8:30 م — تذكير التحضير
-    scheduleWeeklyAlarm(
-      context = context,
-      requestCode = 202,
-      targetDayOfWeek = Calendar.WEDNESDAY,
-      hourOfDay = 20,
-      minute = 30,
-      title = "📖 تذكير بتحضير درس مدارس الأحد",
-      body = "وقت الصلاة والتحضير لخدمة أولادنا الحبيبة.. جهّز درسك وأنشطتك بفرح لجمعة مباركة ✨"
-    )
+    // الأربعاء 8:30 م — تذكير التحضير
+    scheduleWeeklyAlarm(context, 202, Calendar.WEDNESDAY, 20, 30, "📖 تذكير بتحضير درس مدارس الأحد", "وقت الصلاة والتحضير لخدمة أولادنا الحبيبة.. جهّز درسك بفرح ✨")
 
-    // 3. الخميس 6:00 م — آخر فرصة للافتقاد
-    scheduleWeeklyAlarm(
-      context = context,
-      requestCode = 203,
-      targetDayOfWeek = Calendar.THURSDAY,
-      hourOfDay = 18,
-      minute = 0,
-      title = "🕊️ آخر عملية افتقاد قبل الجمعة",
-      body = "الخميس مساءً: اطمئن على باقي المخدومين تليفونياً وأكد عليهم ميعاد القداس وفصل مارجرجس غداً!"
-    )
+    // الخميس 5:00 م — تذكير تسجيل الافتقاد
+    scheduleWeeklyAlarm(context, 203, Calendar.THURSDAY, 17, 0, "📝 سجل الافتقاد", "لا تنسَ تسجيل آخر عملية افتقاد قمت بها هذا الأسبوع!")
 
-    // 4. الجمعة 2:00 ظهراً — تسجيل الحضور والغياب
-    scheduleWeeklyAlarm(
-      context = context,
-      requestCode = 204,
-      targetDayOfWeek = Calendar.FRIDAY,
-      hourOfDay = 14,
-      minute = 0,
-      title = "📋 تسجيل الحضور والغياب الآن",
-      body = "الساعة 2 ظهراً: حان موعد تسجيل الحضور والغياب لمخدوميك في فصل مارجرجس عبر التطبيق ✅"
-    )
+    // الخميس 6:00 م — تذكير أخير للافتقاد
+    scheduleWeeklyAlarm(context, 204, Calendar.THURSDAY, 18, 0, "🕊️ تذكير أخير للافتقاد قبل الجمعة", "اطمئن على باقي المخدومين تليفونياً وأكد عليهم ميعاد القداس غداً!")
+
+    // الجمعة 2:00 م — تسجيل الحضور والغياب
+    scheduleWeeklyAlarm(context, 205, Calendar.FRIDAY, 14, 0, "📋 تسجيل الحضور والغياب", "الساعة 2 ظهراً: حان موعد تسجيل الحضور والغياب لمخدوميك ✅")
+  }
+
+  fun scheduleBirthdayAlarms(context: Context, studentsJson: String) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+    val students = org.json.JSONArray(studentsJson)
+
+    for (i in 0 until students.length()) {
+      val s = students.getJSONObject(i)
+      val name = s.getString("name")
+      val birthDate = s.optString("birthDate", "")
+      if (birthDate.isEmpty()) continue
+      
+      try {
+        val parts = birthDate.split("/")
+        if (parts.size < 2) continue
+        val day = parts[0].toInt()
+        val month = parts[1].toInt() - 1 
+
+        val alarmTime = Calendar.getInstance().apply {
+          set(Calendar.MONTH, month)
+          set(Calendar.DAY_OF_MONTH, day)
+          set(Calendar.HOUR_OF_DAY, 8)
+          set(Calendar.MINUTE, 0)
+          set(Calendar.SECOND, 0)
+          set(Calendar.MILLISECOND, 0)
+          if (timeInMillis < System.currentTimeMillis()) {
+            add(Calendar.YEAR, 1)
+          }
+        }
+
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+          action = ACTION_BIRTHDAY
+          putExtra(EXTRA_STUDENT_NAME, name)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+          context, 400 + i, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, alarmTime.timeInMillis, AlarmManager.INTERVAL_DAY * 365, pendingIntent)
+      } catch (e: Exception) { Log.e(TAG, "Error scheduling birthday for $name: ${e.message}") }
+    }
   }
 
   private fun scheduleWeeklyAlarm(
@@ -172,19 +190,14 @@ object NotificationScheduler {
     body: String
   ) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-
     val intent = Intent(context, ReminderReceiver::class.java).apply {
       action = "com.example.ACTION_SEND_REMINDER"
       putExtra(EXTRA_NOTIFICATION_TITLE, title)
       putExtra(EXTRA_NOTIFICATION_BODY, body)
       putExtra(EXTRA_NOTIFICATION_ID, requestCode)
     }
-
     val pendingIntent = PendingIntent.getBroadcast(
-      context,
-      requestCode,
-      intent,
-      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+      context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
     val calendar = Calendar.getInstance().apply {
@@ -193,22 +206,13 @@ object NotificationScheduler {
       set(Calendar.MINUTE, minute)
       set(Calendar.SECOND, 0)
       set(Calendar.MILLISECOND, 0)
-      // إذا كان الوقت قد فات هذا الأسبوع، الانتقال للأسبوع القادم
       if (timeInMillis <= System.currentTimeMillis()) {
         add(Calendar.WEEK_OF_YEAR, 1)
       }
     }
-
     try {
-      alarmManager.setRepeating(
-        AlarmManager.RTC_WAKEUP,
-        calendar.timeInMillis,
-        AlarmManager.INTERVAL_DAY * 7,
-        pendingIntent
-      )
+      alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, AlarmManager.INTERVAL_DAY * 7, pendingIntent)
       Log.d(TAG, "Scheduled weekly alarm #$requestCode for day=$targetDayOfWeek at $hourOfDay:$minute")
-    } catch (e: Exception) {
-      Log.e(TAG, "Failed to schedule alarm #$requestCode", e)
-    }
+    } catch (e: Exception) { Log.e(TAG, "Failed to schedule alarm #$requestCode", e) }
   }
 }

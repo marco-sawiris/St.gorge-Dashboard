@@ -187,6 +187,11 @@ class GeminiWebBridge(
   fun isAvailable(): Boolean = true
 
   @JavascriptInterface
+  fun scheduleBirthdayAlarms(studentsJson: String) {
+    NotificationScheduler.scheduleBirthdayAlarms(webView.context, studentsJson)
+  }
+
+  @JavascriptInterface
   fun showBirthdayNotification(studentName: String, notes: String) {
     val context = webView.context
     val title = "🎂 عيد ميلاد اليوم: $studentName"
