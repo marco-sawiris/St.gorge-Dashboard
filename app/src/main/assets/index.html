@@ -2060,6 +2060,14 @@
     #alphaScrollShell.collapsed #alphaScrollBar { display: none !important; }
     #alphaScrollShell.collapsed #alphaScrollToggle i { transform: rotate(180deg); }
 
+    /* Improve KPI contrast in dark mode: Bootstrap muted text is not theme-aware here. */
+    html[data-theme="dark"] #chartsView .kpi-stat-card .kpi-header > span,
+    html[data-theme="dark"] #chartsView .kpi-stat-card .small.text-muted {
+      color: var(--text-main) !important;
+      opacity: 1 !important;
+    }
+    html[data-theme="dark"] #chartsView #kpiAttendanceRate { color: #4ade80 !important; }
+    html[data-theme="dark"] #chartsView #kpiFollowupRate { color: #60a5fa !important; }
 </style>
 </head>
 <body>
@@ -2519,10 +2527,7 @@
           <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أسجل الافتقاد؟')">الافتقاد</button>
           <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أستخدم فلتر المناطق؟')">المناطق</button>
         </div>
-        <div id="helpChatWindow" class="help-chat-window" role="log" aria-live="polite">
-          <div class="help-message bot">أهلاً بيك 👋
-أنا مساعدك في استخدام St.Gorge Dashboard.
-اسألني عن أي وظيفة، وهشرحلك خطواتها. إجاباتي مبنية على دليل التطبيق، ولو معلومة مش مؤكدة هقولك بصراحة.</div>
+        <div id="helpChatWindow" class="help-chat-window" role="log" aria-live="polite"></div>
         </div>
         <div class="help-input-row">
           <input type="text" id="helpChatInput" class="app-input" placeholder="اكتب سؤالك هنا..." autocomplete="off" aria-label="اكتب سؤالك">
@@ -2933,8 +2938,25 @@
     bootstrap.Modal.getOrCreateInstance(modalElement, { backdrop: true, keyboard: true }).show();
   }
 
+  const HELP_CHAT_GREETING = 'أهلاً بيك 👋\nأنا مساعدك في استخدام St.Gorge Dashboard.\nاسألني عن أي وظيفة، وهشرحلك خطواتها. إجاباتي مبنية على دليل التطبيق، ولو معلومة مش مؤكدة هقولك بصراحة.';
+
+  function resetHelpChat() {
+    const chat = document.getElementById('helpChatWindow');
+    const input = document.getElementById('helpChatInput');
+    if (chat) {
+      chat.replaceChildren();
+      const greeting = document.createElement('div');
+      greeting.className = 'help-message bot';
+      greeting.textContent = HELP_CHAT_GREETING;
+      chat.appendChild(greeting);
+      chat.scrollTop = 0;
+    }
+    if (input) input.value = '';
+  }
+
   function openHelpModal() {
     closeSidebar();
+    resetHelpChat();
     new bootstrap.Modal(document.getElementById('helpModal')).show();
     setTimeout(() => document.getElementById('helpChatInput')?.focus(), 250);
   }
