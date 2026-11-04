@@ -4491,7 +4491,7 @@
       });
   }
 
-  function getFollowupMethodLabel(type)  function getFollowupMethodLabel(type) {
+  function getFollowupMethodLabel(type) {
     const value = String(type || '').trim();
     if (/زيار|منزل/i.test(value)) return 'زيارة';
     if (/تليفون|اتصال|مكالمة|phone|call/i.test(value)) return 'اتصال';
