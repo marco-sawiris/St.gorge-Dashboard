@@ -936,7 +936,7 @@
       margin-bottom: 14px;
       box-shadow: var(--shadow-sm);
       display: grid;
-      grid-template-columns: 1.4fr 1fr auto;
+      grid-template-columns: 1.4fr 1fr 1fr auto;
       gap: 8px;
       align-items: center;
     }
@@ -2058,11 +2058,15 @@
       <input type="text" id="searchInput" class="app-input" placeholder="بحث بالاسم أو الملاحظات...">
     </div>
     
-    <select id="sheetSelector" class="app-select">
-      <option value="نشط" selected>نشط</option>
-      <option value="غير حاضر">غير حاضر</option>
-      <option value="فصل البابا شنودة">فصل البابا شنودة</option>
-      <option value="__ALL__">الكل</option>
+    <select id="sheetSelector" class="app-select" aria-label="اختيار الشيت أو الحالة">
+      <option value="نشط" selected>الحالة: نشط</option>
+      <option value="غير حاضر">الحالة: غير حاضر</option>
+      <option value="فصل البابا شنودة">الحالة: فصل البابا شنودة</option>
+      <option value="__ALL__">الحالة: الكل</option>
+    </select>
+
+    <select id="servantFilterSelector" class="app-select" aria-label="فلترة حسب الأشبين">
+      <option value="">كل الأشابين</option>
     </select>
 
     <button class="btn-sync-action" id="btnSync" onclick="fetchLiveGoogleSheetData()">
@@ -2620,11 +2624,22 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     showToast('تم إلغاء الفلتر', 'عرض جميع المخدومين');
   }
 
-  /* قسم الأشبين في الـ Sidebar */
+  /* فلتر الأشبين: قائمة علوية موحدة مع اختيارات القائمة الجانبية */
   function renderServantsChips() {
     const container = document.getElementById('servantsChipsContainer');
+    const selector = document.getElementById('servantFilterSelector');
+    const servants = [...new Set(studentsData.map(s => String(s.servant || '').trim()))]
+      .filter(name => name && name !== 'غير محدد')
+      .sort((a, b) => a.localeCompare(b, 'ar'));
+
+    if (selector) {
+      const options = ['<option value="">كل الأشابين</option>']
+        .concat(servants.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`));
+      selector.innerHTML = options.join('');
+      selector.value = currentServantFilter;
+    }
+
     if (!container) return;
-    const servants = [...new Set(studentsData.map(s => s.servant))].filter(Boolean);
     if (!servants.length) {
       container.innerHTML = '<span class="text-muted small">لا يوجد خدام</span>';
       return;
@@ -2638,16 +2653,16 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     `).join('');
   }
 
-  function toggleServantFilter(servantName) {
-    if (currentServantFilter === servantName) {
-      currentServantFilter = '';
-    } else {
-      currentServantFilter = servantName;
-    }
+  function setServantFilter(servantName) {
+    currentServantFilter = servantName || '';
     renderServantsChips();
     applyFilters();
-    closeSidebar();
     switchView('cards');
+  }
+
+  function toggleServantFilter(servantName) {
+    setServantFilter(currentServantFilter === servantName ? '' : servantName);
+    closeSidebar();
   }
 
   /* ============================================================
@@ -4143,6 +4158,9 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
   }
 
   document.getElementById('searchInput').addEventListener('input', applyFilters);
+  document.getElementById('servantFilterSelector').addEventListener('change', function() {
+    setServantFilter(this.value);
+  });
   document.getElementById('sheetSelector').addEventListener('change', function() {
     currentSheetName = this.value;
     document.getElementById('searchInput').value = '';
