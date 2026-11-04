@@ -2708,6 +2708,9 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
         btnDark.classList.remove('active');
       }
     }
+    if (document.getElementById('chartsView') && !document.getElementById('chartsView').classList.contains('d-none')) {
+      requestAnimationFrame(() => renderStats());
+    }
   }
   initTheme();
 
@@ -4246,7 +4249,10 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
           labels: Object.keys(areaCounts),
           datasets: [{ data: Object.values(areaCounts), backgroundColor: ['#0f8679', '#d49a37', '#12344d', '#e53935', '#4da3ff'] }]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim(), font: { family: 'Almarai' } } } }
+        }
       });
     }
   }
