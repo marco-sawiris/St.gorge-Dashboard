@@ -2257,6 +2257,13 @@
           <tbody id="followupLogBody"></tbody>
         </table>
       </div>
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <label for="followupServantReportFilter" class="fw-bold small mb-0">تقرير الأشبين:</label>
+        <select id="followupServantReportFilter" class="form-select form-select-sm" style="width:auto; min-width:180px; max-width:100%;">
+          <option value="">كل الأشابين</option>
+        </select>
+        <button class="btn-export whatsapp" onclick="shareFollowupViaWhatsApp()"><i class="fa-brands fa-whatsapp"></i> إرسال تقرير الافتقاد واتساب</button>
+      </div>
       <div class="export-buttons-panel">
         <button class="btn-export print" onclick="window.print()"><i class="fa-solid fa-print"></i> طباعة</button>
         <button class="btn-export pdf" onclick="exportFollowupToPDF()"><i class="fa-solid fa-file-pdf"></i> تصدير PDF</button>
@@ -4027,8 +4034,12 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     try {
       const data = await loadSheetRows('سجل الافتقاد');
       const { header, rows } = data;
-      const h = header.map(x => String(x || '').trim());
-      const idx = key => h.findIndex(x => x.includes(key));
+      const normalizeHeader = value => String(value || '').trim()
+        .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+        .replace(/[أإآٱ]/g, 'ا')
+        .replace(/ة/g, 'ه');
+      const h = header.map(normalizeHeader);
+      const idx = key => h.findIndex(x => x.includes(normalizeHeader(key)));
       const iDate = idx('التاريخ');
       const iFriday = idx('الجمعة');
       const iCode = idx('الكود');
@@ -4058,6 +4069,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     const log = window._followupLogData || [];
     const countEl = document.getElementById('followupLogCount');
     if (countEl) countEl.textContent = `${log.length} سجل`;
+    populateFollowupServantFilter();
     const tbody = document.getElementById('followupLogBody');
     if (!tbody) return;
     if (!log.length) {
@@ -4110,6 +4122,73 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       </table>
     `;
     html2pdf().set({ margin: 8, filename: `تقرير_مارجرجس_${currentSheetName}.pdf` }).from(el).save();
+  }
+
+  function getFollowupMethodLabel(type) {
+    const value = String(type || '').trim();
+    if (/زيار|منزل/i.test(value)) return 'زيارة';
+    if (/تليفون|اتصال|مكالمة|phone|call/i.test(value)) return 'اتصال';
+    return value || 'غير محدد';
+  }
+
+  function populateFollowupServantFilter() {
+    const filter = document.getElementById('followupServantReportFilter');
+    if (!filter) return;
+    const selected = filter.value;
+    const servants = [...new Set((window._followupLogData || []).map(r => r.servant).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'ar'));
+    filter.innerHTML = '<option value="">كل الأشابين</option>' + servants.map(name =>
+      '<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + '</option>'
+    ).join('');
+    filter.value = servants.includes(selected) ? selected : '';
+  }
+
+  function shareFollowupViaWhatsApp() {
+    const filter = document.getElementById('followupServantReportFilter');
+    const selectedServant = filter ? filter.value : '';
+    const allRecords = window._followupLogData || [];
+    const records = allRecords.filter(r => !selectedServant || r.servant === selectedServant);
+    if (!records.length) {
+      showToast('لا توجد سجلات', 'لا توجد بيانات افتقاد لإرسالها.', 'error');
+      return;
+    }
+
+    const distinctKey = r => String(r.code || r.name || '').trim().toLowerCase();
+    const distinct = new Set(records.map(distinctKey).filter(Boolean)).size;
+    const calls = records.filter(r => getFollowupMethodLabel(r.type) === 'اتصال').length;
+    const visits = records.filter(r => getFollowupMethodLabel(r.type) === 'زيارة').length;
+    const grouped = {};
+    records.forEach(r => {
+      const servant = r.servant || 'أشبين غير محدد';
+      if (!grouped[servant]) grouped[servant] = [];
+      grouped[servant].push(r);
+    });
+
+    let message = '📞 *تقرير سجل الافتقاد — فصل الشهيد مارجرجس*\n';
+    message += '📅 ' + new Date().toLocaleDateString('ar-EG') + ' | إجمالي السجلات: ' + records.length + '\n';
+    if (selectedServant) message += '👨‍💼 الأشبين: *' + selectedServant + '*\n';
+    message += '👥 مخدومون مختلفون: ' + distinct + '\n';
+    message += '📞 اتصالات: ' + calls + ' | 🏠 زيارات: ' + visits + '\n';
+    message += '━━━━━━━━━━━━━━━━━━━━━\n';
+
+    Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'ar')).forEach(servant => {
+      const servantRecords = grouped[servant];
+      const servantDistinct = new Set(servantRecords.map(distinctKey).filter(Boolean)).size;
+      const servantCalls = servantRecords.filter(r => getFollowupMethodLabel(r.type) === 'اتصال').length;
+      const servantVisits = servantRecords.filter(r => getFollowupMethodLabel(r.type) === 'زيارة').length;
+      message += '👨‍💼 *' + servant + '*\n';
+      message += '  • إجمالي: ' + servantRecords.length + ' مرة | ' + servantDistinct + ' مخدوم مختلف\n';
+      message += '  • اتصالات: ' + servantCalls + ' | زيارات: ' + servantVisits + '\n';
+      message += '  تفاصيل الافتقاد:\n';
+      [...servantRecords].reverse().forEach(r => {
+        message += '  - ' + (r.name || r.code || 'بدون اسم') + ' — ' +
+          getFollowupMethodLabel(r.type) + ' — ' + (r.date || 'التاريخ غير مسجل') + '\n';
+      });
+      message += '━━━━━━━━━━━━━━━━━━━━━\n';
+    });
+
+    message += '_لوحة المتابعة التفاعلية_';
+    window.open('https://wa.me/?text=' + encodeURIComponent(message), '_blank');
   }
 
   function exportFollowupToExcel() {
