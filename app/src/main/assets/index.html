@@ -2419,10 +2419,10 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     const splash = document.getElementById("splashScreen");
     if (splash) {
       splash.style.transition = "opacity 400ms ease";
-      setTimeout(() => {
-        splash.style.display = "none";
+      splash.style.opacity = "0";
+      splash.addEventListener('transitionend', () => {
         splash.remove();
-      }, 400);
+      }, { once: true });
     }
   }
   // إخفاء فوري بعد 1.5 ثانية كحد أقصى أو عند النقر المباشر
@@ -3103,9 +3103,9 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       if (topBadge) topBadge.title = `آخر تحديث: ${timeStr} — المزامنة التلقائية القادمة بعد 5 دقائق (اضغط للتحديث الفوري)`;
 
       if (isAutoSync) {
-        showToast('مزامنة تلقائية', `تم تحديث البيانات تلقائياً (${studentsData.length} مخدوم)`);
+        // لا نحتاج إظهار توست للمزامنة التلقائية إلا إذا كان هناك خطأ، لنقلل الإزعاج
       } else {
-        showToast('تمت المزامنة بنجاح', `تم تحميل ${studentsData.length} مخدوم`);
+        showToast('تمت المزامنة بنجاح', `تم تحميل ${studentsData.length} مخدوم من شيت ${requested}`);
       }
       try {
         localStorage.setItem(`stgorge_cache_${requested}`, JSON.stringify(studentsData));
