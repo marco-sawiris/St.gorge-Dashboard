@@ -104,11 +104,32 @@
   border-right: 2px solid var(--primary);
   min-width: 28px;
   max-height: 80vh;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   box-shadow: 2px 0 12px rgba(26, 115, 232, 0.15);
   transition: background 200ms ease;
+}
+.alpha-scroll-bar span {
+  display: block;
+  min-width: 28px;
+  padding: 2px 0;
+  text-align: center;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 5px;
+}
+.alpha-scroll-bar span:hover,
+.alpha-scroll-bar span:focus-visible {
+  color: #ffffff;
+  background: var(--primary);
+  outline: none;
 }
 .alpha-scroll-bar:active {
   background: rgba(26, 115, 232, 0.18);
@@ -1063,20 +1084,44 @@
       transform: rotateY(180deg);
     }
 
-    /* الكارت بألوانه الكاملة دائماً */
-    .student-card {      background: var(--card-bg);      border-radius: var(--radius-xl);      border: 1px solid var(--border);      box-shadow: var(--shadow-sm);      padding: 16px;      position: relative;      display: flex;      flex-direction: column;      justify-content: space-between;      backface-visibility: hidden;      -webkit-backface-visibility: hidden;      height: 100%;      filter: grayscale(100%);      opacity: 0.88;      transition: filter 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 320ms ease, transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 320ms ease;    }
+    /* الكروت grayscale افتراضياً، والكارت تحت مؤشر الماوس فقط يظهر بألوانه */
+    .student-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      padding: 16px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      height: 100%;
+      filter: grayscale(100%);
+      opacity: 0.88;
+      transition: filter 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 320ms ease, transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 320ms ease;
+    }
+
+    /* لا نضيف تشبعاً اصطناعياً لعناصر الحضور والافتقاد؛ لونها يظهر مع الكارت نفسه */
     .student-card .track-segment.att-on,
     .student-card .track-segment.fu-first-pending,
     .student-card .track-segment.fu-first-done {
-      filter: saturate(10) !important;
+      filter: none !important;
       opacity: 1 !important;
     }
-                  box-shadow 320ms ease;
+
+    /* Hover حقيقي على أجهزة الماوس فقط */
+    @media (hover: hover) and (pointer: fine) {
+      .card-flip-container:hover .card-front {
+        filter: grayscale(0%) !important;
+        opacity: 1 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 24px rgba(18, 52, 77, 0.12);
+      }
     }
 
-    /* تأثير الوقوف بالماوس أو اللمس */
-    .card-flip-container:hover .student-card,
-    .card-flip-container:focus-within .student-card,
+    /* حالات اللمس والتعديل تظل مدعومة */
     .student-card.hover-active,
     .student-card.editing,
     .card-flip-inner.flipped .student-card {
@@ -3227,6 +3272,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     if (!filteredData.length) {
       emptyState.classList.remove('d-none');
       container.innerHTML = getAddCardHTML();
+      populateAlphaScrollBar();
       return;
     }
     emptyState.classList.add('d-none');
@@ -3434,6 +3480,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
       `;
     }).join('') + getAddCardHTML();
 
+    populateAlphaScrollBar();
     isFirstLoad = false;
   }
 
@@ -4267,27 +4314,70 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     }, { passive: true });
   });
 
-  function populateAlphaScrollBar() {
-    const letters = 'أبجدهوزحطيكلمنصعفقلرشتثخذضظغ'.split('');
-    const bar = document.getElementById('alphaScrollBar');
-    if (!bar) return;
-    
-    // إخلاء الشريط قبل الإضافة
-    bar.innerHTML = '<div class="alpha-letter-indicator"></div>';
-    
-    letters.forEach(l => {
-      const span = document.createElement('span');
-      span.textContent = l;
-      span.style.cursor = 'pointer';
-      span.style.fontSize = '12px';
-      span.onclick = () => {
-        // Logic to scroll to the letter
-        console.log("Jumping to letter:", l);
-      };
-      bar.appendChild(span);
-    });
+  function normalizeArabicInitial(value) {
+    return String(value || '')
+      .trim()
+      .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
+      .replace(/[أإآٱ]/g, 'ا')
+      .charAt(0);
   }
 
+  function populateAlphaScrollBar() {
+    const bar = document.getElementById('alphaScrollBar');
+    if (!bar) return;
+
+    const source = Array.isArray(filteredData) ? filteredData : [];
+    const byInitial = new Map();
+
+    source.forEach(student => {
+      const initial = normalizeArabicInitial(student && student.name);
+      if (initial && !byInitial.has(initial)) byInitial.set(initial, student);
+    });
+
+    const letters = Array.from(byInitial.keys()).sort((a, b) =>
+      new Intl.Collator('ar', { sensitivity: 'base' }).compare(a, b)
+    );
+
+    bar.innerHTML = '';
+    const indicator = document.createElement('div');
+    indicator.className = 'alpha-letter-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    bar.appendChild(indicator);
+
+    letters.forEach(letter => {
+      const item = document.createElement('span');
+      item.textContent = letter;
+      item.tabIndex = 0;
+      item.setAttribute('role', 'button');
+      item.setAttribute('aria-label', 'انتقل إلى الأسماء التي تبدأ بحرف ' + letter);
+
+      const jumpToLetter = () => {
+        const student = byInitial.get(letter);
+        if (!student) return;
+        const card = document.getElementById('flipContainer-' + student.id);
+        if (!card) return;
+
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        indicator.textContent = letter;
+        indicator.style.opacity = '1';
+        window.clearTimeout(populateAlphaScrollBar.indicatorTimer);
+        populateAlphaScrollBar.indicatorTimer = window.setTimeout(() => {
+          indicator.style.opacity = '0';
+        }, 900);
+      };
+
+      item.addEventListener('click', jumpToLetter);
+      item.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          jumpToLetter();
+        }
+      });
+      bar.appendChild(item);
+    });
+
+    bar.style.display = letters.length ? 'flex' : 'none';
+  }
 </script>
 <div id="alphaScrollBar" class="alpha-scroll-bar">
   <div id="alphaLetterIndicator" class="alpha-letter-indicator"></div>
