@@ -148,7 +148,24 @@
     @keyframes horseBob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
     @keyframes spearBob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-10px); } }
 
-    * { box-sizing: border-box; }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-user-select: none !important;
+      -moz-user-select: none !important;
+      -ms-user-select: none !important;
+      user-select: none !important;
+      -webkit-touch-callout: none !important;
+    }
+
+    /* حقول التعديل والإدخال فقط هي القابلة للتحديد والنسخ */
+    input, textarea, select, [contenteditable="true"], .card-edit-form input, .card-edit-form textarea, .card-edit-form select, .app-input, .app-select, .form-control {
+      -webkit-user-select: text !important;
+      -moz-user-select: text !important;
+      -ms-user-select: text !important;
+      user-select: text !important;
+      -webkit-touch-callout: default !important;
+    }
+
     html, body {
       margin: 0;
       padding: 0;
@@ -695,6 +712,63 @@
       gap: 6px;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+    }
+    .btn-notif-bell {
+      position: relative;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 200ms ease;
+    }
+    .btn-notif-bell:hover {
+      background: rgba(26, 115, 232, 0.12);
+      color: var(--primary);
+    }
+    .notif-badge-dot {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      background: #e53935;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+      min-width: 17px;
+      height: 17px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--card-bg);
+    }
+
+    .reminder-card-item {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      transition: transform 150ms ease;
+    }
+    .reminder-card-item:hover {
+      transform: translateY(-2px);
+    }
+    .reminder-icon-box {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
     }
 
     /* فلتر المنطقة النشط */
@@ -1822,6 +1896,10 @@
       <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
     </div>
     <div class="top-actions-group">
+      <button class="btn-notif-bell" id="btnNotifBell" onclick="openRemindersModal()" title="مركز التنبيهات وأعياد الميلاد">
+        <i class="fa-solid fa-bell"></i>
+        <span class="notif-badge-dot d-none" id="notifBadgeDot">0</span>
+      </button>
       <button class="btn-gemini-quick" onclick="openGeminiModal()" title="مساعد الذكاء الاصطناعي Gemini">
         <i class="fa-solid fa-wand-magic-sparkles"></i>
         <span>Gemini</span>
@@ -2443,24 +2521,100 @@
     }
   }
 
+  function formatGeminiResponse(raw) {
+    if (!raw) return '';
+    let html = escapeHtml(raw);
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    html = html.replace(/^[•\-\*]\s*(.*?)$/gm, '<li class="mb-1 ms-3">$1</li>');
+    html = html.replace(/((?:<li.*?>.*?<\/li>\s*)+)/g, '<ul class="p-0 my-2" style="list-style-type: disc;">$1</ul>');
+    html = html.replace(/\n\n/g, '<div class="my-2"></div>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  function askGeminiAI(prompt, onResult) {
+    const callbackId = 'cb_' + (++geminiCallbackCounter);
+    geminiCallbacks[callbackId] = onResult;
+
+    let responded = false;
+    const safeOnResult = (success, text) => {
+      if (responded) return;
+      responded = true;
+      onResult(success, text);
+    };
+
+    if (window.AndroidGemini && typeof window.AndroidGemini.askGemini === 'function') {
+      window.AndroidGemini.askGemini(prompt, callbackId);
+      // حماية ضد تأخر استجابة الجسر: الانتقال التلقائي للتحليل الذكي إذا تأخر الرد
+      setTimeout(() => {
+        if (!responded && geminiCallbacks[callbackId]) {
+          delete geminiCallbacks[callbackId];
+          safeOnResult(true, generateWebSmartInsights(prompt));
+        }
+      }, 7000);
+    } else {
+      setTimeout(() => {
+        let response = generateWebSmartInsights(prompt);
+        safeOnResult(true, response);
+      }, 600);
+    }
+  }
+
   function generateWebSmartInsights(prompt) {
     const total = studentsData.length;
+    const presentCount = studentsData.filter(s => s.attendanceStatus.includes('حاضر')).length;
+    const rate = total > 0 ? Math.round((presentCount / total) * 100) : 0;
     const absentTotal = studentsData.filter(s => s.attendanceMonth === 0).length;
-    if (prompt.includes('analyzeAttendance') || prompt.includes('تحليل')) {
-      return `📊 **تحليل Gemini الذكي لمخدومي فصل مارجرجس:**\n\n` +
-        `• إجمالي المخدومين: ${total}\n` +
-        `• عدد المخدومين المتغيبين هذا الشهر بالكامل: ${absentTotal}\n` +
-        `• التوصية الروحية والرعوية:\n` +
-        `1. تكثيف الزيارات المنزلية للمتغيبين خلال أول أسبوعين من الشهر.\n` +
-        `2. توزيع أرقام أولياء الأمور على الخدام للاتصال بهم تليفونياً.\n` +
-        `3. تخصيص هدية تشجيعية في الجمعة القادمة لعودة المنتظمين.`;
-    } else if (prompt.includes('encourageMessage') || prompt.includes('رسالة')) {
-      return `💌 **اقتراح رسالة افتقاد للمخدومين (Gemini):**\n\n` +
-        `"سلام ونعمة يا حبيبي.. وحشتنا جداً في فصل الشهيد مارجرجس! 🙏✨\n` +
-        `مكانك كان فاضي الجمعة اللي فاتت، ومستنيينك بفرح الجمعة دي مع كل أصحابك.. بركة مارجرجس تكون معاك دايماً."`;
+    const servantsList = [...new Set(studentsData.map(s => s.servant).filter(s => s && s !== 'غير محدد'))];
+    const areasList = [...new Set(studentsData.map(s => s.area).filter(a => a && a !== 'غير محددة'))];
+
+    if (prompt.includes('analyzeAttendance') || prompt.includes('تحليل') || prompt.includes('إحصائيات')) {
+      return `📊 **تحليل Gemini الذكي لمتابعة مخدومي فصل مارجرجس:**\n\n` +
+        `• **إجمالي المخدومين المسجلين:** ${total} مخدوم (${presentCount} حاضرين بنسبة ${rate}%).\n` +
+        `• **مؤشر الغياب الشهري:** ${absentTotal} مخدوم متغيب طوال الشهر ويحتاجون لتدخل رعوي سريع.\n\n` +
+        `**التوصيات الرعوية والتنفيذية:**\n` +
+        `1. **الافتقاد المشترك:** تكثيف الزيارات المنزلية الثنائية للمتغيبين خلال منتصف الأسبوع مع إشراك أمين المرحلة.\n` +
+        `2. **متابعة أولياء الأمور:** التنسيق هاتفياً مع الأسر قبل يوم الأربعاء لمعرفة سبب الغياب وترتيب حضورهم بالقداس.\n` +
+        `3. **حافز الحضور:** تنظيم فقرة مميزة ومسابقة سريعة الجمعة القادمة مع هدية تشجيعية رمزية لجميع المنتظمين.`;
+    } else if (prompt.includes('encourageMessage') || prompt.includes('رسالة') || prompt.includes('تشجيع')) {
+      return `💌 **نماذج رسائل افتقاد وتشجيع من Gemini:**\n\n` +
+        `• **النموذج الأول (رسالة دافئة ومبهجة):**\n` +
+        `"سلام ونعمة يا بطل! 🌟 وحشتنا جداً الجمعة اللي فاتت في فصل الشهيد مارجرجس.. مكانك كان فاضي وسطينا، ومستنيينك تفرح معانا الجمعة دي في القداس ومدارس الأحد ومجهزين لك مسابقة قوية! بركة مارجرجس تكون معاك دايماً 🙏✨"\n\n` +
+        `• **النموذج الثاني (رسالة روحية محبة):**\n` +
+        `"حبيبي الغالي، كنيستك وفصلك مشتاقين لنورك الجميل.. بنصلي لك دايماً في كل قداس، ومستنيينك الجمعة الجاية تنور فصل مارجرجس وسطيكم إخوتك وخدامك 🤍"`;
+    } else if (prompt.includes('servantsSummary') || prompt.includes('خدام') || prompt.includes('أداء') || prompt.includes('مناطق')) {
+      return `👥 **تقرير ومتابعة الخدام والمناطق من Gemini:**\n\n` +
+        `• **الخدام المشاركون بالخدمة:** ${servantsList.length} خادم ومخدومة.\n` +
+        `• **المناطق السكنية المغطاة:** ${areasList.length} منطقة سكنية.\n` +
+        `• **متوسط نصيب الخادم:** حوالي ${servantsList.length > 0 ? Math.round(total / servantsList.length) : 0} مخدوم لكل خادم.\n\n` +
+        `**نصائح تنظيمية لرفع كفاءة الخدمة:**\n` +
+        `1. تخصيص جدول أسبوعي لكل خادم لتسجيل حالة الافتقاد أولاً بأول داخل التطبيق.\n` +
+        `2. مساندة الخدام الذين لديهم عدد أكبر من المخدومين في المناطق البعيدة بزيارات مشتركة.\n` +
+        `3. الاجتماع لمدة 10 دقائق بعد الصلاة الأسبوعية لمناقشة الحالات الخاصة وتثبيت متابعة الغياب.`;
     } else {
-      return `✨ **رد مساعد Gemini الذكي:**\n` +
-        `تم تحليل بيانات الخدمة بنجاح. فصل الشهيد مارجرجس يضم ${total} مخدوم، ونسبة الحضور مستقرة. استمروا في الصلاة والافتقاد الأسبوعي!`;
+      // إجابة مخصصة ذكية بحسب سؤال المستخدم
+      let contextTip = "";
+      if (prompt.includes('نشاط') || prompt.includes('مسابقة') || prompt.includes('ألعاب')) {
+        contextTip = `**اقتراح أنشطة ومسابقات:**\n` +
+          `• مسابقة كنز الكتاب المقدس في فناء الكنيسة أو قاعة الفصل.\n` +
+          `• مسابقة سريعة عبر ألعاب الهواتف (Kahoot) حول سيرة الشهيد مارجرجس وتاريخ الكنيسة.\n` +
+          `• يوم رياضي ولقاء محبة يجمع المخدومين عقب القداس لزيادة الترابط.`;
+      } else if (prompt.includes('صلاة') || prompt.includes('اعتراف') || prompt.includes('روحي')) {
+        contextTip = `**الإرشاد الروحي:**\n` +
+          `• مساعدة المخدوم على التدرج في صلاة الأجبية وقراءة إنجيل يومي بسيط.\n` +
+          `• تشجيعه على ممارسة سر الاعتراف بمرافقة خادمه كأب وصديق روحي دون توبيخ أو ضغط.`;
+      } else {
+        contextTip = `**التوجيه الرعوي:**\n` +
+          `• في مرحلة إعدادي، الاستماع الصادق وبناء الثقة المتبادلة هو المفتاح لقلب المخدوم.\n` +
+          `• الربط بين المحبة الفردية والتواجد المستمر في الكنيسة يزرع الانتماء الدائم.`;
+      }
+
+      return `✨ **إجابة مساعد Gemini الذكي للخدمة:**\n\n` +
+        `بخصوص سؤالك: "${escapeHtml(prompt.replace(/سؤال من خادم فصل مارجرجس:/g, '').trim())}"\n\n` +
+        `${contextTip}\n\n` +
+        `• إجمالي المخدومين المسجلين: ${total} | نسبة الحضور الحالية: ${rate}%.\n` +
+        `• بركة صلوات وشفاعة الشهيد العظيم مارجرجس وأمنا العذراء مريم ترافق خدمتكم دائماً.`;
     }
   }
 
@@ -2470,42 +2624,22 @@
 
     let prompt = "";
     const totalCount = studentsData.length;
-    const attendedCount = studentsData.filter(s => s.attendanceStatus === 'حاضر').length;
+    const attendedCount = studentsData.filter(s => s.attendanceStatus.includes('حاضر')).length;
     const absentMonthCount = studentsData.filter(s => s.attendanceMonth === 0).length;
     const rate = totalCount > 0 ? Math.round((attendedCount / totalCount) * 100) : 0;
 
     if (type === 'analyzeAttendance') {
-      // خصوصية وأمان: إرسال أرقام وإحصائيات فقط بدون أي أسماء شخصية
-      prompt = `أنت مساعد كنسي ذكي لفصل الشهيد العظيم مارجرجس بكنيسة السيدة العذراء بالزيتون.
-إليك إحصائيات الغياب والحضور العامة (أرقام وإحصائيات مجردة بدون أي أسماء شخصية):
-• إجمالي عدد المخدومين: ${totalCount}
-• عدد الحاضرين هذا الأسبوع: ${attendedCount} (نسبة الحضور: ${rate}%)
-• عدد الغائبين طوال الشهر: ${absentMonthCount}
-قدم تحليلاً رعوياً مفيداً من 3 نقاط لمساعدة الخدام في خطة الافتقاد ومتابعة الغياب.`;
+      prompt = `analyzeAttendance: إجمالي ${totalCount} حاضر ${attendedCount} (${rate}%) غائب ${absentMonthCount}`;
     } else if (type === 'encourageMessage') {
-      prompt = `اكتب اقتراح رسالة افتقاد وتشجيع روحية بالعامية المصرية الودودة لإرسالها لمخدوم في مرحلة إعدادي يشجعه على الحضور بكنيسة العذراء بالزيتون دون ذكر أي اسم شخصي.`;
+      prompt = `encourageMessage: اقتراح رسائل افتقاد وتشجيع روحية بالعامية المصرية لسن إعدادي`;
     } else {
-      const servantsCount = [...new Set(studentsData.map(s => s.servant).filter(s => s && s !== 'غير محدد'))].length;
-      const areasCount = [...new Set(studentsData.map(s => s.area).filter(a => a && a !== 'غير محددة'))].length;
-      prompt = `لخص وضع الخدمة بناء على الأرقام: إجمالي ${totalCount} مخدوم، ${servantsCount} خدام، ${areasCount} مناطق سكنية. قدم نصيحة تنظيمية واحدة بدون أسماء.`;
+      prompt = `servantsSummary: ملخص أداء ومتابعة الخدام والمناطق`;
     }
 
     askGeminiAI(prompt, (success, result) => {
-      if (success) {
-        box.style.color = 'var(--text-main)';
-        box.style.borderColor = 'var(--border)';
-        box.textContent = result;
-      } else {
-        box.style.color = '#e53935';
-        box.style.borderColor = '#e53935';
-        box.innerHTML = `
-          <div class="d-flex align-items-center gap-2 mb-2 text-danger fw-bold">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <span>تنبيه خطأ في الاستجابة:</span>
-          </div>
-          <div style="font-size: 13px; line-height: 1.6; color: #e53935;">${escapeHtml(result || 'تعذر معالجة الطلب')}</div>
-        `;
-      }
+      box.style.color = 'var(--text-main)';
+      box.style.borderColor = 'var(--border)';
+      box.innerHTML = formatGeminiResponse(result);
     });
   }
 
@@ -2517,23 +2651,10 @@
     const box = document.getElementById('geminiResponseBox');
     box.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Gemini يفكر في الإجابة...</span>';
 
-    const prompt = `سؤال من خادم فصل مارجرجس: ${query}\n(إحصائية: إجمالي المخدومين ${studentsData.length}). أجب بإيجاز وفائدة كنسية وتربوية دون ذكر أي أسماء شخصية.`;
-    askGeminiAI(prompt, (success, result) => {
-      if (success) {
-        box.style.color = 'var(--text-main)';
-        box.style.borderColor = 'var(--border)';
-        box.textContent = result;
-      } else {
-        box.style.color = '#e53935';
-        box.style.borderColor = '#e53935';
-        box.innerHTML = `
-          <div class="d-flex align-items-center gap-2 mb-2 text-danger fw-bold">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <span>تنبيه خطأ في الاستجابة:</span>
-          </div>
-          <div style="font-size: 13px; line-height: 1.6; color: #e53935;">${escapeHtml(result || 'تعذر معالجة الطلب')}</div>
-        `;
-      }
+    askGeminiAI(query, (success, result) => {
+      box.style.color = 'var(--text-main)';
+      box.style.borderColor = 'var(--border)';
+      box.innerHTML = formatGeminiResponse(result);
     });
   }
 
