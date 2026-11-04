@@ -3973,42 +3973,70 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
 
   function renderD3AttendanceChart() {
     const container = document.getElementById('d3AttendanceChart');
+    if (!container) return;
     container.innerHTML = '';
-    const margin = {top: 20, right: 30, bottom: 40, left: 40};
-    const width = container.clientWidth - margin.left - margin.right;
-    const height = container.clientHeight - margin.top - margin.bottom;
 
-    const svg = d3.select('#d3AttendanceChart')
+    const dates = [...new Set(studentsData.flatMap(s => Object.keys(s.att || {})))].sort().slice(-5);
+    if (!dates.length || !studentsData.length) {
+      container.innerHTML = '<div class="text-muted text-center py-5">لا توجد بيانات حضور أسبوعية كافية لعرض الرسم.</div>';
+      return;
+    }
+
+    const data = dates.map(date => {
+      const present = studentsData.filter(s => s.att && s.att[date] === true).length;
+      return {
+        label: new Date(date + 'T00:00:00').toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' }),
+        rate: Math.round((present / studentsData.length) * 100)
+      };
+    });
+
+    const margin = { top: 20, right: 30, bottom: 40, left: 40 };
+    const width = Math.max(0, container.clientWidth - margin.left - margin.right);
+    const height = Math.max(0, container.clientHeight - margin.top - margin.bottom);
+    if (width === 0 || height === 0) return;
+
+    const svg = d3.select(container)
       .append('svg')
       .attr('width', width + margin.left + margin.right)
       .attr('height', height + margin.top + margin.bottom)
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Dummy data for trends
-    const data = [
-      { week: 'الأسبوع 1', rate: 75 },
-      { week: 'الأسبوع 2', rate: 82 },
-      { week: 'الأسبوع 3', rate: 78 },
-      { week: 'الأسبوع 4', rate: 85 },
-      { week: 'الأسبوع 5', rate: 90 }
-    ];
+    const x = d3.scalePoint().domain(data.map(d => d.label)).range([0, width]).padding(0.35);
+    const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);
 
-    const x = d3.scaleBand().range([0, width]).domain(data.map(d => d.week)).padding(0.1);
-    const y = d3.scaleLinear().range([height, 0]).domain([0, 100]);
-
-    svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x));
-    svg.append('g').call(d3.axisLeft(y));
+    svg.append('g')
+      .attr('transform', `translate(0,${height})`)
+      .call(d3.axisBottom(x));
+    svg.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(value => value + '%'));
 
     svg.append('path')
       .datum(data)
       .attr('fill', 'none')
       .attr('stroke', '#1a73e8')
-      .attr('stroke-width', 2)
-      .attr('d', d3.line()
-        .x(d => x(d.week) + x.bandwidth() / 2)
-        .y(d => y(d.rate))
-      );
+      .attr('stroke-width', 2.5)
+      .attr('d', d3.line().x(d => x(d.label)).y(d => y(d.rate)));
+
+    svg.selectAll('.attendance-point')
+      .data(data)
+      .enter()
+      .append('circle')
+      .attr('class', 'attendance-point')
+      .attr('cx', d => x(d.label))
+      .attr('cy', d => y(d.rate))
+      .attr('r', 4)
+      .attr('fill', '#1a73e8');
+
+    svg.selectAll('.attendance-label')
+      .data(data)
+      .enter()
+      .append('text')
+      .attr('class', 'attendance-label')
+      .attr('x', d => x(d.label))
+      .attr('y', d => y(d.rate) - 10)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '11px')
+      .text(d => d.rate + '%');
   }
 
   function renderCharts(phone, visit, pending) {
@@ -4054,46 +4082,6 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
       });
     }
-    
-    // D3 Attendance Chart
-    renderAttendanceD3Chart();
-  }
-
-  function renderAttendanceD3Chart() {
-    const data = [
-      { month: 'يوليو', rate: 70 },
-      { month: 'أغسطس', rate: 75 },
-      { month: 'سبتمبر', rate: 80 },
-      { month: 'أكتوبر', rate: 85 }
-    ];
-    
-    d3.select('#d3AttendanceChart').selectAll('*').remove();
-    const margin = {top: 20, right: 30, bottom: 30, left: 40},
-          width = document.getElementById('d3AttendanceChart').clientWidth - margin.left - margin.right,
-          height = document.getElementById('d3AttendanceChart').clientHeight - margin.top - margin.bottom;
-
-    const svg = d3.select('#d3AttendanceChart')
-      .append('svg')
-      .attr('width', width + margin.left + margin.right)
-      .attr('height', height + margin.top + margin.bottom)
-      .append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    const x = d3.scaleBand().range([0, width]).domain(data.map(d => d.month)).padding(0.1);
-    const y = d3.scaleLinear().range([height, 0]).domain([0, 100]);
-
-    svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x));
-    svg.append('g').call(d3.axisLeft(y));
-
-    svg.selectAll('.bar')
-      .data(data)
-      .enter().append('rect')
-      .attr('class', 'bar')
-      .attr('x', d => x(d.month))
-      .attr('width', x.bandwidth())
-      .attr('y', d => y(d.rate))
-      .attr('height', d => height - y(d.rate))
-      .attr('fill', '#1a73e8');
   }
 
   window._followupLogData = [];
