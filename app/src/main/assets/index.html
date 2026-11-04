@@ -3301,8 +3301,8 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
               <!-- أزرار الإجراءات -->
               <div class="contact-actions">
                 ${cleanPhone 
-                  ? `<a href="tel:${cleanPhone}" class="btn-card-action btn-call" onclick="recordQuickCallFollowup(${s.id})"><i class="fa-solid fa-phone"></i><span>اتصال</span></a>
-                     <a href="https://wa.me/${whatsappPhone}" class="btn-card-action btn-whatsapp" onclick="recordQuickWhatsAppFollowup(${s.id})"><i class="fa-brands fa-whatsapp"></i><span>واتساب</span></a>`
+                  ? `<a href="tel:${cleanPhone}" class="btn-card-action btn-call" onclick="return openCardCall(event, ${s.id}, '${cleanPhone}')"><i class="fa-solid fa-phone"></i><span>اتصال</span></a>
+                     <a href="https://wa.me/${whatsappPhone}" class="btn-card-action btn-whatsapp" onclick="return openCardWhatsApp(event, ${s.id}, '${whatsappPhone}')"><i class="fa-brands fa-whatsapp"></i><span>واتساب</span></a>`
                   : `<span class="btn-card-action bg-light text-muted" style="grid-column: span 2;">لا يوجد هاتف</span>`}
                 <button class="btn-flip-edit" onclick="flipCardToEdit(${s.id})" title="تعديل بيانات المخدوم"><i class="fa-solid fa-pen-to-square"></i></button>
               </div>
@@ -3538,6 +3538,34 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
     const hasFu = s.followupStatus && s.followupStatus !== 'بدون' && !s.followupStatus.includes('لم');
     const newStatus = hasFu ? 'بدون' : 'تم تليفونياً';
     recordQuickFollowup(studentId, newStatus);
+  }
+
+  function openCardCall(event, studentId, phone) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    recordQuickCallFollowup(studentId);
+    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openDialer === 'function') {
+      AndroidServiceBridge.openDialer(String(phone || ''));
+    } else if (phone) {
+      window.location.href = 'tel:' + String(phone).replace(/\\D/g, '');
+    }
+    return false;
+  }
+
+  function openCardWhatsApp(event, studentId, phone) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    recordQuickWhatsAppFollowup(studentId);
+    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openWhatsApp === 'function') {
+      AndroidServiceBridge.openWhatsApp(String(phone || ''));
+    } else if (phone) {
+      window.location.href = 'https://wa.me/' + String(phone).replace(/\\D/g, '');
+    }
+    return false;
   }
 
   function recordQuickCallFollowup(studentId) {
