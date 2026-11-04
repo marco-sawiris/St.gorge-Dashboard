@@ -325,8 +325,14 @@
     }
 
     
-    html, body, button, input, select, textarea, .btn, .card, .table, h1, h2, h3, h4, h5, h6, .modal-title, .nav-link, .dropdown-item, .splash-title, .top-bar-title, .sidebar-brand {
-      font-family: 'Almarai' !important;
+    /* توحيد Almarai على كل النصوص وعناصر الاختيار والقوائم الديناميكية */
+    html, body, body *:not(i):not(svg):not(path):not(.fa):not([class^="fa-"]):not([class*=" fa-"]),
+    button, input, select, textarea, option, optgroup,
+    .dropdown-menu, .dropdown-menu *, .dropdown-item,
+    .form-select, .form-control, .form-check-label,
+    .btn, .card, .table, h1, h2, h3, h4, h5, h6,
+    .modal-title, .nav-link, .splash-title, .top-bar-title, .sidebar-brand {
+      font-family: 'Almarai', sans-serif !important;
     }
 
     /* ============================================================
@@ -3239,7 +3245,7 @@ document.querySelectorAll(".card-flip-container").forEach(container => {
                   <!-- مسار الافتقاد: مميز باللون الرمادي الغامق، وأول وحدة أحمر/أخضر -->
                   <div class="track-row">
                     <div class="track-header">
-                      <span class="track-title"><i class="fa-solid fa-phone text-secondary"></i> الافتقاد (رمادي غامق)</span>
+                      <span class="track-title"><i class="fa-solid fa-phone text-secondary"></i> الافتقاد</span>
                       <span class="track-count ${hasFollowup ? 'text-success' : 'text-danger'}" style="cursor:pointer;" onclick="toggleQuickFollowup(${s.id}, event)" title="انقر لتسجيل أو تعديل الافتقاد">
                         ${hasFollowup ? `<i class="fa-solid fa-circle-check me-1"></i>${escapeHtml(s.followupStatus)}` : '<i class="fa-solid fa-circle-exclamation me-1"></i>بحاجة لافتقاد'}
                       </span>
