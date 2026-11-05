@@ -88,88 +88,171 @@
   opacity: 0.85;
   animation: wordIn 800ms cubic-bezier(0.34,1.56,0.64,1) 1200ms both;
 }
-.alpha-scroll-bar {
+/* ============================================================
+   شريط الحروف الأبجدية الأفقي بأسفل الشاشة (أحرف بجانب بعضها)
+   ============================================================ */
+.bottom-keyboard-dock {
   position: fixed;
+  bottom: 0;
   left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 9000;
+  right: 0;
+  z-index: 9850;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.10);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 4px 8px calc(6px + env(safe-area-inset-bottom, 0px)) 8px;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.25, 1);
+  direction: rtl;
+  user-select: none;
+}
+[data-theme="dark"] .bottom-keyboard-dock {
+  background: rgba(15, 31, 46, 0.98);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+}
+.bottom-keyboard-dock.collapsed {
+  transform: translateY(calc(100% - 30px));
+}
+.kb-dock-header {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0;
-  padding: 5px 0;
-  background: rgba(26, 115, 232, 0.10);
-  border-radius: 0 9px 9px 0;
-  border-right: 2px solid var(--primary);
-  width: 27px;
-  max-height: 84vh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  justify-content: space-between;
+  height: 28px;
+  margin-bottom: 3px;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.kb-dock-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-family: 'Almarai', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.kb-dock-toggle-btn i {
+  color: var(--primary);
+  font-size: 13px;
+  transition: transform 260ms ease;
+}
+.bottom-keyboard-dock.collapsed .kb-dock-toggle-btn i {
+  transform: rotate(180deg);
+}
+.kb-active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(26, 115, 232, 0.12);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  border-radius: 14px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+[data-theme="dark"] .kb-active-badge {
+  background: rgba(77, 163, 255, 0.15);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.kb-clear-btn {
+  background: rgba(229, 57, 53, 0.12);
+  border: 1px solid var(--red-status);
+  color: var(--red-status);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.kb-clear-btn:active {
+  background: rgba(229, 57, 53, 0.25);
+}
+.kb-horizontal-strip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  padding: 2px 2px 4px 2px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  box-shadow: 2px 0 12px rgba(26, 115, 232, 0.15);
-  transition: background 180ms ease;
 }
-.alpha-scroll-bar::-webkit-scrollbar { display: none; }
-.alpha-scroll-bar span {
-  display: flex;
-  flex: 0 0 17px;
+.kb-horizontal-strip::-webkit-scrollbar {
+  display: none;
+}
+.kb-key {
+  flex: 0 0 38px;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-family: 'Almarai', sans-serif;
+  font-size: 15.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  box-shadow: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 25px;
-  min-width: 25px;
-  height: 17px;
-  padding: 0;
-  text-align: center;
-  color: var(--text-main);
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
   cursor: pointer;
   user-select: none;
-  border-radius: 4px;
-  transition: color 120ms ease, background 120ms ease, opacity 120ms ease;
+  touch-action: manipulation;
+  transition: background 120ms ease, border-color 120ms ease, transform 100ms ease;
+  padding: 0;
 }
-.alpha-scroll-bar span:hover,
-.alpha-scroll-bar span:focus-visible,
-.alpha-scroll-bar span.active {
+.kb-key:active {
+  transform: scale(0.92);
+  background: rgba(26, 115, 232, 0.15);
+  border-color: var(--primary);
+}
+.kb-key.active {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
+  font-weight: 800;
+  box-shadow: none !important;
+  transform: translateY(-1px);
+}
+[data-theme="dark"] .kb-key.active {
+  background: var(--primary) !important;
+  color: #0b1520 !important;
+  font-weight: 900;
+}
+.kb-key.kb-backspace {
+  flex: 0 0 48px;
+  width: 48px;
+  min-width: 48px;
+  background: var(--input-bg);
+  color: var(--primary);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.kb-key.kb-backspace:active {
+  background: var(--primary);
   color: #ffffff;
+}
+[data-theme="dark"] .kb-key.kb-backspace:active {
   background: var(--primary);
-  outline: none;
+  color: #0b1520;
 }
-.alpha-scroll-bar span.unavailable {
-  opacity: 0.28;
-  cursor: default;
-}
-.alpha-scroll-bar:active {
-  background: rgba(26, 115, 232, 0.18);
-}
-.alpha-letter-indicator {
-  position: fixed;
-  left: 40px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: var(--primary);
-  color: white;
-  padding: 12px;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 20px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 200ms ease;
-}
-.alpha-scroll-bar:active .alpha-letter-indicator {
-  opacity: 1;
+.app-select option {
+  background: var(--card-bg);
+  color: var(--text-main);
+  padding: 8px 12px;
 }
     @font-face {
       font-family: 'Almarai';
@@ -699,38 +782,47 @@
     .main-app {
       max-width: 1400px;
       margin: 0 auto;
-      padding: 12px 14px 60px;
+      padding: calc(76px + env(safe-area-inset-top, 0px)) 14px calc(105px + env(safe-area-inset-bottom, 0px)) !important;
+      overflow: visible !important;
+      transform: none !important;
+      box-sizing: border-box;
     }
     
-        .top-bar {
-      position: sticky;
-      top: max(0px, env(safe-area-inset-top));
-      z-index: 9500;
-      overflow: visible;
+    /* البنر العلوي مثبت دائماً في أعلى الشاشة */
+    .top-bar {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      width: 100% !important;
+      height: 62px !important;
+      z-index: 9900 !important;
       display: flex;
       align-items: center;
       justify-content: space-between;
       background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 10px 14px;
-      margin-bottom: 14px;
-      box-shadow: var(--shadow-sm);
+      border-bottom: 1px solid var(--border);
+      border-radius: 0 !important;
+      padding: calc(6px + env(safe-area-inset-top, 0px)) max(14px, calc((100vw - 1400px) / 2 + 14px)) 6px !important;
+      margin: 0 !important;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.10);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-sizing: border-box;
     }
     
-    /* Stable WebView page scrolling and sticky header */
-    html { overflow-x: hidden; }
-    body { overflow-x: hidden; overflow-y: visible; }
-    .main-app { overflow: visible !important; transform: none !important; }
-    .top-bar {
-      position: -webkit-sticky !important;
-      position: sticky !important;
-      top: env(safe-area-inset-top, 0px) !important;
-      z-index: 1050 !important;
-      align-self: flex-start;
-      flex-shrink: 0;
-      transform: none !important;
-      will-change: auto !important;
+    html {
+      overflow-x: hidden;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overscroll-behavior-y: none;
+    }
+    body {
+      overflow-x: hidden;
+      overflow-y: auto;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overscroll-behavior-y: none;
     }
     html.modal-open, body.modal-open {
       overflow: hidden !important;
@@ -765,139 +857,228 @@
       overscroll-behavior: contain;
       touch-action: pan-y;
     }
-    /* Android Arabic keyboard-inspired alphabet keycaps */
-    .alpha-scroll-shell {
+
+    /* ============================================================
+       لوحة المفاتيح العربية المثبتة في الأسفل (Bottom Arabic Keyboard)
+       ============================================================ */
+    .bottom-keyboard-dock {
       position: fixed !important;
-      left: max(5px, env(safe-area-inset-left, 0px));
-      top: 50%;
-      bottom: auto;
-      transform: translate3d(0, -50%, 0);
-      z-index: 1080 !important;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 3px;
-      max-height: 78dvh;
-      pointer-events: auto;
-    }
-    .alpha-scroll-bar {
-      position: static !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 9700 !important;
+      background: #0d2233;
+      border-top: 2px solid var(--primary);
+      border-radius: 18px 18px 0 0;
+      box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.4);
+      padding: 6px 8px max(8px, env(safe-area-inset-bottom, 8px));
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      flex: 0 1 auto;
-      box-sizing: border-box;
-      width: 42px;
-      min-width: 42px;
-      max-height: 78dvh;
-      overflow-x: hidden;
-      overflow-y: auto;
       gap: 5px;
-      padding: 7px 5px;
-      border: 1px solid rgba(100,116,139,.22);
-      border-radius: 15px;
-      background: rgba(220, 226, 234, .92);
-      box-shadow: 0 5px 18px rgba(15,23,42,.20);
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
+      transition: transform 280ms cubic-bezier(0.34, 1.2, 0.64, 1), background 200ms ease;
       touch-action: pan-y;
-      scrollbar-width: none;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-    .alpha-scroll-bar::-webkit-scrollbar { display: none; }
-    .alpha-scroll-bar .alpha-letter {
-      appearance: none;
-      -webkit-appearance: none;
+      direction: rtl;
       box-sizing: border-box;
+    }
+    [data-theme="dark"] .bottom-keyboard-dock {
+      background: #08131d;
+      border-top-color: #4da3ff;
+      box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.6);
+    }
+    
+    .keyboard-dock-header {
+      width: 100%;
+      max-width: 650px;
       display: flex;
-      flex: 0 0 31px;
       align-items: center;
+      justify-content: space-between;
+      padding: 2px 6px;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .keyboard-dock-info {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .keyboard-dock-info .active-letter-badge {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #fff;
+      font-weight: 900;
+      font-size: 11px;
+      padding: 2px 9px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+    }
+    .keyboard-dock-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-clear-letter-filter {
+      background: rgba(239, 68, 68, 0.25);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 150ms ease;
+      font-family: inherit;
+    }
+    .btn-clear-letter-filter:active {
+      background: #ef4444;
+      color: #fff;
+    }
+    .btn-toggle-keyboard {
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 11px;
+      border-radius: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 150ms ease;
+      font-family: inherit;
+    }
+    .btn-toggle-keyboard:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+    
+    .keyboard-body {
+      width: 100%;
+      max-width: 650px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      transition: max-height 250ms ease, opacity 200ms ease;
+      overflow: hidden;
+    }
+    .keyboard-row {
+      display: flex;
       justify-content: center;
-      width: 31px;
-      min-width: 31px;
-      height: 31px;
-      min-height: 31px;
-      margin: 0;
-      padding: 0;
-      border: 1px solid rgba(15,23,42,.10);
-      border-radius: 7px;
-      background: #fff;
-      color: #17212b;
-      box-shadow: 0 2px 0 rgba(15,23,42,.18), 0 1px 3px rgba(15,23,42,.10);
+      align-items: center;
+      gap: 4px;
+      width: 100%;
+    }
+    
+    .kb-key {
+      flex: 1 1 0;
+      max-width: 44px;
+      min-width: 26px;
+      height: 38px;
+      background: #ffffff;
+      color: #111827;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      border-radius: 8px;
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 2px 5px rgba(0, 0, 0, 0.15);
       font-family: 'Almarai', sans-serif !important;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 800;
       line-height: 1;
-      white-space: nowrap;
-      text-align: center;
-      writing-mode: horizontal-tb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
-      transition: transform 90ms ease, background 90ms ease, box-shadow 90ms ease;
+      transition: transform 80ms ease, background 120ms ease, box-shadow 80ms ease;
+      padding: 0;
+      margin: 0;
     }
-    .alpha-scroll-bar .alpha-letter:active {
+    .kb-key:active {
       transform: translateY(2px);
-      box-shadow: 0 0 0 rgba(15,23,42,0);
-      background: #dbeafe;
+      box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+      background: #e2e8f0;
     }
-    .alpha-scroll-bar .alpha-letter:focus-visible,
-    .alpha-scroll-bar .alpha-letter.active {
-      color: #fff;
-      background: var(--primary);
-      border-color: var(--primary);
-      box-shadow: 0 2px 0 color-mix(in srgb, var(--primary) 65%, #000);
-      outline: none;
+    .kb-key.active {
+      background: linear-gradient(180deg, #fde047 0%, #eab308 100%) !important;
+      color: #0b1e2c !important;
+      border-color: #ca8a04 !important;
+      box-shadow: 0 0 10px rgba(234, 179, 8, 0.6), 0 2px 0 rgba(0, 0, 0, 0.3) !important;
+      transform: translateY(-2px);
     }
-    .alpha-scroll-toggle {
-      appearance: none;
-      -webkit-appearance: none;
-      box-sizing: border-box;
-      flex: 0 0 27px;
-      width: 27px;
-      min-width: 27px;
-      height: 43px;
-      border: 1px solid rgba(100,116,139,.25);
-      border-radius: 0 9px 9px 0;
-      background: #fff;
-      color: var(--primary);
-      box-shadow: 0 3px 9px rgba(15,23,42,.16);
+    .kb-key.kb-key-clear {
+      flex: 1.3 1 0;
+      max-width: 54px;
+      background: linear-gradient(180deg, #fde047 0%, #eab308 100%);
+      color: #0b1e2c;
+      border-color: #ca8a04;
+      font-size: 15px;
     }
-    [data-theme="dark"] .alpha-scroll-bar {
-      background: rgba(38, 50, 63, .96);
-      border-color: rgba(203,213,225,.18);
+    
+    .bottom-keyboard-dock.collapsed .keyboard-body {
+      max-height: 0 !important;
+      opacity: 0 !important;
+      margin: 0 !important;
+      pointer-events: none !important;
     }
-    [data-theme="dark"] .alpha-scroll-bar .alpha-letter {
-      background: #e8edf3;
-      color: #17212b;
-      border-color: rgba(15,23,42,.12);
-      box-shadow: 0 2px 0 rgba(0,0,0,.30);
+    .bottom-keyboard-dock.collapsed {
+      padding-top: 5px;
+      padding-bottom: max(6px, env(safe-area-inset-bottom, 6px));
     }
-    [data-theme="dark"] .alpha-scroll-bar .alpha-letter.active,
-    [data-theme="dark"] .alpha-scroll-bar .alpha-letter:focus-visible {
-      background: var(--primary);
-      color: #fff;
-      border-color: var(--primary);
-    }
-    [data-theme="dark"] .alpha-scroll-toggle {
-      background: #26323f;
-      color: #93c5fd;
-      border-color: rgba(203,213,225,.18);
-    }
-    .alpha-scroll-shell.collapsed .alpha-scroll-bar { display: none !important; }
 
-    .modal-backdrop { z-index: 10900 !important; }
-    .modal { z-index: 11000 !important; }
-    .modal-backdrop.show { opacity: .58; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
-    .modal-dialog { position: relative; z-index: 1; }
-    .modal-content { background: var(--card-bg) !important; color: var(--text-main) !important; }
+    .modal-backdrop { display: none !important; }
+    .modal {
+      display: none;
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+      z-index: 11000 !important;
+      background: rgba(0, 0, 0, 0.65) !important;
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
+      align-items: center;
+      justify-content: center;
+      padding: 16px !important;
+      box-sizing: border-box;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 220ms ease;
+    }
+    .modal.show {
+      display: flex !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+    .modal .modal-dialog {
+      max-width: 600px;
+      width: 100%;
+      margin: auto !important;
+      transform: translateY(14px) scale(0.97);
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.25, 1);
+      position: relative;
+      z-index: 2;
+    }
+    .modal.show .modal-dialog {
+      transform: translateY(0) scale(1) !important;
+    }
+    .modal-content {
+      background: var(--card-bg) !important;
+      color: var(--text-main) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 18px !important;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
+      max-height: calc(100dvh - 36px);
+      display: flex;
+      flex-direction: column;
+    }
     .modal-header, .modal-footer { border-color: var(--border) !important; }
-    .modal-body { overscroll-behavior: contain; }
+    .modal-body { overscroll-behavior: contain; overflow-y: auto; }
     .about-hero-ext-icon { background: transparent !important; mix-blend-mode: normal; }
-    .alpha-scroll-shell.collapsed .alpha-scroll-toggle i { transform: rotate(180deg); }
 
     .kpi-stat-card { height: 100%; min-width: 0; }
     .kpi-progress { overflow: hidden; border-radius: 99px; }
@@ -908,6 +1089,7 @@
       gap: 5px;
       padding: 5px 10px;
       background: rgba(245, 158, 11, 0.15);
+
       border: 1px solid #f59e0b;
       border-radius: 20px;
       font-size: 11px;
@@ -1202,46 +1384,29 @@
     }
     .app-select {
       height: 44px;
-      padding: 0 14px;
+      padding: 0 32px 0 12px;
       border-radius: 10px;
       border: 1.5px solid var(--border);
-      background: var(--input-bg);
+      background-color: var(--input-bg);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: left 12px center;
       color: var(--text-main);
       font-size: 13px;
       font-weight: 700;
       font-family: inherit;
       outline: none;
       cursor: pointer;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      width: 100%;
+      min-width: 0;
     }
-    /* قوائم HTML مخصصة لضمان استخدام Almarai بدل قائمة Android الأصلية */
-    .app-select-native { display: none !important; }
-    .app-filter-dropdown { position: relative; width: 100%; min-width: 0; font-family: 'Almarai', sans-serif !important; }
-    .app-filter-trigger {
-      width: 100%; height: 44px; padding: 0 13px; display: flex; align-items: center;
-      justify-content: space-between; gap: 10px; border-radius: 10px;
-      border: 1.5px solid var(--border); background: var(--input-bg);
-      color: var(--text-main); font: 700 13px 'Almarai', sans-serif !important;
-      text-align: right; cursor: pointer; outline: none;
+    .app-select:focus {
+      border-color: var(--primary);
     }
-    .app-filter-trigger:focus-visible, .app-filter-dropdown.open .app-filter-trigger {
-      border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,.12);
-    }
-    .app-filter-trigger i { color: var(--text-muted); font-size: 11px; transition: transform 160ms ease; }
-    .app-filter-dropdown.open .app-filter-trigger i { transform: rotate(180deg); }
-    .app-filter-menu {
-      display: none; position: absolute; z-index: 12000; top: calc(100% + 6px); right: 0;
-      width: 100%; max-height: 45vh; overflow-y: auto; padding: 5px;
-      border: 1px solid var(--border); border-radius: 12px; background: var(--card-bg);
-      box-shadow: 0 12px 30px rgba(0,0,0,.18); direction: rtl;
-    }
-    .app-filter-dropdown.open .app-filter-menu { display: block; }
-    .app-filter-option {
-      display: block; width: 100%; padding: 11px 12px; border: 0; border-radius: 8px;
-      background: transparent; color: var(--text-main); text-align: right;
-      font: 700 13px 'Almarai', sans-serif !important; cursor: pointer;
-    }
-    .app-filter-option:active, .app-filter-option:hover { background: var(--input-bg); }
-    .app-filter-option.selected { color: var(--primary); background: rgba(26,115,232,.10); }
+
     .btn-sync-action {
       height: 44px;
       background: linear-gradient(135deg, var(--primary), var(--navy));
@@ -2120,87 +2285,31 @@
     }
   
     /* Alphabet navigator: fixed, separated touch targets, no overlapping flex items */
-    #alphaScrollShell {
-      position: fixed !important;
-      left: 5px !important;
-      top: 50% !important;
-      transform: translateY(-50%) !important;
-      z-index: 9800 !important;
-      display: flex !important;
-      flex-direction: row !important;
-      direction: ltr !important;
-      align-items: center !important;
-      gap: 4px !important;
-      max-width: 54px !important;
+    .btn-gemini-quick {
+      background: linear-gradient(135deg, #1a73e8, #12344d);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.35);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    #alphaScrollBar {
-      position: static !important;
-      transform: none !important;
-      display: flex;
-      flex-direction: column !important;
-      align-items: stretch !important;
-      justify-content: flex-start !important;
-      flex: 0 0 40px !important;
-      width: 40px !important;
-      max-height: 62vh !important;
-      overflow-x: hidden !important;
-      overflow-y: auto !important;
-      gap: 3px !important;
-      padding: 6px 4px !important;
-      border: 1px solid var(--primary) !important;
-      border-radius: 10px !important;
-      background: var(--card-bg) !important;
-      box-shadow: 0 3px 14px rgba(0,0,0,.2) !important;
-      scrollbar-width: thin !important;
-      scrollbar-color: var(--primary) var(--input-bg) !important;
-      -webkit-overflow-scrolling: touch;
+    .btn-gemini-quick:active {
+      transform: scale(0.95);
     }
-    #alphaScrollBar::-webkit-scrollbar { display: block !important; width: 4px !important; }
-    #alphaScrollBar::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 8px; }
-    #alphaScrollBar .alpha-letter {
-      appearance: none !important;
-      -webkit-appearance: none !important;
-      display: flex !important;
-      flex: 0 0 29px !important;
-      width: 30px !important;
-      min-width: 30px !important;
-      height: 29px !important;
-      min-height: 29px !important;
-      margin: 0 auto !important;
-      padding: 0 !important;
-      align-items: center !important;
-      justify-content: center !important;
-      border: 0 !important;
-      border-radius: 6px !important;
-      background: transparent !important;
-      color: var(--text-main) !important;
-      font: 800 15px/1 'Almarai', sans-serif !important;
-      text-align: center !important;
-      cursor: pointer !important;
+    .btn-gemini-quick i {
+      color: #fbd68b;
+      font-size: 13px;
     }
-    #alphaScrollBar .alpha-letter:active,
-    #alphaScrollBar .alpha-letter.active {
-      background: var(--primary) !important;
-      color: #fff !important;
-    }
-    #alphaScrollToggle {
-      flex: 0 0 27px !important;
-      width: 27px !important;
-      min-width: 27px !important;
-      height: 44px !important;
-      padding: 0 !important;
-      border: 1px solid var(--primary) !important;
-      border-radius: 0 9px 9px 0 !important;
-      background: var(--card-bg) !important;
-      color: var(--primary) !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      box-shadow: 0 3px 12px rgba(0,0,0,.18) !important;
-    }
-    #alphaScrollShell.collapsed { max-width: 31px !important; }
-    #alphaScrollShell.collapsed #alphaScrollBar { display: none !important; }
-    #alphaScrollShell.collapsed #alphaScrollToggle i { transform: rotate(180deg); }
+
 
     /* Improve KPI contrast in dark mode: Bootstrap muted text is not theme-aware here. */
     html[data-theme="dark"] #chartsView .kpi-stat-card .kpi-header > span,
@@ -2347,11 +2456,12 @@
       <i class="fa-solid fa-map-location-dot"></i>
       <span>المناطق السكنية</span>
     </button>
-    <!-- مساعد إرشادي لوظائف التطبيق -->
+    <!-- المساعد الذكي للخدمة -->
     <button class="sidebar-nav-item" style="--i:5" onclick="openHelpModal()">
-      <i class="fa-solid fa-circle-question"></i>
-      <span>مساعد الاستخدام</span>
+      <i class="fa-solid fa-wand-magic-sparkles"></i>
+      <span>المساعد الذكي</span>
     </button>
+
     <a href="https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit" 
        onclick="return openExternalSheet(event)" class="sidebar-nav-item" style="--i:6">
       <i class="fa-solid fa-file-excel"></i>
@@ -2397,14 +2507,12 @@
 <!-- حاوية التنبيهات Toast -->
 <div id="toastStack"></div>
 
-<!-- الواجهة الرئيسية -->
-<div class="main-app">
-  <!-- 1. الشريط العلوي Top Bar -->
-  <header class="top-bar">
-    <button class="btn-menu" onclick="openSidebar()" aria-label="فتح القائمة">
-      <i class="fa-solid fa-bars"></i>
-    </button>
-    <div class="top-bar-title-wrap">
+<!-- 1. الشريط العلوي Top Bar مثبت دائماً بأعلى الشاشة -->
+<header class="top-bar">
+  <button class="btn-menu" onclick="openSidebar()" aria-label="فتح القائمة">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+  <div class="top-bar-title-wrap">
 <img 
   src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png"
   alt="St.Gorge"
@@ -2417,32 +2525,35 @@
     filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
   "
 >
-      <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
+    <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
+  </div>
+  <div class="top-actions-group">
+    <button class="btn-notif-bell" id="btnNotifBell" onclick="openRemindersModal()" title="مركز التنبيهات وأعياد الميلاد">
+      <i class="fa-solid fa-bell"></i>
+      <span class="notif-badge-dot d-none" id="notifBadgeDot">0</span>
+    </button>
+    <button class="btn-gemini-quick" onclick="openHelpModal()" title="المساعد الذكي للخدمة">
+      <i class="fa-solid fa-wand-magic-sparkles"></i>
+      <span>المساعد الذكي</span>
+    </button>
+    <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
+      <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
+      <span><strong id="pendingOpsCount">0</strong> معلق</span>
     </div>
-    <div class="top-actions-group">
-      <button class="btn-notif-bell" id="btnNotifBell" onclick="openRemindersModal()" title="مركز التنبيهات وأعياد الميلاد">
-        <i class="fa-solid fa-bell"></i>
-        <span class="notif-badge-dot d-none" id="notifBadgeDot">0</span>
-      </button>
-      <button class="btn-help-quick" onclick="openHelpModal()" title="مساعد استخدام التطبيق">
-        <i class="fa-solid fa-circle-question"></i>
-        <span>مساعدة</span>
-      </button>
-      <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
-        <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
-        <span><strong id="pendingOpsCount">0</strong> معلق</span>
-      </div>
-      <div class="top-sync-badge" id="topSyncStatus" onclick="fetchLiveGoogleSheetData()" title="مزامنة تلقائية كل 5 دقائق (اضغط للتحديث الفوري)">
-        <i class="fa-solid fa-arrows-rotate" id="topSyncSpinIcon" style="display:none; font-size:10px;"></i>
-        <span class="status-dot" id="topSyncDot"></span>
-        <span id="syncText">متزامن</span>
-      </div>
+    <div class="top-sync-badge" id="topSyncStatus" onclick="fetchLiveGoogleSheetData()" title="مزامنة تلقائية كل 5 دقائق (اضغط للتحديث الفوري)">
+      <i class="fa-solid fa-arrows-rotate" id="topSyncSpinIcon" style="display:none; font-size:10px;"></i>
+      <span class="status-dot" id="topSyncDot"></span>
+      <span id="syncText">متزامن</span>
     </div>
-    <!-- مؤشر تقدم المزامنة الدقيق في الشريط العلوي -->
-    <div class="top-sync-progress-track" id="topSyncProgressTrack" aria-hidden="true">
-      <div class="top-sync-progress-bar" id="topSyncProgressBar"></div>
-    </div>
-  </header>
+  </div>
+  <!-- مؤشر تقدم المزامنة الدقيق في الشريط العلوي -->
+  <div class="top-sync-progress-track" id="topSyncProgressTrack" aria-hidden="true">
+    <div class="top-sync-progress-bar" id="topSyncProgressBar"></div>
+  </div>
+</header>
+
+<!-- الواجهة الرئيسية -->
+<div class="main-app">
 
   <!-- شريط تنبيه فلترة المنطقة النشط -->
   <div class="active-area-filter-badge" id="activeAreaBadge">
@@ -2457,28 +2568,16 @@
       <input type="text" id="searchInput" class="app-input" placeholder="بحث بالاسم أو الملاحظات...">
     </div>
     
-    <select id="sheetSelector" class="app-select app-select-native" aria-label="اختيار الشيت أو الحالة" tabindex="-1">
+    <select id="sheetSelector" class="app-select" aria-label="اختيار الشيت أو الحالة">
       <option value="نشط" selected>الحالة: نشط</option>
       <option value="غير حاضر">الحالة: غير حاضر</option>
       <option value="فصل البابا شنودة">الحالة: فصل البابا شنودة</option>
       <option value="__ALL__">الحالة: الكل</option>
     </select>
-    <div class="app-filter-dropdown" id="sheetFilterDropdown" data-filter-kind="sheet">
-      <button type="button" class="app-filter-trigger" aria-haspopup="listbox" aria-expanded="false">
-        <span class="app-filter-label">الحالة: نشط</span><i class="fa-solid fa-chevron-down"></i>
-      </button>
-      <div class="app-filter-menu" role="listbox" aria-label="اختيار الشيت أو الحالة"></div>
-    </div>
 
-    <select id="servantFilterSelector" class="app-select app-select-native" aria-label="فلترة حسب الأشبين" tabindex="-1">
+    <select id="servantFilterSelector" class="app-select" aria-label="فلترة حسب الأشبين">
       <option value="">كل الأشابين</option>
     </select>
-    <div class="app-filter-dropdown" id="servantFilterDropdown" data-filter-kind="servant">
-      <button type="button" class="app-filter-trigger" aria-haspopup="listbox" aria-expanded="false">
-        <span class="app-filter-label">كل الأشابين</span><i class="fa-solid fa-chevron-down"></i>
-      </button>
-      <div class="app-filter-menu" role="listbox" aria-label="فلترة حسب الأشبين"></div>
-    </div>
 
     <button class="btn-sync-action" id="btnSync" onclick="fetchLiveGoogleSheetData()">
       <i class="fa-solid fa-arrows-rotate" id="syncSpinIcon"></i>
@@ -2699,7 +2798,7 @@
         </div>
       </div>
       <div class="modal-footer border-top justify-content-between">
-        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3" onclick="clearAreaFilter(); bootstrap.Modal.getInstance(document.getElementById('areaFilterModal')).hide();">
+        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3" onclick="clearAreaFilter(); hideModal('areaFilterModal');">
           إلغاء الفلتر
         </button>
         <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">إغلاق</button>
@@ -2715,22 +2814,23 @@
     <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden" style="background:var(--card-bg);color:var(--text-main);">
       <div class="help-header-box">
         <div class="d-flex align-items-center gap-2">
-          <i class="fa-solid fa-circle-question fs-5"></i>
-          <div><h5 class="m-0 fw-bold fs-6">مساعد استخدام التطبيق</h5><small style="opacity:.88;">اسألني إزاي تستخدم أي وظيفة في St.Gorge Dashboard</small></div>
+          <i class="fa-solid fa-wand-magic-sparkles fs-5 text-warning"></i>
+          <div><h5 class="m-0 fw-bold fs-6">المساعد الذكي للخدمة</h5><small style="opacity:.88;">تحليل الحضور، صياغة رسائل الافتقاد، ودليل استخدام التطبيق</small></div>
         </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        <button type="button" class="btn-close btn-close-white" onclick="hideModal('helpModal')" data-bs-dismiss="modal" aria-label="إغلاق"></button>
       </div>
       <div class="modal-body p-3">
         <div class="help-quick-prompts">
+          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('تحليل الحضور والغياب')"><i class="fa-solid fa-chart-line text-primary me-1"></i>تحليل الغياب والافتقاد</button>
+          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('اقتراح رسائل افتقاد وتشجيع')"><i class="fa-solid fa-envelope text-success me-1"></i>رسائل تشجيع وافتقاد</button>
+          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('تقرير الخدام والمناطق')"><i class="fa-solid fa-users text-warning me-1"></i>متابعة الخدام والمناطق</button>
           <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أضيف مخدوم جديد؟')">إضافة مخدوم</button>
           <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أعدل بيانات مخدوم؟')">تعديل البيانات</button>
-          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أبحث عن مخدوم؟')">البحث</button>
           <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أسجل الافتقاد؟')">الافتقاد</button>
-          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أستخدم فلتر المناطق؟')">المناطق</button>
         </div>
         <div id="helpChatWindow" class="help-chat-window" role="log" aria-live="polite"></div>
         <div class="help-input-row">
-          <input type="text" id="helpChatInput" class="app-input" placeholder="اكتب سؤالك هنا..." autocomplete="off" aria-label="اكتب سؤالك">
+          <input type="text" id="helpChatInput" class="app-input" placeholder="اكتب سؤالك أو اطلب تحليلاً..." autocomplete="off" aria-label="اكتب سؤالك">
           <button type="button" class="btn btn-primary px-3 fw-bold" onclick="sendHelpQuestion()" aria-label="إرسال السؤال"><i class="fa-solid fa-paper-plane"></i></button>
         </div>
       </div>
@@ -2975,8 +3075,7 @@
 
   function openAboutModal() {
     closeSidebar();
-    const modal = new bootstrap.Modal(document.getElementById('aboutModal'));
-    modal.show();
+    showModal('aboutModal');
   }
 
   /* اختيار السمة (فاتح / داكن) كأيقونتين */
@@ -3010,9 +3109,8 @@
      ============================================================ */
   function openAreaFilterModal() {
     closeSidebar();
-    const modal = new bootstrap.Modal(document.getElementById('areaFilterModal'));
     renderAreaModalGrid();
-    modal.show();
+    showModal('areaFilterModal');
   }
 
   function renderAreaModalGrid() {
@@ -3043,10 +3141,7 @@
     currentAreaFilter = areaName;
     document.getElementById('activeAreaNameText').textContent = areaName;
     document.getElementById('activeAreaBadge').classList.add('visible');
-    
-    const modalEl = document.getElementById('areaFilterModal');
-    const modalInstance = bootstrap.Modal.getInstance(modalEl);
-    if (modalInstance) modalInstance.hide();
+    hideModal('areaFilterModal');
 
     applyFilters();
     switchView('cards');
@@ -3073,10 +3168,6 @@
         .concat(servants.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`));
       selector.innerHTML = options.join('');
       selector.value = currentServantFilter;
-      renderAppFilterDropdown('servantFilterDropdown', [
-        { value: '', label: 'كل الأشابين' },
-        ...servants.map(name => ({ value: name, label: name }))
-      ], currentServantFilter);
     }
 
     if (!container) return;
@@ -3095,10 +3186,15 @@
 
   function setServantFilter(servantName) {
     currentServantFilter = servantName || '';
+    const selector = document.getElementById('servantFilterSelector');
+    if (selector && selector.value !== currentServantFilter) {
+      selector.value = currentServantFilter;
+    }
     renderServantsChips();
     applyFilters();
     switchView('cards');
   }
+
 
   function toggleServantFilter(servantName) {
     setServantFilter(currentServantFilter === servantName ? '' : servantName);
@@ -3106,8 +3202,44 @@
   }
 
   /* ============================================================
-     مساعد الاستخدام المحلي — دليل وظائف التطبيق
+     مساعد الاستخدام المحلي — دليل وظائف التطبيق والتحليل الذكي
      ============================================================ */
+  function showModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (!el) return;
+    el.classList.add('show');
+    el.removeAttribute('aria-hidden');
+    el.setAttribute('aria-modal', 'true');
+    document.documentElement.classList.add('modal-open');
+    document.body.classList.add('modal-open');
+  }
+
+  function hideModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (!el) return;
+    el.classList.remove('show');
+    el.setAttribute('aria-hidden', 'true');
+    el.removeAttribute('aria-modal');
+    if (!document.querySelector('.modal.show')) {
+      document.documentElement.classList.remove('modal-open');
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.target && e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('show')) {
+      hideModal(e.target.id);
+      return;
+    }
+    const closeBtn = e.target.closest('[data-bs-dismiss="modal"], .btn-close');
+    if (closeBtn) {
+      const modal = closeBtn.closest('.modal');
+      if (modal && modal.id) {
+        hideModal(modal.id);
+      }
+    }
+  });
+
   function openRemindersModal() {
     const modalElement = document.getElementById('remindersModal');
     const list = document.getElementById('remindersBirthdayList');
@@ -3146,10 +3278,10 @@
         <div><div class="fw-bold">${escapeHtml(item.name)}</div><small class="text-muted">${item.date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' })}</small></div>
         <span class="badge bg-primary rounded-pill">${item.days === 0 ? 'اليوم' : 'بعد ' + item.days + ' يوم'}</span>
       </div>`).join('') : '<p class="text-muted small text-center py-3">لا توجد تواريخ ميلاد مسجلة أو لم يتم تحميل البيانات بعد.</p>';
-    bootstrap.Modal.getOrCreateInstance(modalElement, { backdrop: true, keyboard: true }).show();
+    showModal('remindersModal');
   }
 
-  const HELP_CHAT_GREETING = 'أهلاً بيك 👋\nأنا مساعدك في استخدام St.Gorge Dashboard.\nاسألني عن أي وظيفة، وهشرحلك خطواتها. إجاباتي مبنية على دليل التطبيق، ولو معلومة مش مؤكدة هقولك بصراحة.';
+  const HELP_CHAT_GREETING = 'أهلاً بيك 👋\nأنا المساعد الذكي لخدمة فصل مارجرجس.\nيمكنك الاستفسار عن دليل الاستخدام، أو طلب تحليل الحضور والغياب، أو اقتراح رسائل افتقاد وتشجيع، أو متابعة توزيع الخدام.';
 
   function resetHelpChat() {
     const chat = document.getElementById('helpChatWindow');
@@ -3168,7 +3300,7 @@
   function openHelpModal() {
     closeSidebar();
     resetHelpChat();
-    new bootstrap.Modal(document.getElementById('helpModal')).show();
+    showModal('helpModal');
     setTimeout(() => document.getElementById('helpChatInput')?.focus(), 250);
   }
 
@@ -3201,8 +3333,33 @@
   function findAppHelpAnswer(question) {
     const normalized = normalizeHelpQuestion(question);
     if (!normalized) return 'اكتب سؤالك الأول، وأنا هحاول أوصلك للخطوات الصحيحة.';
+
+    // أسئلة التحليل والخدمة الذكية
+    if (normalized.includes('تحليل') || (normalized.includes('غياب') && normalized.includes('حضور'))) {
+      const total = Array.isArray(studentsData) ? studentsData.length : 0;
+      if (!total) return 'لا توجد بيانات مخدومين مسجلة حالياً لتحليلها.';
+      const attended = studentsData.filter(s => s.att === 'حاضر').length;
+      const absent = studentsData.filter(s => s.att === 'غائب').length;
+      const rate = total > 0 ? Math.round((attended / total) * 100) : 0;
+      return `📊 تحليل حضور الخدمة:\n• إجمالي المخدومين: ${total}\n• عدد الحاضرين: ${attended} مخدوم (${rate}%)\n• عدد الغائبين: ${absent} مخدوم\n\n💡 توصية الخدمة: ركّز على الاتصال أو الزيارة للـ ${absent} مخدوم الغائبين هذا الأسبوع لتشجيعهم، واستخدم زر الواتساب أو الاتصال المباشر من كارت كل مخدوم.`;
+    }
+
+    if (normalized.includes('رسائل') || normalized.includes('تشجيع') || normalized.includes('صياغه')) {
+      return `💌 نماذج رسائل افتقاد وتشجيع جاهزة للإرسال:\n\n1. «سلام ونعمة يا حبيبي.. افتقدناك جداً الجمعة دي في كنيستنا مارجرجس، بنطمن عليك ومستنيين حضورك بفرح الجمعة الجاية! 🙏»\n\n2. «كل سنة وأنت طيب وبخير.. بنفكرك بميعاد القداس ومدارس الأحد، مجهزين فقرة جميلة والكل مستنيك!»\n\n3. «حبيبي في المسيح.. خادمك بيطمن عليك، لو محتاج أي صلاة أو في أي وقت عايز تتكلم أنا معاك دايماً.»`;
+    }
+
+    if (normalized.includes('تقرير الخدام') || (normalized.includes('خدام') && normalized.includes('مناطق')) || normalized.includes('اشابين')) {
+      const counts = {};
+      (Array.isArray(studentsData) ? studentsData : []).forEach(s => {
+        const srv = s.servant || 'غير محدد';
+        counts[srv] = (counts[srv] || 0) + 1;
+      });
+      const lines = Object.entries(counts).map(([k, v]) => `• ${k}: ${v} مخدوم`).join('\n');
+      return `👥 تقرير توزيع المخدومين على الخدام والأشابين:\n${lines || 'لا يوجد خدام مسجلين'}\n\n💡 يمكنك تصفية الكروت حسب خادم معين من القائمة المنسدلة أعلى الصفحة «كل الأشابين».`;
+    }
+
     const match = APP_HELP_KNOWLEDGE.find(item => item.keys.some(key => normalized.includes(normalizeHelpQuestion(key))));
-    return match ? match.answer : 'مش لاقي في دليل التطبيق شرح مؤكد للسؤال ده، ومش هخمن عليك. جرّب تسأل بكلمات زي: إضافة مخدوم، تعديل بيانات، البحث، الافتقاد، المناطق، التنبيهات، أو المزامنة. ولو سؤالك عن مشكلة ظهرتلك، اكتبلي نص رسالة الخطأ أو اسم الشاشة.';
+    return match ? match.answer : 'مش لاقي في دليل التطبيق شرح مؤكد للسؤال ده. جرّب تسأل بكلمات زي: تحليل الحضور، رسائل افتقاد، تقرير الخدام، إضافة مخدوم، تعديل بيانات، البحث، الافتقاد، أو المزامنة.';
   }
 
   function appendHelpMessage(message, type) {
@@ -3628,18 +3785,24 @@
   }
 
   function applyFilters() {
-    const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
-    filteredData = studentsData.filter(s => {
-      const matchQ = !q || s.name.toLowerCase().includes(q) || 
-                           s.code.toLowerCase().includes(q) || 
+    const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+    filteredData = (studentsData || []).filter(s => {
+      const matchQ = !q || (s.name && s.name.toLowerCase().includes(q)) || 
+                           (s.code && s.code.toLowerCase().includes(q)) || 
                            (s.notes && s.notes.toLowerCase().includes(q));
       const matchServant = !currentServantFilter || s.servant === currentServantFilter;
       const matchArea = !currentAreaFilter || s.area === currentAreaFilter;
-      return matchQ && matchServant && matchArea;
+      const initial = normalizeArabicInitial(s && s.name);
+      const matchLetter = !currentLetterFilter || initial === currentLetterFilter;
+      return matchQ && matchServant && matchArea && matchLetter;
     });
 
-    document.getElementById('cardsCountBadge').textContent = filteredData.length;
+    const badge = document.getElementById('cardsCountBadge');
+    if (badge) badge.textContent = filteredData.length;
     renderCurrentView();
+    if (typeof renderBottomKeyboard === 'function') {
+      renderBottomKeyboard();
+    }
   }
 
   /* ============================================================
@@ -4423,10 +4586,10 @@
     return data;
   }
 
-  const addModal = new bootstrap.Modal(document.getElementById('addStudentModal'));
   function openAddModal() {
-    document.getElementById('addStudentForm').reset();
-    addModal.show();
+    const form = document.getElementById('addStudentForm');
+    if (form) form.reset();
+    showModal('addStudentModal');
   }
   async function saveNewStudent() {
     const g = id => document.getElementById(id).value.trim();
@@ -4468,7 +4631,7 @@
         attendanceStatus: 'غائب'
       }, form));
 
-      addModal.hide();
+      hideModal('addStudentModal');
       applyFilters();
       renderStats();
       renderServantsChips();
@@ -5001,70 +5164,7 @@
     openExternalShareUrl(`https://wa.me/?text=${encodeURIComponent(text)}`);
   }
 
-  function renderAppFilterDropdown(id, options, selectedValue) {
-    const root = document.getElementById(id);
-    if (!root) return;
-    const selected = options.find(option => option.value === selectedValue) || options[0];
-    root.querySelector('.app-filter-label').textContent = selected.label;
-    root.querySelector('.app-filter-menu').innerHTML = options.map(option => `
-      <button type="button" role="option"
-        class="app-filter-option ${option.value === selectedValue ? 'selected' : ''}"
-        aria-selected="${option.value === selectedValue ? 'true' : 'false'}"
-        data-filter-value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</button>
-    `).join('');
-  }
 
-  function closeAppFilterDropdowns(exceptId = '') {
-    document.querySelectorAll('.app-filter-dropdown.open').forEach(root => {
-      if (root.id !== exceptId) {
-        root.classList.remove('open');
-        root.querySelector('.app-filter-trigger')?.setAttribute('aria-expanded', 'false');
-      }
-    });
-  }
-
-  document.querySelectorAll('.app-filter-dropdown').forEach(root => {
-    root.querySelector('.app-filter-trigger').addEventListener('click', () => {
-      const willOpen = !root.classList.contains('open');
-      closeAppFilterDropdowns(root.id);
-      root.classList.toggle('open', willOpen);
-      root.querySelector('.app-filter-trigger').setAttribute('aria-expanded', String(willOpen));
-    });
-    root.querySelector('.app-filter-menu').addEventListener('click', event => {
-      const option = event.target.closest('.app-filter-option');
-      if (!option) return;
-      const value = option.dataset.filterValue || '';
-      const kind = root.dataset.filterKind;
-      root.querySelector('.app-filter-label').textContent = option.textContent.trim();
-      root.querySelectorAll('.app-filter-option').forEach(item => {
-        const selected = item === option;
-        item.classList.toggle('selected', selected);
-        item.setAttribute('aria-selected', String(selected));
-      });
-      closeAppFilterDropdowns();
-      if (kind === 'servant') {
-        setServantFilter(value);
-      } else if (kind === 'sheet') {
-        const selector = document.getElementById('sheetSelector');
-        selector.value = value;
-        selector.dispatchEvent(new Event('change'));
-      }
-    });
-  });
-
-  document.addEventListener('click', event => {
-    if (!event.target.closest('.app-filter-dropdown')) closeAppFilterDropdowns();
-  });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closeAppFilterDropdowns();
-  });
-
-  renderAppFilterDropdown('sheetFilterDropdown', [
-    { value: 'نشط', label: 'الحالة: نشط' },
-    { value: 'غير حاضر', label: 'الحالة: غير حاضر' },
-    { value: 'فصل البابا شنودة', label: 'الحالة: فصل البابا شنودة' },
-    { value: '__ALL__', label: 'الحالة: الكل' }
-  ], currentSheetName || 'نشط');
 
   document.getElementById('searchInput').addEventListener('input', applyFilters);
   document.getElementById('servantFilterSelector').addEventListener('change', function() {
@@ -5117,93 +5217,165 @@
     }, { passive: true });
   });
 
-  const ARABIC_ALPHABET = ['ا','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز','س','ش','ص','ض','ط','ظ','ع','غ','ف','ق','ك','ل','م','ن','ه','و','ي'];
+  const ARABIC_ALPHABET_ORDER = ['ا','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز','س','ش','ص','ض','ط','ظ','ع','غ','ف','ق','ك','ل','م','ن','ه','و','ي'];
+
+  let currentLetterFilter = null;
 
   function normalizeArabicInitial(value) {
-    return String(value || '')
+    const raw = String(value || '')
       .trim()
-      .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
-      .replace(/[أإآٱ]/g, 'ا')
-      .replace(/ى/g, 'ي')
-      .charAt(0);
+      .replace(/[\u064B-\u065F\u0670\u0640]/g, '');
+    const ch = raw.charAt(0);
+    if (!ch) return '';
+    if (/[أإآٱ]/.test(ch)) return 'ا';
+    if (ch === 'ى') return 'ي';
+    if (ch === 'ة') return 'ه';
+    if (ch === 'ئ' || ch === 'ؤ') return 'ء';
+    return ch;
   }
 
-  function scrollToStudentCard(card) {
-    const targetTop = card.getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop);
-    const destination = Math.max(0, targetTop - Math.max(90, window.innerHeight * 0.18));
-    const startTop = window.scrollY || document.documentElement.scrollTop || 0;
-    const distance = destination - startTop;
-    const duration = 520;
-    const startTime = performance.now();
+  function getAvailableLetterCounts() {
+    const counts = {};
+    const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+    (studentsData || []).forEach(s => {
+      if (!s || !s.name) return;
+      const matchServant = !currentServantFilter || s.servant === currentServantFilter;
+      const matchArea = !currentAreaFilter || s.area === currentAreaFilter;
+      const matchQ = !q || (s.name && s.name.toLowerCase().includes(q)) || 
+                           (s.code && s.code.toLowerCase().includes(q)) || 
+                           (s.notes && s.notes.toLowerCase().includes(q));
+      if (matchServant && matchArea && matchQ) {
+        const initial = normalizeArabicInitial(s.name);
+        if (initial) {
+          counts[initial] = (counts[initial] || 0) + 1;
+        }
+      }
+    });
+    return counts;
+  }
 
-    if (window._alphaScrollFrame) cancelAnimationFrame(window._alphaScrollFrame);
-    const animate = now => {
-      const progress = Math.min(1, (now - startTime) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      window.scrollTo(0, startTop + distance * eased);
-      if (progress < 1) window._alphaScrollFrame = requestAnimationFrame(animate);
-      else window._alphaScrollFrame = null;
+  function renderBottomKeyboard() {
+    const container = document.getElementById('kbKeysContainer');
+    const activeBadge = document.getElementById('kbActiveBadge');
+    const clearBtn = document.getElementById('kbClearBtn');
+    if (!container) return;
+
+    const letterCounts = getAvailableLetterCounts();
+
+    if (currentLetterFilter) {
+      const count = letterCounts[currentLetterFilter] || 0;
+      if (activeBadge) {
+        activeBadge.textContent = `الحرف: ${currentLetterFilter} (${count})`;
+        activeBadge.style.display = 'inline-flex';
+      }
+      if (clearBtn) clearBtn.style.display = 'inline-block';
+    } else {
+      if (activeBadge) activeBadge.style.display = 'none';
+      if (clearBtn) clearBtn.style.display = 'none';
+    }
+
+    container.replaceChildren();
+    const strip = document.createElement('div');
+    strip.className = 'kb-horizontal-strip';
+
+    // زر "الكل" كأول زر في الشريط
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'kb-key kb-backspace' + (!currentLetterFilter ? ' active' : '');
+    allBtn.textContent = 'الكل';
+    allBtn.setAttribute('aria-label', 'عرض جميع المخدومين');
+    allBtn.onclick = (e) => {
+      e.stopPropagation();
+      clearLetterFilter();
     };
-    window._alphaScrollFrame = requestAnimationFrame(animate);
+    strip.appendChild(allBtn);
+
+    ARABIC_ALPHABET_ORDER.forEach(letter => {
+      const count = letterCounts[letter] || 0;
+      // شرط المستخدم: لو مفيش مخدومين بيبدأوا بالحرف ده (زي خ) شيله خالص
+      if (count === 0) return;
+
+      const keyBtn = document.createElement('button');
+      keyBtn.type = 'button';
+      keyBtn.className = 'kb-key' + (currentLetterFilter === letter ? ' active' : '');
+      keyBtn.textContent = letter;
+      keyBtn.setAttribute('aria-label', `تصفية بحرف ${letter} (${count} مخدوم)`);
+      keyBtn.onclick = (e) => {
+        e.stopPropagation();
+        selectLetterFilter(letter);
+      };
+      strip.appendChild(keyBtn);
+    });
+
+    container.appendChild(strip);
+  }
+
+  function selectLetterFilter(letter) {
+    if (currentLetterFilter === letter) {
+      currentLetterFilter = null;
+    } else {
+      currentLetterFilter = letter;
+    }
+    applyFilters();
+    renderBottomKeyboard();
+    const cardsView = document.getElementById('cardsView');
+    if (cardsView) {
+      const rect = cardsView.getBoundingClientRect();
+      if (rect.top < 60 || rect.top > window.innerHeight) {
+        window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - 80), behavior: 'smooth' });
+      }
+    }
+  }
+
+  function clearLetterFilter() {
+    currentLetterFilter = null;
+    applyFilters();
+    renderBottomKeyboard();
+  }
+
+  function toggleBottomKeyboard() {
+    const dock = document.getElementById('bottomKeyboardDock');
+    if (!dock) return;
+    dock.classList.toggle('collapsed');
   }
 
   function populateAlphaScrollBar() {
-    const bar = document.getElementById('alphaScrollBar');
-    if (!bar) return;
-    const source = Array.isArray(filteredData) ? filteredData : [];
-    const byInitial = new Map();
-    source.forEach(student => {
-      const initial = normalizeArabicInitial(student && student.name);
-      if (initial && !byInitial.has(initial)) byInitial.set(initial, student);
-    });
-
-    bar.replaceChildren();
-    ARABIC_ALPHABET.forEach(letter => {
-      const student = byInitial.get(letter);
-      if (!student) return;
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'alpha-letter';
-      item.textContent = letter;
-      item.setAttribute('aria-label', 'انتقل إلى الأسماء التي تبدأ بحرف ' + letter);
-      item.addEventListener('click', () => {
-        const card = document.getElementById('flipContainer-' + student.id);
-        if (!card) return;
-        bar.querySelectorAll('.alpha-letter.active').forEach(el => el.classList.remove('active'));
-        item.classList.add('active');
-        scrollToStudentCard(card);
-      });
-      bar.appendChild(item);
-    });
-    bar.style.display = byInitial.size ? 'flex' : 'none';
+    renderBottomKeyboard();
   }
+
   // Lock the document scroll whenever a Bootstrap modal is open.
   document.addEventListener('show.bs.modal', () => {
     document.documentElement.classList.add('modal-open');
   });
-  document.addEventListener('hidden.bs.modal', () => {
+  document.addEventListener('hidden.bs.modal', (e) => {
+    if (e && e.target && e.target.style) {
+      e.target.style.removeProperty('display');
+    }
     if (!document.querySelector('.modal.show')) {
       document.documentElement.classList.remove('modal-open');
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
     }
   });
 
   document.addEventListener('DOMContentLoaded', () => {
-    const alphaShell = document.getElementById('alphaScrollShell');
-    const alphaToggle = document.getElementById('alphaScrollToggle');
-    if (alphaShell && alphaToggle) {
-      alphaToggle.addEventListener('click', () => {
-        const collapsed = alphaShell.classList.toggle('collapsed');
-        alphaToggle.setAttribute('aria-expanded', String(!collapsed));
-        alphaToggle.setAttribute('aria-label', collapsed ? 'إظهار شريط الحروف' : 'إخفاء شريط الحروف');
-      });
-    }
+    renderBottomKeyboard();
   }, { once: true });
 </script>
-<div id="alphaScrollShell" class="alpha-scroll-shell">
-  <div id="alphaScrollBar" class="alpha-scroll-bar" aria-label="التنقل حسب الحروف العربية"></div>
-  <button type="button" id="alphaScrollToggle" class="alpha-scroll-toggle" aria-label="إخفاء شريط الحروف" aria-expanded="true">
-    <i class="fa-solid fa-chevron-left"></i>
-  </button>
+
+<div id="bottomKeyboardDock" class="bottom-keyboard-dock">
+  <div class="kb-dock-header" onclick="toggleBottomKeyboard()">
+    <button type="button" class="kb-dock-toggle-btn" id="kbDockToggle" aria-label="طي أو إظهار لوحة الحروف">
+      <i class="fa-solid fa-chevron-down" id="kbDockIcon"></i>
+      <span>تصفية بالحروف الأبجدية</span>
+    </button>
+    <div class="d-flex align-items-center gap-2">
+      <span id="kbActiveBadge" class="kb-active-badge" style="display:none;"></span>
+      <button type="button" id="kbClearBtn" class="kb-clear-btn" onclick="event.stopPropagation(); clearLetterFilter()" style="display:none;">
+        <i class="fa-solid fa-xmark"></i> إلغاء
+      </button>
+    </div>
+  </div>
+  <div id="kbKeysContainer"></div>
 </div>
 </body>
 </html>
