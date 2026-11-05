@@ -3105,6 +3105,7 @@
         if (!date) return null;
         return { name: student.name || 'بدون اسم', date, days: Math.ceil((date - todayStart) / 86400000) };
       })
+      .filter(Boolean)
       .sort((a, b) => a.date - b.date)
       .slice(0, 10);
     list.innerHTML = upcoming.length ? upcoming.map(item => `
