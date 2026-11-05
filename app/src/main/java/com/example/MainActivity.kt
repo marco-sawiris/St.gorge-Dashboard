@@ -245,7 +245,7 @@ fun DashboardWebView() {
             domStorageEnabled = true
             databaseEnabled = true
             allowFileAccess = true
-            allowContentAccess = true
+            allowContentAccess = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             supportMultipleWindows = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
