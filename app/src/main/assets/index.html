@@ -2427,6 +2427,13 @@
       color: #fff !important;
       border-color: var(--primary) !important;
     }
+    .kb-grid-row .kb-key:disabled {
+      opacity: .42;
+      cursor: not-allowed;
+      background: var(--card-bg) !important;
+      color: var(--text-muted) !important;
+      box-shadow: none !important;
+    }
     /* Android layout & modal centering */
     .modal {
       position: fixed !important;
@@ -5620,7 +5627,7 @@
       }
 
       container.innerHTML = '';
-      const letters = ARABIC_ALPHABET_ORDER.filter(letter => (letterCounts[letter] || 0) > 0);
+      const letters = ARABIC_ALPHABET_ORDER; // اعرض كل الحروف دائمًا، حتى لو كان عدد المخدومين صفرًا.
 
       // اعرض الحروف كلها في صفّين ثابتين، بدون تمرير أفقي أو رأسي.
       const firstRow = document.createElement('div');
@@ -5635,6 +5642,8 @@
         keyBtn.className = 'kb-key' + (currentLetterFilter === letter ? ' active' : '');
         keyBtn.textContent = letter;
         keyBtn.setAttribute('aria-label', `تصفية بحرف ${letter} (${count} مخدوم)`);
+        keyBtn.disabled = count === 0 && currentLetterFilter !== letter;
+        keyBtn.title = `${count} مخدوم`;
         keyBtn.onclick = (e) => {
           e.stopPropagation();
           selectLetterFilter(letter);
