@@ -576,11 +576,13 @@
       z-index: 10000;
       opacity: 0;
       visibility: hidden;
+      pointer-events: none;
       transition: opacity 350ms ease, visibility 350ms ease;
     }
     .sidebar-overlay.open {
       opacity: 1;
       visibility: visible;
+      pointer-events: auto;
     }
     .sidebar {
       position: fixed;
@@ -813,16 +815,18 @@
     
     html {
       overflow-x: hidden;
-      min-height: 100vh;
-      min-height: 100dvh;
-      overscroll-behavior-y: none;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      min-height: 100%;
     }
     body {
       overflow-x: hidden;
-      overflow-y: auto;
-      min-height: 100vh;
-      min-height: 100dvh;
-      overscroll-behavior-y: none;
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      position: relative;
+      touch-action: pan-y;
     }
     html.modal-open, body.modal-open {
       overflow: hidden !important;
@@ -2319,65 +2323,7 @@
     }
     html[data-theme="dark"] #chartsView #kpiAttendanceRate { color: #4ade80 !important; }
     html[data-theme="dark"] #chartsView #kpiFollowupRate { color: #60a5fa !important; }
-    
-    /* Help assistant: anchor to the top and keep the background page fixed while typing */
-    #helpModal {
-      overflow: hidden !important;
-      padding: 0 !important;
-      overscroll-behavior: none !important;
-    }
-    #helpModal .modal-dialog,
-    #helpModal.modal.fade .modal-dialog,
-    #helpModal.modal.show .modal-dialog {
-      width: min(720px, calc(100vw - 16px));
-      max-width: min(720px, calc(100vw - 16px));
-      margin: max(8px, env(safe-area-inset-top, 0px)) auto 8px !important;
-      align-items: flex-start !important;
-      transform: none !important;
-      height: auto;
-      max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px));
-    }
-    #helpModal .modal-content {
-      height: auto;
-      max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px));
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    #helpModal .help-header-box { flex: 0 0 auto; }
-    #helpModal .modal-body {
-      display: flex;
-      flex: 1 1 auto;
-      flex-direction: column;
-      min-height: 0;
-      overflow: hidden !important;
-      padding: 10px !important;
-      gap: 8px;
-    }
-    #helpModal .help-quick-prompts { flex: 0 0 auto; }
-    #helpModal .help-chat-window {
-      height: clamp(110px, 30dvh, 270px);
-      min-height: 0;
-      flex: 1 1 auto;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-    }
-    #helpModal .help-input-row {
-      flex: 0 0 auto;
-      position: relative;
-      z-index: 2;
-      padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
-    }
-    html.modal-open, body.modal-open {
-      overflow: hidden !important;
-      overscroll-behavior: none !important;
-      touch-action: none;
-    }
-    @media (max-height: 520px) {
-      #helpModal .help-chat-window { height: 100px; }
-      #helpModal .help-quick-prompts { max-height: 64px; overflow-y: auto; }
-    }
+
 
     /* Final keyboard, modal and sync presentation fixes */
     .bottom-keyboard-dock,
@@ -2460,18 +2406,131 @@
       visibility: hidden !important;
       pointer-events: none !important;
     }
-    #aboutModal .modal-dialog {
-      width: 96% !important;
-      max-width: 620px !important;
-      margin: auto !important;
-    }
-    #aboutModal .modal-content {
-      border-radius: 20px !important;
-      overflow: hidden !important;
-    }
-    #aboutModal .about-hero {
-      max-height: calc(100dvh - 40px) !important;
+    /* ===== عن التطبيق (About Modal) - تصميم نظيف وعصري بالكامل ===== */
+    #aboutModal {
+      overflow-x: hidden !important;
       overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y !important;
+    }
+    #aboutModal .modal-dialog {
+      width: min(540px, 94%) !important;
+      max-width: 540px !important;
+      margin: 16px auto !important;
+      touch-action: pan-y !important;
+    }
+    .about-modal-card {
+      background: var(--card-bg) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 22px !important;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+      max-height: calc(100dvh - 40px) !important;
+    }
+    .about-modal-header {
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #3b82f6 100%);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+    [data-theme="dark"] .about-modal-header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e3a8a 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .about-head-badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #fbbf24;
+      flex-shrink: 0;
+    }
+    .about-modal-body {
+      padding: 18px;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-y !important;
+      overscroll-behavior: contain;
+      flex: 1 1 auto;
+      color: var(--text-main);
+    }
+    .about-hero-banner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-bottom: 14px;
+    }
+    .about-hero-logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      object-fit: cover;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      flex-shrink: 0;
+      border: 2px solid var(--primary);
+    }
+    .about-grid-features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .about-feature-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: transform 0.15s ease;
+    }
+    .about-feature-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(37, 99, 235, 0.12);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .about-feature-box strong {
+      display: block;
+      font-size: 13px;
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+    .about-feature-box small {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .about-modal-footer {
+      padding: 12px 18px;
+      background: var(--input-bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
     }
 
     /* Android safe-area: Alphabet dock fixed at bottom */
@@ -2614,98 +2673,6 @@
     }
     .main-app {
       padding-bottom: calc(180px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-
-    /* Keep help dialog above all app layers and usable on short screens / Android IME. */
-    #helpModal .modal-dialog {
-      width: 96% !important;
-      max-width: 680px !important;
-      margin: auto !important;
-    }
-    #helpModal .modal-content {
-      width: 100% !important;
-      max-height: calc(100dvh - 30px) !important;
-      display: flex !important;
-      flex-direction: column !important;
-      border-radius: 18px !important;
-      overflow: hidden !important;
-    }
-    #helpModal .modal-body {
-      overflow-y: auto !important;
-      flex: 1 1 auto !important;
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 10px !important;
-      padding: 12px !important;
-    }
-    #helpModal .help-quick-prompts {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      max-height: 120px;
-      overflow-y: auto;
-    }
-    #helpModal .help-chat-window {
-      min-height: 120px;
-      max-height: 260px;
-      flex: 1 1 auto;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-    }
-    #helpModal .help-input-row {
-      position: sticky;
-      bottom: 0;
-      z-index: 1;
-      flex: 0 0 auto;
-      background: var(--card-bg);
-      padding-top: 6px;
-    }
-
-
-    /* Stable vertical scrolling on Android WebView and desktop. */
-    html, body { height:auto !important; min-height:100% !important; overflow-x:hidden !important; overflow-y:auto !important; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
-    body { position:relative !important; }
-    .main-app { height:auto !important; min-height:100%; overflow:visible !important; touch-action:pan-y; padding-bottom:calc(190px + env(safe-area-inset-bottom, 0px)) !important; }
-    html.modal-open, body.modal-open { overflow:hidden !important; touch-action:pan-y; }
-    .about-modal-content { width:100%; max-height:calc(100dvh - 28px) !important; background:var(--card-bg); color:var(--text-main); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border) !important; }
-    #aboutModal .modal-dialog { width:min(680px, calc(100vw - 20px)) !important; max-width:680px !important; }
-    .about-modal-head { display:flex; align-items:center; gap:13px; padding:18px 20px; color:#fff; background:linear-gradient(120deg,#0b1e2c,#123f5b 70%,#1a73a8); flex:0 0 auto; }
-    .about-head-mark { width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2);color:#fbd68b;font-size:22px;flex:0 0 auto; }
-    .about-kicker { font-size:9px;letter-spacing:1.1px;color:#b9d6e8;font-weight:800;direction:ltr;text-align:right; }
-    .about-modal-head h2 { font-size:21px;font-weight:900;color:#fff;margin:3px 0; }
-    .about-modal-head p { font-size:11px;color:#d5e8f3;margin:0; }
-    .about-modal-scroll { padding:18px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;min-height:0;flex:1 1 auto;touch-action:pan-y; }
-    .about-brand-panel { display:flex;align-items:center;gap:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(26,115,232,.09),rgba(18,52,77,.04));border:1px solid var(--border); }
-    .about-brand-icon { width:88px;height:88px;object-fit:contain;flex:0 0 auto;filter:drop-shadow(0 4px 9px rgba(0,0,0,.18)); }
-    .about-brand-title { font-size:15px;font-weight:900;color:var(--text-main);line-height:1.6; }
-    .about-brand-subtitle { font-size:12px;color:var(--text-muted);margin-top:3px; }
-    .about-version-pill { display:inline-flex;gap:6px;align-items:center;margin-top:9px;padding:4px 10px;border-radius:20px;background:rgba(26,115,232,.12);color:var(--primary);font-size:10px;font-weight:800; }
-    .about-description { font-size:13px;line-height:1.9;color:var(--text-muted);margin:16px 2px; }
-    .about-feature-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px; }
-    .about-feature { display:grid;grid-template-columns:38px 1fr;column-gap:10px;align-items:center;padding:12px;border-radius:13px;background:var(--input-bg);border:1px solid var(--border); }
-    .about-feature>span { grid-row:span 2;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:rgba(26,115,232,.12);color:var(--primary);font-size:16px; }
-    .about-feature strong { font-size:12px;color:var(--text-main); }
-    .about-feature small { font-size:10px;line-height:1.6;color:var(--text-muted); }
-    .about-note { display:flex;align-items:flex-start;gap:9px;margin-top:14px;padding:12px;border-radius:12px;background:rgba(22,163,74,.08);color:var(--text-muted);font-size:11px;line-height:1.8; }
-    .about-note i { color:#16a34a;margin-top:3px; }
-    .about-modal-foot { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted);flex:0 0 auto; }
-    @media(max-width:420px) { .about-modal-scroll{padding:12px}.about-brand-icon{width:68px;height:68px}.about-brand-title{font-size:13px}.about-feature{padding:9px;grid-template-columns:32px 1fr;column-gap:8px}.about-feature>span{width:32px;height:32px} }
-
-
-    /* Larger alphabet dock keys for comfortable tapping on phones */
-    .bottom-keyboard-dock {
-      padding: 9px 10px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    .kb-dock-header {
-      height: 32px !important;
-      margin-bottom: 7px !important;
-    }
-    #kbKeysContainer { gap: 6px !important; }
-    .kb-grid-row { gap: 5px !important; }
-    .kb-grid-row .kb-key {
-      height: clamp(38px, 10vw, 44px) !important;
-      font-size: clamp(15px, 4.2vw, 18px) !important;
-      border-radius: 9px !important;
     }
 
 </style>
@@ -3130,31 +3097,63 @@
   </div>
 </div>
 
-<!-- نافذة عن البرنامج -->
-<!-- نافذة «عن التطبيق» -->
-<div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content about-modal-content border-0 rounded-4 shadow-lg">
-      <div class="about-modal-head">
-        <div class="about-head-mark"><i class="fa-solid fa-circle-info"></i></div>
-        <div class="flex-grow-1"><div class="about-kicker">ST. GEORGE • SERVICE DASHBOARD</div><h2>عن البرنامج</h2><p>لوحة تنظيم ومتابعة خدمة فصل الشهيد مارجرجس</p></div>
+<!-- نافذة عن التطبيق — تصميم جديد بالكامل -->
+<div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true" style="display:none;">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content about-modal-card">
+      <div class="about-modal-header">
+        <div class="d-flex align-items-center gap-2">
+          <div class="about-head-badge"><i class="fa-solid fa-shield-halved"></i></div>
+          <div>
+            <h5 class="m-0 fw-bold fs-6 text-white">لوحة خدمة مارجرجس</h5>
+            <small class="text-white-50" style="font-size:11px;">St.Gorge Dashboard • الإصدار v6</small>
+          </div>
+        </div>
         <button type="button" class="btn-close btn-close-white" onclick="hideModal('aboutModal')" aria-label="إغلاق"></button>
       </div>
-      <div class="about-modal-scroll">
-        <section class="about-brand-panel">
-          <img src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png" alt="أيقونة الشهيد مارجرجس" class="about-brand-icon">
-          <div><div class="about-brand-title">فصل الشهيد العظيم مارجرجس الروماني</div><div class="about-brand-subtitle">كنيسة السيدة العذراء مريم بالزيتون</div><span class="about-version-pill"><i class="fa-solid fa-code-branch"></i> الإصدار v6</span></div>
-        </section>
-        <p class="about-description">برنامج لخدمة الخدام في تنظيم بيانات المخدومين ومتابعة الحضور والغياب والافتقاد، مع الاحتفاظ بسجل واضح يساعد على المتابعة المنتظمة.</p>
-        <div class="about-feature-grid">
-          <div class="about-feature"><span><i class="fa-solid fa-address-card"></i></span><strong>بيانات المخدومين</strong><small>عرض وتحديث بيانات كل مخدوم بسهولة</small></div>
-          <div class="about-feature"><span><i class="fa-solid fa-calendar-check"></i></span><strong>الحضور والمتابعة</strong><small>متابعة الحضور وسجل الافتقاد</small></div>
-          <div class="about-feature"><span><i class="fa-solid fa-chart-pie"></i></span><strong>الإحصائيات</strong><small>مؤشرات وتقارير تساعد في تنظيم الخدمة</small></div>
-          <div class="about-feature"><span><i class="fa-solid fa-cloud-arrow-up"></i></span><strong>مزامنة البيانات</strong><small>ربط البيانات بملف Google Sheets</small></div>
+      <div class="about-modal-body">
+        <div class="about-hero-banner">
+          <img src="app_icon.png" onerror="this.src='https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png'" alt="أيقونة الشهيد مارجرجس" class="about-hero-logo">
+          <div>
+            <h6 class="fw-bold mb-1" style="color:var(--text-main);">فصل الشهيد العظيم مارجرجس الروماني</h6>
+            <div class="text-muted small">كنيسة السيدة العذراء مريم بالزيتون</div>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mt-2">
+              <i class="fa-solid fa-code-branch me-1"></i> الإصدار v6 • 2026
+            </span>
+          </div>
         </div>
-        <div class="about-note"><i class="fa-solid fa-heart"></i><span>هدف البرنامج هو تسهيل الخدمة وتنظيم المتابعة، مع الحفاظ على خصوصية بيانات المخدومين.</span></div>
+
+        <p class="text-muted small mb-3" style="line-height:1.7;">
+          تطبيق إلكتروني متكامل لخدام فصل مارجرجس؛ لتنظيم ومتابعة بيانات المخدومين، وتسجيل حضور الجمعة، ومتابعة سجل الافتقاد، مع إحصائيات بيانية ومزامنة تلقائية مع Google Sheets.
+        </p>
+
+        <div class="about-grid-features">
+          <div class="about-feature-box">
+            <span class="about-feature-icon"><i class="fa-solid fa-address-card"></i></span>
+            <div><strong>بيانات المخدومين</strong><small>كروت تفاعلية ببيانات الاتصال والعناوين والملاحظات</small></div>
+          </div>
+          <div class="about-feature-box">
+            <span class="about-feature-icon"><i class="fa-solid fa-calendar-check"></i></span>
+            <div><strong>تسجيل الحضور</strong><small>متابعة نسب حضور الجمعة والغياب أسبوعياً</small></div>
+          </div>
+          <div class="about-feature-box">
+            <span class="about-feature-icon"><i class="fa-solid fa-phone-volume"></i></span>
+            <div><strong>سجل الافتقاد</strong><small>تسجيل المتابعات التليفونية والزيارات ورسائل الواتساب</small></div>
+          </div>
+          <div class="about-feature-box">
+            <span class="about-feature-icon"><i class="fa-solid fa-chart-pie"></i></span>
+            <div><strong>الإحصائيات والتصدير</strong><small>تقارير تفاعلية وتصدير ملفات Excel و PDF والطباعة</small></div>
+          </div>
+        </div>
+
+        <div class="p-2 rounded-3 text-center" style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.2);color:var(--text-muted);font-size:11px;">
+          <i class="fa-solid fa-heart text-success me-1"></i> هدف البرنامج تسهيل الخدمة والمتابعة المنتظمة، صلوا من أجل الخدمة 🙏
+        </div>
       </div>
-      <div class="about-modal-foot"><span>لوحة الخدمة والمتابعة التفاعلية</span><button type="button" class="btn btn-primary rounded-pill px-4" onclick="hideModal('aboutModal')">إغلاق</button></div>
+      <div class="about-modal-footer">
+        <span class="text-muted small">لوحة خدمة التربية الكنسية</span>
+        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" onclick="hideModal('aboutModal')">إغلاق</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3328,22 +3327,6 @@
     }
   });
 
-  /* إبطاء الحركات بدون مراقبة كل تغييرات الصفحة لتجنب استهلاك المعالج */
-  (function slowInterfaceMotion() {
-    const slow = () => {
-      document.getAnimations().forEach(animation => {
-        if (animation.playbackRate !== 0.5) animation.playbackRate = 0.5;
-      });
-    };
-    const scheduleSlow = () => requestAnimationFrame(slow);
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', scheduleSlow, { once: true });
-    } else {
-      scheduleSlow();
-    }
-    document.addEventListener('shown.bs.modal', scheduleSlow);
-    document.addEventListener('shown.bs.offcanvas', scheduleSlow);
-  })();
 
   /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
   function updateScrollProgress() {
