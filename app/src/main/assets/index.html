@@ -4041,14 +4041,29 @@
       });
 
       if (Object.keys(changed).length > 0) {
-        await saveToSheet({
+        const payload = {
           action: 'update',
           row: s.row,
           name: s.name,
           sourceSheet: s.sourceSheet,
           fields: changed
-        }, 'تم الحفظ', `تم تحديث بيانات ${form.name}`);
-
+        };
+        try {
+          await saveToSheet(payload, 'تم الحفظ', `تم تحديث بيانات ${form.name}`);
+        } catch (e) {
+          const isNet = !navigator.onLine || e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
+          if (!isNet) throw e;
+          const queued = addToOfflineQueue({
+            type: 'update',
+            payload,
+            description: `تحديث بيانات ${form.name}`
+          });
+          if (!queued) {
+            showToast('تعذر حفظ التعديل', 'انقطع الاتصال ولم يتمكن التطبيق من تخزين التعديل على الجهاز.', 'error');
+            return;
+          }
+          showToast('تم حفظ التعديل أوفلاين', 'سيتم إرسال التعديل عند عودة الاتصال بالإنترنت.', 'warning');
+        }
         Object.assign(s, form);
       }
 
