@@ -5622,10 +5622,13 @@
       container.innerHTML = '';
       const letters = ARABIC_ALPHABET_ORDER.filter(letter => (letterCounts[letter] || 0) > 0);
 
-      const flexWrap = document.createElement('div');
-      flexWrap.className = 'kb-flex-wrap';
+      // اعرض الحروف كلها في صفّين ثابتين، بدون تمرير أفقي أو رأسي.
+      const firstRow = document.createElement('div');
+      firstRow.className = 'kb-grid-row';
+      const secondRow = document.createElement('div');
+      secondRow.className = 'kb-grid-row';
 
-      letters.forEach(letter => {
+      letters.forEach((letter, index) => {
         const count = letterCounts[letter] || 0;
         const keyBtn = document.createElement('button');
         keyBtn.type = 'button';
@@ -5636,22 +5639,11 @@
           e.stopPropagation();
           selectLetterFilter(letter);
         };
-        flexWrap.appendChild(keyBtn);
+        (index < 14 ? firstRow : secondRow).appendChild(keyBtn);
       });
 
-      // زر الكل داخل لوحة الحروف
-      const resetBtn = document.createElement('button');
-      resetBtn.type = 'button';
-      resetBtn.className = 'kb-key kb-key-reset' + (!currentLetterFilter ? ' active' : '');
-      resetBtn.innerHTML = '<i class="fa-solid fa-list-check me-1"></i>الكل';
-      resetBtn.setAttribute('aria-label', 'عرض جميع المخدومين');
-      resetBtn.onclick = (e) => {
-        e.stopPropagation();
-        clearLetterFilter();
-      };
-      flexWrap.appendChild(resetBtn);
-
-      container.appendChild(flexWrap);
+      if (firstRow.childElementCount) container.appendChild(firstRow);
+      if (secondRow.childElementCount) container.appendChild(secondRow);
     } catch (err) {
       console.error('renderBottomKeyboard error:', err);
     }
