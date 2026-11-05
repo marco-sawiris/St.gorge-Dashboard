@@ -3083,18 +3083,28 @@
       return;
     }
     const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const upcoming = (Array.isArray(studentsData) ? studentsData : [])
       .filter(student => String(student.birthDate || '').trim())
       .map(student => {
         const raw = String(student.birthDate).trim();
-        const parts = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-        if (!parts) return null;
-        const month = Number(parts[2]), day = Number(parts[3]);
-        const date = new Date(today.getFullYear(), month - 1, day);
-        if (date < new Date(today.getFullYear(), today.getMonth(), today.getDate())) date.setFullYear(today.getFullYear() + 1);
-        return { name: student.name || 'بدون اسم', date, days: Math.ceil((date - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000) };
+        const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        const dayFirst = raw.match(/^(\d{1,2})[-/](\d{1,2})(?:[-/](?:\d{2}|\d{4}))?$/);
+        const month = iso ? Number(iso[2]) : (dayFirst ? Number(dayFirst[2]) : 0);
+        const day = iso ? Number(iso[3]) : (dayFirst ? Number(dayFirst[1]) : 0);
+        if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+        let year = today.getFullYear();
+        let date = null;
+        for (let attempt = 0; attempt < 8; attempt++, year++) {
+          const candidate = new Date(year, month - 1, day);
+          if (candidate.getMonth() === month - 1 && candidate.getDate() === day && candidate >= todayStart) {
+            date = candidate;
+            break;
+          }
+        }
+        if (!date) return null;
+        return { name: student.name || 'بدون اسم', date, days: Math.ceil((date - todayStart) / 86400000) };
       })
-      .filter(Boolean)
       .sort((a, b) => a.date - b.date)
       .slice(0, 10);
     list.innerHTML = upcoming.length ? upcoming.map(item => `
