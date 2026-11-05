@@ -4533,6 +4533,7 @@
   }
 
   window._followupLogData = [];
+  window._followupLogLoadError = false;
   async function loadFollowupLog() {
     try {
       const data = await loadSheetRows('سجل الافتقاد');
@@ -4553,6 +4554,7 @@
 
       const studentsByCode = new Map((studentsData || []).map(student => [String(student.code || '').trim(), student]));
       const studentsByName = new Map((studentsData || []).map(student => [String(student.name || '').trim(), student]));
+      window._followupLogLoadError = false;
       window._followupLogData = rows.map(r => {
         const code = String(r[iCode] || '').trim();
         const name = String(r[iName] || '').trim();
@@ -4571,23 +4573,31 @@
 
       renderFollowupLog();
     } catch (e) {
-      window._followupLogData = [];
+      // Keep the last successful data; a network failure must never look like an empty log.
+      window._followupLogLoadError = true;
+      console.error('تعذر تحميل سجل الافتقاد:', e);
       renderFollowupLog();
     }
   }
 
   function renderFollowupLog() {
     const log = window._followupLogData || [];
+    const loadError = !!window._followupLogLoadError;
     const countEl = document.getElementById('followupLogCount');
-    if (countEl) countEl.textContent = `${log.length} سجل`;
+    if (countEl) countEl.textContent = loadError ? `${log.length} سجل (آخر نسخة محفوظة)` : `${log.length} سجل`;
     populateFollowupServantFilter();
     const tbody = document.getElementById('followupLogBody');
     if (!tbody) return;
     if (!log.length) {
-      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">لا توجد سجلات افتقاد بعد.</td></tr>`;
+      tbody.innerHTML = loadError
+        ? `<tr><td colspan="6" class="text-center text-danger py-4">تعذر تحميل سجل الافتقاد. تحقق من الاتصال وحاول المزامنة مرة أخرى.</td></tr>`
+        : `<tr><td colspan="6" class="text-center text-muted py-4">لا توجد سجلات افتقاد بعد.</td></tr>`;
       return;
     }
-    tbody.innerHTML = [...log].reverse().map(r => `
+    const staleNotice = loadError
+      ? `<tr><td colspan="6" class="text-center text-warning py-2">تعذر تحديث السجل؛ المعروض هو آخر بيانات تم تحميلها بنجاح.</td></tr>`
+      : '';
+    tbody.innerHTML = staleNotice + [...log].reverse().map(r => `
       <tr>
         <td>${escapeHtml(r.date)}</td>
         <td>${escapeHtml(r.friday)}</td>
