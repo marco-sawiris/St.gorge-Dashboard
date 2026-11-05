@@ -225,7 +225,12 @@ object NotificationScheduler {
     preferences.edit().putString("birthday_students_json", studentsJson).apply()
     val previousCount = preferences.getInt("birthday_alarm_count", 0)
     for (i in 0 until students.length()) {
-      val student = students.optJSONObject(i) ?: continue
+      val student = students.optJSONObject(i)
+      if (student == null) {
+        // A malformed row must not leave a previous student's alarm active at this index.
+        cancelBirthdayAlarm(context, 400 + i)
+        continue
+      }
       val name = student.optString("name", "مخدوم")
       val birthDate = student.optString("birthDate", "").trim()
       if (birthDate.isEmpty()) cancelBirthdayAlarm(context, 400 + i)
