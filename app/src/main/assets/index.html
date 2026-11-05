@@ -4634,10 +4634,10 @@
   }
 
   function exportTableToExcel() {
-    if (!studentsData.length) return alert('لا توجد بيانات للتصدير!');
+    if (!filteredData.length) return alert('لا توجد بيانات مطابقة للفلاتر للتصدير!');
     if (!window.XLSX || !XLSX.utils) return showToast('مكتبة Excel غير متاحة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.', 'error');
     try {
-      const data = studentsData.map(s => ({
+      const data = filteredData.map(s => ({
         'الاسم': s.name, 'الأشبين': s.servant,
         'المنطقة': s.area, 'إجمالي الحضور': s.attendanceTotal, 'حضور الشهر': s.attendanceMonth,
         'الافتقاد': s.followupStatus, 'الملاحظات': s.notes
@@ -4772,8 +4772,13 @@
     openExternalShareUrl('https://wa.me/?text=' + encodeURIComponent(message));
   }
 
+  function getFilteredFollowupRecords() {
+    const selectedServant = document.getElementById('followupServantReportFilter')?.value || '';
+    return (window._followupLogData || []).filter(record => !selectedServant || record.servant === selectedServant);
+  }
+
   function exportFollowupToExcel() {
-    const records = window._followupLogData || [];
+    const records = getFilteredFollowupRecords();
     if (!records.length) return alert('لا توجد بيانات سجل للتصدير!');
     if (!window.XLSX || !XLSX.utils) return showToast('مكتبة Excel غير متاحة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.', 'error');
     try {
@@ -4794,7 +4799,7 @@
   }
 
   function exportFollowupToPDF() {
-    const records = window._followupLogData || [];
+    const records = getFilteredFollowupRecords();
     if (!records.length) return alert('لا توجد بيانات سجل!');
     if (typeof html2pdf !== 'function') return showToast('مكتبة PDF غير متاحة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.', 'error');
     const el = document.createElement('div');
