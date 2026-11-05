@@ -3989,6 +3989,23 @@
     }
   }
 
+  // Add a saved or queued follow-up to the local log immediately.
+  // The next successful sheet refresh replaces this optimistic entry with server data.
+  function recordFollowupInLocalLog(student, friday, method) {
+    if (!Array.isArray(window._followupLogData)) window._followupLogData = [];
+    window._followupLogData.push({
+      date: fmtLocalDate(new Date()),
+      friday,
+      code: String(student.code || '').trim(),
+      name: student.name || '',
+      servant: student.servant || '',
+      type: method,
+      notes: `افتقاد عبر ${method}`
+    });
+    renderFollowupLog();
+    refreshRenderedFollowupSummaries();
+  }
+
   // ============================================================
   // تسجيل الافتقاد السريع وتحديث المسار الثنائي
   // ============================================================
@@ -4021,6 +4038,7 @@
 
     try {
       await saveToSheet(payload, 'تم تسجيل الافتقاد', `${s.name}: ${method}`);
+      recordFollowupInLocalLog(s, friday, method);
     } catch (e) {
       const isNet = !navigator.onLine || e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
       if (isNet) {
@@ -4030,6 +4048,7 @@
           description: `تسجيل افتقاد ${method} لـ ${s.name}`
         });
         if (queued) {
+          recordFollowupInLocalLog(s, friday, method);
           showToast('حفظ أوفلاين', `تم حفظ افتقاد (${s.name}) في طابور العمليات المعلقة`, 'warning');
         } else {
           s.followupStatus = beforeStatus;
