@@ -3659,7 +3659,7 @@
     );
     const count = matches.length || fallbackValues.length;
     const latestType = matches.length
-      ? String(matches[matches.length - 1].type || '')
+      ? String(matches[matches.length - 1].type || student.followupStatus || '')
       : String(student.followupStatus || '');
     let method = 'لم يتم الافتقاد بعد';
     if (/زيار|منزل/i.test(latestType)) method = 'تم بزيارة';
@@ -3668,6 +3668,18 @@
     else if (/رسالة/i.test(latestType)) method = 'تم برسالة نصية';
     else if (latestType && latestType !== 'بدون' && !latestType.includes('لم')) method = latestType;
     return { count, method };
+  }
+
+  // Update visible follow-up summaries after the log loads without rebuilding cards
+  // or disturbing an open card/edit form.
+  function refreshRenderedFollowupSummaries() {
+    (Array.isArray(filteredData) ? filteredData : []).forEach(student => {
+      const summary = getCardFollowupSummary(student);
+      const countEl = document.getElementById(`followupCount-${student.id}`);
+      const methodEl = document.getElementById(`followupMethod-${student.id}`);
+      if (countEl) countEl.textContent = String(summary.count);
+      if (methodEl) methodEl.textContent = summary.method;
+    });
   }
 
   function renderCards() {
@@ -3812,8 +3824,8 @@
               </div>
 
               <div class="card-back-meta-strip">
-                <span>عدد مرات الافتقاد: <strong>${getCardFollowupSummary(s).count}</strong></span>
-                <span>وسيلة الافتقاد: <strong>${escapeHtml(getCardFollowupSummary(s).method)}</strong></span>
+                <span>عدد مرات الافتقاد: <strong id="followupCount-${s.id}">${getCardFollowupSummary(s).count}</strong></span>
+                <span>وسيلة الافتقاد: <strong id="followupMethod-${s.id}">${escapeHtml(getCardFollowupSummary(s).method)}</strong></span>
                 <span>إجمالي الحضور: <strong>${s.attendanceTotal}</strong></span>
                 <span>حضور الشهر: <strong>${s.attendanceMonth}</strong></span>
               </div>
@@ -4713,11 +4725,13 @@
       }).filter(r => r.name || r.code);
 
       renderFollowupLog();
+      refreshRenderedFollowupSummaries();
     } catch (e) {
       // Keep the last successful data; a network failure must never look like an empty log.
       window._followupLogLoadError = true;
       console.error('تعذر تحميل سجل الافتقاد:', e);
       renderFollowupLog();
+      refreshRenderedFollowupSummaries();
     }
   }
 
