@@ -3311,20 +3311,21 @@
     }
   });
 
-  /* إبطاء الحركات والانتقالات إلى نصف السرعة دون تغيير تصميمها */
+  /* إبطاء الحركات بدون مراقبة كل تغييرات الصفحة لتجنب استهلاك المعالج */
   (function slowInterfaceMotion() {
     const slow = () => {
       document.getAnimations().forEach(animation => {
         if (animation.playbackRate !== 0.5) animation.playbackRate = 0.5;
       });
     };
-    slow();
-    const observer = new MutationObserver(slow);
-    observer.observe(document.documentElement, {
-      subtree: true, attributes: true, attributeFilter: ['class', 'style']
-    });
-    document.addEventListener('shown.bs.modal', slow);
-    document.addEventListener('shown.bs.offcanvas', slow);
+    const scheduleSlow = () => requestAnimationFrame(slow);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', scheduleSlow, { once: true });
+    } else {
+      scheduleSlow();
+    }
+    document.addEventListener('shown.bs.modal', scheduleSlow);
+    document.addEventListener('shown.bs.offcanvas', scheduleSlow);
   })();
 
   /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
