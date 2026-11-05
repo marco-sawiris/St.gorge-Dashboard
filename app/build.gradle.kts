@@ -13,8 +13,8 @@ android {
     applicationId = "com.aistudio.stgorge.dash"
     minSdk = 24
     targetSdk = 36
-    versionCode = 5
-    versionName = "v4"
+    versionCode = 6
+    versionName = "v5"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
