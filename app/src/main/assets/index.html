@@ -4083,15 +4083,32 @@
   // ============================================================
   const OFFLINE_QUEUE_KEY = 'stgorge_pending_ops_queue';
 
+  let offlineQueueReadFailed = false;
+
   function getOfflineQueue() {
     try {
-      return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+      const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+      if (!raw) {
+        offlineQueueReadFailed = false;
+        return [];
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new Error('Offline queue data is not an array');
+      offlineQueueReadFailed = false;
+      return parsed;
     } catch (e) {
+      offlineQueueReadFailed = true;
+      console.error('تعذر قراءة طابور العمليات المحفوظ:', e);
       return [];
     }
   }
 
   function saveOfflineQueue(queue) {
+    if (offlineQueueReadFailed) {
+      console.error('تم إيقاف الكتابة لحماية طابور أوفلاين غير قابل للقراءة من الاستبدال.');
+      updateOfflineQueueUI();
+      return false;
+    }
     try {
       localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
       updateOfflineQueueUI();
@@ -4105,8 +4122,9 @@
 
   function addToOfflineQueue(item) {
     const queue = getOfflineQueue();
+    if (offlineQueueReadFailed) return false;
     queue.push(Object.assign({
-      id: 'op_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      id: 'op_' + Date.now() + '_' + Math.random().toString(36).substr(0, 5),
       createdAt: new Date().toISOString()
     }, item));
     return saveOfflineQueue(queue);
@@ -4117,6 +4135,12 @@
     const badge = document.getElementById('offlineQueueBadge');
     const countSpan = document.getElementById('pendingOpsCount');
     if (badge && countSpan) {
+      if (offlineQueueReadFailed) {
+        countSpan.textContent = '!';
+        badge.style.display = 'inline-flex';
+        badge.title = 'تعذر قراءة طابور العمليات المحفوظ؛ لا تمسح بيانات التطبيق قبل معالجة المشكلة.';
+        return;
+      }
       countSpan.textContent = queue.length;
       if (queue.length > 0) {
         badge.style.display = 'inline-flex';
@@ -4131,6 +4155,10 @@
   async function processOfflineQueue() {
     if (isProcessingOfflineQueue) return;
     const queue = getOfflineQueue();
+    if (offlineQueueReadFailed) {
+      showToast('تعذر قراءة العمليات المعلقة', 'لم يتم تشغيل المزامنة حتى لا نفقد بيانات محفوظة تالفة أو غير قابلة للقراءة.', 'error');
+      return;
+    }
     if (!queue.length) return;
 
     if (!navigator.onLine) {
