@@ -3895,51 +3895,63 @@
   // ============================================================
   // تسجيل الافتقاد السريع وتحديث المسار الثنائي
   // ============================================================
+  const pendingFollowupSet = new Set();
+
   async function recordQuickFollowup(studentId, method) {
+    if (pendingFollowupSet.has(studentId)) return;
     const s = studentsData.find(item => item.id === studentId);
     if (!s) return;
+
+    pendingFollowupSet.add(studentId);
     const beforeStatus = s.followupStatus;
     const friday = getNearestFridayString();
+    const beforeFridayValue = s.fu ? s.fu[friday] : undefined;
     s.followupStatus = method;
     if (!s.fu) s.fu = {};
     s.fu[friday] = method;
     applyFilters();
     renderStats();
 
+    const payload = {
+      action: 'followup',
+      row: s.row,
+      name: s.name,
+      date: friday,
+      type: method,
+      notes: `افتقاد عبر ${method}`,
+      sourceSheet: s.sourceSheet
+    };
+
     try {
-      await saveToSheet({
-        action: 'followup',
-        row: s.row,
-        name: s.name,
-        date: friday,
-        type: method,
-        notes: `افتقاد عبر ${method}`,
-        sourceSheet: s.sourceSheet
-      }, 'تم تسجيل الافتقاد', `${s.name}: ${method}`);
+      await saveToSheet(payload, 'تم تسجيل الافتقاد', `${s.name}: ${method}`);
     } catch (e) {
       const isNet = !navigator.onLine || e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
       if (isNet) {
-        addToOfflineQueue({
+        const queued = addToOfflineQueue({
           type: 'followup',
-          payload: {
-            action: 'followup',
-            row: s.row,
-            name: s.name,
-            date: friday,
-            type: method,
-            notes: `افتقاد عبر ${method}`,
-            sourceSheet: s.sourceSheet
-          },
+          payload,
           description: `تسجيل افتقاد ${method} لـ ${s.name}`
         });
-        showToast('حفظ أوفلاين', `تم حفظ افتقاد (${s.name}) في طابور العمليات المعلقة`, 'warning');
+        if (queued) {
+          showToast('حفظ أوفلاين', `تم حفظ افتقاد (${s.name}) في طابور العمليات المعلقة`, 'warning');
+        } else {
+          s.followupStatus = beforeStatus;
+          if (beforeFridayValue === undefined) delete s.fu[friday];
+          else s.fu[friday] = beforeFridayValue;
+          applyFilters();
+          renderStats();
+          showToast('تعذر الحفظ أوفلاين', 'لم يتمكن التطبيق من تخزين العملية على الجهاز؛ لم يتم اعتماد التغيير.', 'error');
+        }
       } else {
         s.followupStatus = beforeStatus;
-        if (s.fu) s.fu[friday] = beforeStatus;
+        if (beforeFridayValue === undefined) delete s.fu[friday];
+        else s.fu[friday] = beforeFridayValue;
         applyFilters();
         renderStats();
         showToast('تعذر الحفظ', e.message, 'error');
       }
+    } finally {
+      pendingFollowupSet.delete(studentId);
     }
   }
 
@@ -4067,8 +4079,13 @@
   function saveOfflineQueue(queue) {
     try {
       localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
-    } catch (e) {}
-    updateOfflineQueueUI();
+      updateOfflineQueueUI();
+      return true;
+    } catch (e) {
+      console.error('تعذر حفظ طابور العمليات على الجهاز:', e);
+      updateOfflineQueueUI();
+      return false;
+    }
   }
 
   function addToOfflineQueue(item) {
@@ -4077,7 +4094,7 @@
       id: 'op_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       createdAt: new Date().toISOString()
     }, item));
-    saveOfflineQueue(queue);
+    return saveOfflineQueue(queue);
   }
 
   function updateOfflineQueueUI() {
@@ -4190,12 +4207,23 @@
       const isNet = !navigator.onLine || e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
       if (isNet) {
         // انقطاع النت: إضافة للطابور الأوفلاين
-        addToOfflineQueue({
+        const queued = addToOfflineQueue({
           type: 'attendance',
           payload: payload,
           description: `تسجيل ${isPresent ? 'حضور' : 'غياب'} ${s.name}`
         });
-        showToast('حفظ أوفلاين', `تم حفظ العملية للمخدوم (${s.name}) في الطابور المعلق لغياب الإنترنت`, 'warning');
+        if (queued) {
+          showToast('حفظ أوفلاين', `تم حفظ العملية للمخدوم (${s.name}) في الطابور المعلق لغياب الإنترنت`, 'warning');
+        } else {
+          s.attendanceStatus = beforeStatus;
+          s.attendanceTotal = beforeTotal;
+          s.attendanceMonth = beforeMonth;
+          if (beforeFridayVal === undefined) delete s.att[date];
+          else s.att[date] = beforeFridayVal;
+          applyFilters();
+          renderStats();
+          showToast('تعذر الحفظ أوفلاين', 'لم يتمكن التطبيق من تخزين العملية على الجهاز؛ تم إلغاء التغيير المحلي.', 'error');
+        }
       } else {
         // فشل السيرفر: استرجاع القيم القديمة وعرض خطأ واضح
         s.attendanceStatus = beforeStatus;
