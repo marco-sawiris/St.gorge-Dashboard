@@ -2691,6 +2691,23 @@
     .about-modal-foot { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted);flex:0 0 auto; }
     @media(max-width:420px) { .about-modal-scroll{padding:12px}.about-brand-icon{width:68px;height:68px}.about-brand-title{font-size:13px}.about-feature{padding:9px;grid-template-columns:32px 1fr;column-gap:8px}.about-feature>span{width:32px;height:32px} }
 
+
+    /* Larger alphabet dock keys for comfortable tapping on phones */
+    .bottom-keyboard-dock {
+      padding: 9px 10px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    .kb-dock-header {
+      height: 32px !important;
+      margin-bottom: 7px !important;
+    }
+    #kbKeysContainer { gap: 6px !important; }
+    .kb-grid-row { gap: 5px !important; }
+    .kb-grid-row .kb-key {
+      height: clamp(38px, 10vw, 44px) !important;
+      font-size: clamp(15px, 4.2vw, 18px) !important;
+      border-radius: 9px !important;
+    }
+
 </style>
 </head>
 <body>
