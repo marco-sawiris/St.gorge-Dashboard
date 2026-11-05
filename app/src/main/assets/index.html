@@ -3407,12 +3407,12 @@
     }
   });
 
-  function openRemindersModal() {  function openAboutModal() {
+  function openAboutModal() {
     closeSidebar();
     window.setTimeout(() => showModal('aboutModal'), 220);
   }
 
-
+  function openRemindersModal() {
     const modalElement = document.getElementById('remindersModal');
     const list = document.getElementById('remindersBirthdayList');
     if (!modalElement || !list) {
