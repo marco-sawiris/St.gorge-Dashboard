@@ -827,7 +827,7 @@
     html.modal-open, body.modal-open {
       overflow: hidden !important;
       overscroll-behavior: none !important;
-      touch-action: none;
+      touch-action: pan-y;
     }
     .modal { overflow: hidden !important; overscroll-behavior: contain; touch-action: pan-y; }
     .modal-dialog {
@@ -2661,6 +2661,36 @@
       padding-top: 6px;
     }
 
+
+    /* Stable vertical scrolling on Android WebView and desktop. */
+    html, body { height:auto !important; min-height:100% !important; overflow-x:hidden !important; overflow-y:auto !important; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
+    body { position:relative !important; }
+    .main-app { height:auto !important; min-height:100%; overflow:visible !important; touch-action:pan-y; padding-bottom:calc(190px + env(safe-area-inset-bottom, 0px)) !important; }
+    html.modal-open, body.modal-open { overflow:hidden !important; touch-action:pan-y; }
+    .about-modal-content { width:100%; max-height:calc(100dvh - 28px) !important; background:var(--card-bg); color:var(--text-main); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border) !important; }
+    #aboutModal .modal-dialog { width:min(680px, calc(100vw - 20px)) !important; max-width:680px !important; }
+    .about-modal-head { display:flex; align-items:center; gap:13px; padding:18px 20px; color:#fff; background:linear-gradient(120deg,#0b1e2c,#123f5b 70%,#1a73a8); flex:0 0 auto; }
+    .about-head-mark { width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2);color:#fbd68b;font-size:22px;flex:0 0 auto; }
+    .about-kicker { font-size:9px;letter-spacing:1.1px;color:#b9d6e8;font-weight:800;direction:ltr;text-align:right; }
+    .about-modal-head h2 { font-size:21px;font-weight:900;color:#fff;margin:3px 0; }
+    .about-modal-head p { font-size:11px;color:#d5e8f3;margin:0; }
+    .about-modal-scroll { padding:18px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;min-height:0;flex:1 1 auto;touch-action:pan-y; }
+    .about-brand-panel { display:flex;align-items:center;gap:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(26,115,232,.09),rgba(18,52,77,.04));border:1px solid var(--border); }
+    .about-brand-icon { width:88px;height:88px;object-fit:contain;flex:0 0 auto;filter:drop-shadow(0 4px 9px rgba(0,0,0,.18)); }
+    .about-brand-title { font-size:15px;font-weight:900;color:var(--text-main);line-height:1.6; }
+    .about-brand-subtitle { font-size:12px;color:var(--text-muted);margin-top:3px; }
+    .about-version-pill { display:inline-flex;gap:6px;align-items:center;margin-top:9px;padding:4px 10px;border-radius:20px;background:rgba(26,115,232,.12);color:var(--primary);font-size:10px;font-weight:800; }
+    .about-description { font-size:13px;line-height:1.9;color:var(--text-muted);margin:16px 2px; }
+    .about-feature-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px; }
+    .about-feature { display:grid;grid-template-columns:38px 1fr;column-gap:10px;align-items:center;padding:12px;border-radius:13px;background:var(--input-bg);border:1px solid var(--border); }
+    .about-feature>span { grid-row:span 2;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:rgba(26,115,232,.12);color:var(--primary);font-size:16px; }
+    .about-feature strong { font-size:12px;color:var(--text-main); }
+    .about-feature small { font-size:10px;line-height:1.6;color:var(--text-muted); }
+    .about-note { display:flex;align-items:flex-start;gap:9px;margin-top:14px;padding:12px;border-radius:12px;background:rgba(22,163,74,.08);color:var(--text-muted);font-size:11px;line-height:1.8; }
+    .about-note i { color:#16a34a;margin-top:3px; }
+    .about-modal-foot { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted);flex:0 0 auto; }
+    @media(max-width:420px) { .about-modal-scroll{padding:12px}.about-brand-icon{width:68px;height:68px}.about-brand-title{font-size:13px}.about-feature{padding:9px;grid-template-columns:32px 1fr;column-gap:8px}.about-feature>span{width:32px;height:32px} }
+
 </style>
 </head>
 <body>
@@ -2739,11 +2769,7 @@
       <i class="fa-solid fa-map-location-dot"></i>
       <span>المناطق السكنية</span>
     </button>
-    <!-- المساعد الذكي للخدمة -->
-    <button class="sidebar-nav-item" style="--i:5" onclick="openHelpModal()">
-      <i class="fa-solid fa-wand-magic-sparkles"></i>
-      <span>المساعد الذكي</span>
-    </button>
+    
 
     <a href="https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit" 
        onclick="return openExternalSheet(event)" class="sidebar-nav-item" style="--i:6">
@@ -2815,10 +2841,7 @@
       <i class="fa-solid fa-bell"></i>
       <span class="notif-badge-dot d-none" id="notifBadgeDot">0</span>
     </button>
-    <button class="btn-gemini-quick" onclick="openHelpModal()" title="المساعد الذكي للخدمة">
-      <i class="fa-solid fa-wand-magic-sparkles"></i>
-      <span>المساعد الذكي</span>
-    </button>
+    
     <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
       <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
       <span><strong id="pendingOpsCount">0</strong> معلق</span>
@@ -3090,56 +3113,36 @@
   </div>
 </div>
 
-<!-- مساعد الاستخدام المحلي -->
-<!-- مساعد الاستخدام: دليل إرشادي يعمل دون إنترنت -->
-<div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden" style="background:var(--card-bg);color:var(--text-main);">
-      <div class="help-header-box">
-        <div class="d-flex align-items-center gap-2">
-          <i class="fa-solid fa-wand-magic-sparkles fs-5 text-warning"></i>
-          <div><h5 class="m-0 fw-bold fs-6">المساعد الذكي للخدمة</h5><small style="opacity:.88;">تحليل الحضور، صياغة رسائل الافتقاد، ودليل استخدام التطبيق</small></div>
-        </div>
-        <button type="button" class="btn-close btn-close-white" onclick="hideModal('helpModal')" data-bs-dismiss="modal" aria-label="إغلاق"></button>
-      </div>
-      <div class="modal-body p-3">
-        <div class="help-quick-prompts">
-          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('تحليل الحضور والغياب')"><i class="fa-solid fa-chart-line text-primary me-1"></i>تحليل الغياب والافتقاد</button>
-          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('اقتراح رسائل افتقاد وتشجيع')"><i class="fa-solid fa-envelope text-success me-1"></i>رسائل تشجيع وافتقاد</button>
-          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('تقرير الخدام والمناطق')"><i class="fa-solid fa-users text-warning me-1"></i>متابعة الخدام والمناطق</button>
-          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أضيف مخدوم جديد؟')">إضافة مخدوم</button>
-          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أعدل بيانات مخدوم؟')">تعديل البيانات</button>
-          <button type="button" class="btn-help-prompt" onclick="askHelpSuggestion('إزاي أسجل الافتقاد؟')">الافتقاد</button>
-        </div>
-        <div id="helpChatWindow" class="help-chat-window" role="log" aria-live="polite"></div>
-        <div class="help-input-row">
-          <input type="text" id="helpChatInput" class="app-input" placeholder="اكتب سؤالك أو اطلب تحليلاً..." autocomplete="off" aria-label="اكتب سؤالك">
-          <button type="button" class="btn btn-primary px-3 fw-bold" onclick="sendHelpQuestion()" aria-label="إرسال السؤال"><i class="fa-solid fa-paper-plane"></i></button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- مودال "عن التطبيق" وفيه الشعار الأصلي -->
+<!-- نافذة عن البرنامج -->
+<!-- نافذة «عن التطبيق» -->
 <div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content border-0 rounded-4 overflow-hidden" >
-      <div class="about-hero text-center">
-        <div class="d-flex justify-content-between align-items-start">
-          <div class="about-hero-badge"><i class="fa-solid fa-shield-halved"></i> فصل الشهيد العظيم مارجرجس الروماني</div>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        
-        <img src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png" alt="الشهيد مارجرجس" class="about-hero-ext-icon">
-        <h2>لوحة الخدمة <span>والإحصائيات الذكية</span></h2>
-        <p>تطبيق لخدمة فصل الشهيد مارجرجس: ينظم بيانات المخدومين، ويتابع الحضور والغياب، ويسجل الافتقاد وملاحظاته، ويعرض إحصائيات وتقارير تساعد الخدام على متابعة كل مخدوم. كما يتيح المزامنة مع Google Sheets، والتواصل مع المخدوم أو ولي أمره، ومساعداً إرشادياً يعمل دون إنترنت.</p>
+    <div class="modal-content about-modal-content border-0 rounded-4 shadow-lg">
+      <div class="about-modal-head">
+        <div class="about-head-mark"><i class="fa-solid fa-circle-info"></i></div>
+        <div class="flex-grow-1"><div class="about-kicker">ST. GEORGE • SERVICE DASHBOARD</div><h2>عن البرنامج</h2><p>لوحة تنظيم ومتابعة خدمة فصل الشهيد مارجرجس</p></div>
+        <button type="button" class="btn-close btn-close-white" onclick="hideModal('aboutModal')" aria-label="إغلاق"></button>
       </div>
+      <div class="about-modal-scroll">
+        <section class="about-brand-panel">
+          <img src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png" alt="أيقونة الشهيد مارجرجس" class="about-brand-icon">
+          <div><div class="about-brand-title">فصل الشهيد العظيم مارجرجس الروماني</div><div class="about-brand-subtitle">كنيسة السيدة العذراء مريم بالزيتون</div><span class="about-version-pill"><i class="fa-solid fa-code-branch"></i> الإصدار v6</span></div>
+        </section>
+        <p class="about-description">برنامج لخدمة الخدام في تنظيم بيانات المخدومين ومتابعة الحضور والغياب والافتقاد، مع الاحتفاظ بسجل واضح يساعد على المتابعة المنتظمة.</p>
+        <div class="about-feature-grid">
+          <div class="about-feature"><span><i class="fa-solid fa-address-card"></i></span><strong>بيانات المخدومين</strong><small>عرض وتحديث بيانات كل مخدوم بسهولة</small></div>
+          <div class="about-feature"><span><i class="fa-solid fa-calendar-check"></i></span><strong>الحضور والمتابعة</strong><small>متابعة الحضور وسجل الافتقاد</small></div>
+          <div class="about-feature"><span><i class="fa-solid fa-chart-pie"></i></span><strong>الإحصائيات</strong><small>مؤشرات وتقارير تساعد في تنظيم الخدمة</small></div>
+          <div class="about-feature"><span><i class="fa-solid fa-cloud-arrow-up"></i></span><strong>مزامنة البيانات</strong><small>ربط البيانات بملف Google Sheets</small></div>
+        </div>
+        <div class="about-note"><i class="fa-solid fa-heart"></i><span>هدف البرنامج هو تسهيل الخدمة وتنظيم المتابعة، مع الحفاظ على خصوصية بيانات المخدومين.</span></div>
+      </div>
+      <div class="about-modal-foot"><span>لوحة الخدمة والمتابعة التفاعلية</span><button type="button" class="btn btn-primary rounded-pill px-4" onclick="hideModal('aboutModal')">إغلاق</button></div>
     </div>
   </div>
 </div>
 
-<!-- مركز التنبيهات وأعياد الميلاد -->
+<!-- مركز التنبيهات وأعياد الميلاد --><!-- مركز التنبيهات وأعياد الميلاد -->
 <div class="modal fade" id="remindersModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content rounded-4 border-0 shadow-lg">
@@ -3588,142 +3591,6 @@
       </div>`).join('') : '<p class="text-muted small text-center py-3">لا توجد تواريخ ميلاد مسجلة أو لم يتم تحميل البيانات بعد.</p>';
     showModal('remindersModal');
   }
-
-  const HELP_CHAT_GREETING = 'أهلاً بيك 👋\nأنا المساعد الذكي لخدمة فصل مارجرجس.\nيمكنك الاستفسار عن دليل الاستخدام، أو طلب تحليل الحضور والغياب، أو اقتراح رسائل افتقاد وتشجيع، أو متابعة توزيع الخدام.';
-
-  function resetHelpChat() {
-    try {
-      const chat = document.getElementById('helpChatWindow');
-      const input = document.getElementById('helpChatInput');
-      if (chat) {
-        chat.innerHTML = '';
-        const greeting = document.createElement('div');
-        greeting.className = 'help-message bot';
-        greeting.textContent = HELP_CHAT_GREETING;
-        chat.appendChild(greeting);
-        chat.scrollTop = 0;
-      }
-      if (input) input.value = '';
-    } catch (err) {
-      console.error('resetHelpChat error:', err);
-    }
-  }
-
-  function openHelpModal() {
-    try {
-      closeSidebar();
-      const modal = document.getElementById('helpModal');
-      if (!modal) {
-        showToast('المساعد غير متاح', 'تعذر فتح نافذة المساعد الذكي.', 'error');
-        return;
-      }
-      resetHelpChat();
-      showModal('helpModal');
-      requestAnimationFrame(() => {
-        modal.scrollTop = 0;
-        const chat = document.getElementById('helpChatWindow');
-        if (chat) chat.scrollTop = 0;
-      });
-    } catch (err) {
-      console.error('openHelpModal error:', err);
-      showModal('helpModal');
-    }
-  }
-
-  function normalizeHelpQuestion(value) {
-    return String(value || '').toLowerCase()
-      .replace(/[\u064B-\u065F\u0670]/g, '')
-      .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
-      .replace(/[؟?!.,،؛:]/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-
-  const APP_HELP_KNOWLEDGE = [
-    { keys:['اضافه مخدوم','اضيف مخدوم','مخدوم جديد','تسجيل مخدوم','شخص جديد'], answer:'لإضافة مخدوم جديد:\n1. افتح تبويب «الكروت».\n2. انزل لآخر الكروت لحد ما تلاقي كارت «إضافة مخدوم جديد» وعليه علامة +.\n3. اضغط عليه، واملا البيانات المطلوبة في النموذج.\n4. اضغط حفظ بعد مراجعة البيانات.' },
-    { keys:['تعديل بيانات','اعدل بيانات','تعديل مخدوم','اعدل الكارت','تعديل الكارت','تغيير بيانات','تصحيح بيانات'], answer:'لتعديل بيانات مخدوم:\n1. افتح عرض الكروت.\n2. دور على كارت المخدوم.\n3. اضغط أيقونة التعديل الموجودة على الكارت.\n4. عدّل الحقول المطلوبة واضغط حفظ.\nلو التعديل مش بيفتح أو الحفظ مش بيتم، دي مشكلة محتاجة فحص مش مجرد خطوة استخدام.' },
-    { keys:['حضور','اغياب','غايب','حاضر','اسجل الحضور','تسجيل الحضور'], answer:'لتسجيل حضور الجمعة أو الغياب:\n1. افتح تبويب «الكروت».\n2. دور على كارت المخدوم.\n3. في جزء «حضور الجمعة» اضغط «حاضر» أو «غائب».\n4. التطبيق بيحفظ التغيير وبيحدّث المزامنة حسب اتصال الإنترنت.' },
-    { keys:['ملاحظات','ملاحظه','اضيف ملاحظه','تعديل الملاحظات'], answer:'لتعديل ملاحظات المخدوم:\n1. افتح كارت المخدوم في تبويب «الكروت».\n2. اضغط أيقونة التعديل (القلم) على الكارت.\n3. عدّل حقل «ملاحظات الافتقاد» داخل نموذج التعديل.\n4. اضغط «حفظ» لتسجيل التغيير.\nمربع الملاحظات على الكارت مخصص للعرض فقط، والتعديل يتم من نموذج التعديل.' },
-    { keys:['تصدير','اكسل','excel','pdf','اطبع','طباعة','واتساب','مشاركه'], answer:'لتصدير البيانات:\n1. افتح تبويب «الجدول».\n2. انزل لمنطقة أزرار التصدير أسفل الجدول.\n3. اختار «تصدير PDF» أو «تصدير إكسل»، أو استخدم «واتساب» للمشاركة.\nالتصدير بيستخدم البيانات المعروضة بعد الفلاتر.' },
-    { keys:['تاب','الكروت','الجدول','الاحصائيات','انتقل للجدول'], answer:'التنقل بين أقسام التطبيق من شريط التبويبات: «الكروت» لعرض كروت المخدومين، «الجدول» لعرض البيانات في صفوف، «الإحصائيات» للمؤشرات، و«الافتقاد» لسجل المتابعة.' },
-    { keys:['بحث','ادور','ابحث','مش لاقي','البحث عن مخدوم','اسم مخدوم'], answer:'للبحث عن مخدوم:\n1. استخدم مربع البحث أعلى قائمة المخدومين.\n2. اكتب الاسم أو جزءًا منه.\n3. امسح نص البحث لو عايز ترجع كل النتائج.\nلو النتيجة مش ظاهرة، راجع الفلاتر النشطة؛ ممكن تكون مخفية بسبب فلتر فصل أو حالة.' },
-    { keys:['افتقاد','اسجل افتقاد','تسجيل افتقاد','سجل الافتقاد','اتصل بمخدوم'], answer:'لتسجيل الافتقاد من كارت المخدوم:\n1. افتح كارت المخدوم في تبويب «الكروت».\n2. اضغط «اتصال» أو «واتساب» من أزرار التواصل الموجودة أسفل الكارت؛ التطبيق بيسجل طريقة المتابعة تلقائيًا.\n3. لمراجعة المتابعات السابقة، افتح تبويب «الافتقاد» أو «سجل الافتقاد» من القائمة الجانبية.' },
-    { keys:['منطقه','المناطق','فلتر المناطق','المنطقه السكنيه','عنوان'], answer:'لتصفية المخدومين حسب المنطقة:\n1. افتح القائمة الجانبية.\n2. اختار «المناطق السكنية».\n3. اختار المنطقة المطلوبة لتطبيق الفلتر.\n4. لإلغاء التصفية، افتح فلتر المناطق واختار إلغاء الفلتر.' },
-    { keys:['اعرض الكل','كل المخدومين','غير حاضر','نشط','فلتر الفصل'], answer:'لتغيير مجموعة البيانات المعروضة، استخدم القائمة المنسدلة أعلى المخدومين: «نشط» أو «غير حاضر» أو «فصل البابا شنودة» أو «الكل». اختيار «الكل» يعرض جميع المجموعات المتاحة.' },
-    { keys:['فصل','البابا شنوده','فصل البابا شنوده','كل الفصول'], answer:'لتغيير الفصل أو عرضه، استخدم خيارات الفصول الموجودة في شريط التصفية أعلى قائمة المخدومين. لو فصل «البابا شنودة» مش بيظهر أو بيعرض «لا توجد نتائج»، امسح البحث والفلاتر الأول؛ ولو المشكلة مستمرة فهي محتاجة إصلاح في البيانات أو منطق الفلترة.' },
-    { keys:['تنبيه','التنبيهات','عيد ميلاد','تذكير','اشعار'], answer:'لمراجعة التنبيهات والتذكيرات، اضغط أيقونة الجرس في الشريط العلوي لفتح مركز التنبيهات وأعياد الميلاد. تأكد كمان إن إشعارات التطبيق مسموح بيها من إعدادات الموبايل.' },
-    { keys:['داكن','فاتح','الوضع الليلي','الوان التطبيق','السمة'], answer:'لتغيير مظهر التطبيق، افتح القائمة الجانبية، ثم قسم «السمة ومظهر التطبيق»، واختار الوضع الفاتح أو الداكن.' },
-    { keys:['شيت','جوجل شيت','ملف البيانات','جدول البيانات'], answer:'لفتح ملف البيانات المرتبط بالتطبيق، افتح القائمة الجانبية واضغط «فتح ملف الشيت». هيفتح ملف Google Sheets المرتبط بالتطبيق.' },
-    { keys:['مزامنه','تحديث البيانات','مش متزامن','الانترنت','بدون نت','اوفلاين'], answer:'حالة المزامنة بتظهر في الشريط العلوي. اضغط على حالة المزامنة لطلب تحديث فوري. ولو فيه عمليات معلقة بدون إنترنت، هيظهر مؤشر العمليات المعلقة؛ اضغط عليه بعد رجوع الاتصال لمحاولة المزامنة.' },
-    { keys:['حذف','حذف مخدوم','مسح بيانات'], answer:'مش هديك خطوات حذف غير مؤكدة حفاظًا على بيانات المخدومين. قلّي اسم العنصر اللي عايز تحذفه أو ابعت وصف الشاشة عشان أحدد الطريقة الصحيحة.' }
-  ];
-
-  function findAppHelpAnswer(question) {
-    const normalized = normalizeHelpQuestion(question);
-    if (!normalized) return 'اكتب سؤالك الأول، وأنا هحاول أوصلك للخطوات الصحيحة.';
-
-    // أسئلة التحليل والخدمة الذكية
-    if (normalized.includes('تحليل') || (normalized.includes('غياب') && normalized.includes('حضور'))) {
-      const total = Array.isArray(studentsData) ? studentsData.length : 0;
-      if (!total) return 'لا توجد بيانات مخدومين مسجلة حالياً لتحليلها.';
-      const attended = studentsData.filter(s => s.att === 'حاضر').length;
-      const absent = studentsData.filter(s => s.att === 'غائب').length;
-      const rate = total > 0 ? Math.round((attended / total) * 100) : 0;
-      return `📊 تحليل حضور الخدمة:\n• إجمالي المخدومين: ${total}\n• عدد الحاضرين: ${attended} مخدوم (${rate}%)\n• عدد الغائبين: ${absent} مخدوم\n\n💡 توصية الخدمة: ركّز على الاتصال أو الزيارة للـ ${absent} مخدوم الغائبين هذا الأسبوع لتشجيعهم، واستخدم زر الواتساب أو الاتصال المباشر من كارت كل مخدوم.`;
-    }
-
-    if (normalized.includes('رسائل') || normalized.includes('تشجيع') || normalized.includes('صياغه')) {
-      return `💌 نماذج رسائل افتقاد وتشجيع جاهزة للإرسال:\n\n1. «سلام ونعمة يا حبيبي.. افتقدناك جداً الجمعة دي في كنيستنا مارجرجس، بنطمن عليك ومستنيين حضورك بفرح الجمعة الجاية! 🙏»\n\n2. «كل سنة وأنت طيب وبخير.. بنفكرك بميعاد القداس ومدارس الأحد، مجهزين فقرة جميلة والكل مستنيك!»\n\n3. «حبيبي في المسيح.. خادمك بيطمن عليك، لو محتاج أي صلاة أو في أي وقت عايز تتكلم أنا معاك دايماً.»`;
-    }
-
-    if (normalized.includes('تقرير الخدام') || (normalized.includes('خدام') && normalized.includes('مناطق')) || normalized.includes('اشابين')) {
-      const counts = {};
-      (Array.isArray(studentsData) ? studentsData : []).forEach(s => {
-        const srv = s.servant || 'غير محدد';
-        counts[srv] = (counts[srv] || 0) + 1;
-      });
-      const lines = Object.entries(counts).map(([k, v]) => `• ${k}: ${v} مخدوم`).join('\n');
-      return `👥 تقرير توزيع المخدومين على الخدام والأشابين:\n${lines || 'لا يوجد خدام مسجلين'}\n\n💡 يمكنك تصفية الكروت حسب خادم معين من القائمة المنسدلة أعلى الصفحة «كل الأشابين».`;
-    }
-
-    const match = APP_HELP_KNOWLEDGE.find(item => item.keys.some(key => normalized.includes(normalizeHelpQuestion(key))));
-    return match ? match.answer : 'مش لاقي في دليل التطبيق شرح مؤكد للسؤال ده. جرّب تسأل بكلمات زي: تحليل الحضور، رسائل افتقاد، تقرير الخدام، إضافة مخدوم، تعديل بيانات، البحث، الافتقاد، أو المزامنة.';
-  }
-
-  function appendHelpMessage(message, type) {
-    const chat = document.getElementById('helpChatWindow');
-    if (!chat) return;
-    const bubble = document.createElement('div');
-    bubble.className = 'help-message ' + (type === 'user' ? 'user' : 'bot');
-    bubble.textContent = message;
-    chat.appendChild(bubble);
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-  function sendHelpQuestion() {
-    const input = document.getElementById('helpChatInput');
-    const question = (input?.value || '').trim();
-    if (!question) return;
-    appendHelpMessage(question, 'user');
-    input.value = '';
-    try {
-      appendHelpMessage(findAppHelpAnswer(question), 'bot');
-    } catch (error) {
-      console.error('Help assistant error:', error);
-      appendHelpMessage('حصل خطأ أثناء تجهيز الإجابة. جرّب مرة تانية، ولو المشكلة مستمرة أعد فتح المساعد.', 'bot');
-    }
-    input?.focus();
-  }
-
-  function askHelpSuggestion(question) {
-    const input = document.getElementById('helpChatInput');
-    if (input) input.value = question;
-    sendHelpQuestion();
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('helpChatInput')?.addEventListener('keydown', event => {
-      if (event.key === 'Enter') { event.preventDefault(); sendHelpQuestion(); }
-    });
-  });
 
   /* PWA Manifest */
   try {
@@ -5709,6 +5576,7 @@
     }
     if (!document.querySelector('.modal.show')) {
       document.documentElement.classList.remove('modal-open');
+      document.body.classList.remove('modal-open');
       document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
     }
   });
