@@ -23,6 +23,8 @@ const val EXTRA_NOTIFICATION_ID = "extra_notif_id"
 const val ACTION_BIRTHDAY = "com.example.ACTION_BIRTHDAY"
 const val EXTRA_STUDENT_NAME = "extra_student_name"
 const val EXTRA_BIRTHDAY_NOTES = "extra_birthday_notes"
+const val EXTRA_BIRTHDAY_DATE = "extra_birthday_date"
+const val EXTRA_BIRTHDAY_REQUEST_CODE = "extra_birthday_request_code"
 
 class ReminderReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent?) {
@@ -30,6 +32,11 @@ class ReminderReceiver : BroadcastReceiver() {
     if (action == Intent.ACTION_BOOT_COMPLETED) {
       Log.d("ReminderReceiver", "Device rebooted, rescheduling weekly alarms")
       NotificationScheduler.scheduleAllWeeklyReminders(context)
+      val savedBirthdays = context.getSharedPreferences("st_gorge_reminders", Context.MODE_PRIVATE)
+        .getString("birthday_students_json", null)
+      if (!savedBirthdays.isNullOrBlank()) {
+        NotificationScheduler.scheduleBirthdayAlarms(context, savedBirthdays)
+      }
       return
     }
 
@@ -44,6 +51,11 @@ class ReminderReceiver : BroadcastReceiver() {
       NotificationScheduler.showLocalNotificationWithAction(
         context, title, body, greeting, (300 + name.hashCode() % 1000).let { if (it < 0) -it else it }, CHANNEL_ID_BIRTHDAYS
       )
+      val birthdayDate = intent.getStringExtra(EXTRA_BIRTHDAY_DATE)
+      val birthdayRequestCode = intent.getIntExtra(EXTRA_BIRTHDAY_REQUEST_CODE, -1)
+      if (!birthdayDate.isNullOrBlank() && birthdayRequestCode >= 400) {
+        NotificationScheduler.scheduleNextBirthdayAlarm(context, name, birthdayDate, birthdayRequestCode)
+      }
       return
     }
 
@@ -201,43 +213,110 @@ object NotificationScheduler {
 
   fun scheduleBirthdayAlarms(context: Context, studentsJson: String) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-    val students = org.json.JSONArray(studentsJson)
-
-    for (i in 0 until students.length()) {
-      val s = students.getJSONObject(i)
-      val name = s.getString("name")
-      val birthDate = s.optString("birthDate", "")
-      if (birthDate.isEmpty()) continue
-      
-      try {
-        val parts = birthDate.split("/")
-        if (parts.size < 2) continue
-        val day = parts[0].toInt()
-        val month = parts[1].toInt() - 1 
-
-        val alarmTime = Calendar.getInstance().apply {
-          set(Calendar.MONTH, month)
-          set(Calendar.DAY_OF_MONTH, day)
-          set(Calendar.HOUR_OF_DAY, 8)
-          set(Calendar.MINUTE, 0)
-          set(Calendar.SECOND, 0)
-          set(Calendar.MILLISECOND, 0)
-          if (timeInMillis < System.currentTimeMillis()) {
-            add(Calendar.YEAR, 1)
-          }
-        }
-
-        val intent = Intent(context, ReminderReceiver::class.java).apply {
-          action = ACTION_BIRTHDAY
-          putExtra(EXTRA_STUDENT_NAME, name)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-          context, 400 + i, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, alarmTime.timeInMillis, AlarmManager.INTERVAL_DAY * 365, pendingIntent)
-      } catch (e: Exception) { Log.e(TAG, "Error scheduling birthday for $name: ${e.message}") }
+    val preferences = context.getSharedPreferences("st_gorge_reminders", Context.MODE_PRIVATE)
+    val students = try {
+      org.json.JSONArray(studentsJson)
+    } catch (error: Exception) {
+      Log.e(TAG, "Invalid birthday JSON; existing alarms were left unchanged.", error)
+      return
     }
+
+    preferences.edit().putString("birthday_students_json", studentsJson).apply()
+    val previousCount = preferences.getInt("birthday_alarm_count", 0)
+    for (i in 0 until students.length()) {
+      val student = students.optJSONObject(i) ?: continue
+      val name = student.optString("name", "مخدوم")
+      val birthDate = student.optString("birthDate", "").trim()
+      if (birthDate.isEmpty()) cancelBirthdayAlarm(context, 400 + i)
+      else scheduleNextBirthdayAlarm(context, name, birthDate, 400 + i)
+    }
+
+    if (previousCount > students.length()) {
+      for (index in students.length() until previousCount) cancelBirthdayAlarm(context, 400 + index)
+    }
+    preferences.edit().putInt("birthday_alarm_count", students.length()).apply()
+  }
+
+  private fun cancelBirthdayAlarm(context: Context, requestCode: Int) {
+    val staleIntent = Intent(context, ReminderReceiver::class.java).apply { action = ACTION_BIRTHDAY }
+    val pendingIntent = PendingIntent.getBroadcast(
+      context, requestCode, staleIntent,
+      PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+    )
+    if (pendingIntent != null) {
+      val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+      alarmManager?.cancel(pendingIntent)
+      pendingIntent.cancel()
+    }
+  }
+
+  fun scheduleNextBirthdayAlarm(context: Context, name: String, birthDate: String, requestCode: Int) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+    val parsed = parseBirthdayMonthDay(birthDate)
+    if (parsed == null) {
+      Log.w(TAG, "Unsupported birthday date for $name: $birthDate")
+      cancelBirthdayAlarm(context, requestCode)
+      return
+    }
+    val (month, day) = parsed
+    val now = System.currentTimeMillis()
+    var year = Calendar.getInstance().get(Calendar.YEAR)
+    var alarmTime: Calendar? = null
+
+    repeat(8) {
+      if (alarmTime == null) {
+        try {
+          val candidate = Calendar.getInstance().apply {
+            clear()
+            isLenient = false
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month - 1)
+            set(Calendar.DAY_OF_MONTH, day)
+            set(Calendar.HOUR_OF_DAY, 8)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+          }
+          candidate.timeInMillis
+          if (candidate.timeInMillis > now) alarmTime = candidate else year++
+        } catch (_: IllegalArgumentException) {
+          year++
+        }
+      }
+    }
+
+    val nextAlarm = alarmTime ?: run {
+      Log.e(TAG, "Could not calculate next birthday for $name ($birthDate)")
+      return
+    }
+    val intent = Intent(context, ReminderReceiver::class.java).apply {
+      action = ACTION_BIRTHDAY
+      putExtra(EXTRA_STUDENT_NAME, name)
+      putExtra(EXTRA_BIRTHDAY_DATE, birthDate)
+      putExtra(EXTRA_BIRTHDAY_REQUEST_CODE, requestCode)
+    }
+    val pendingIntent = PendingIntent.getBroadcast(
+      context, requestCode, intent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextAlarm.timeInMillis, pendingIntent)
+  }
+
+  private fun parseBirthdayMonthDay(rawDate: String): Pair<Int, Int>? {
+    val value = rawDate.trim()
+    val iso = Regex("^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})$").matchEntire(value)
+    val month: Int
+    val day: Int
+    if (iso != null) {
+      month = iso.groupValues[2].toIntOrNull() ?: return null
+      day = iso.groupValues[3].toIntOrNull() ?: return null
+    } else {
+      val dayFirst = Regex("^(\\d{1,2})[-/](\\d{1,2})(?:[-/](?:\\d{2}|\\d{4}))?$").matchEntire(value) ?: return null
+      day = dayFirst.groupValues[1].toIntOrNull() ?: return null
+      month = dayFirst.groupValues[2].toIntOrNull() ?: return null
+    }
+    if (month !in 1..12 || day !in 1..31) return null
+    return month to day
   }
 
   private fun scheduleWeeklyAlarm(
