@@ -241,11 +241,16 @@ fun DashboardWebView() {
         WebView(context).apply {
           settings.apply {
             javaScriptEnabled = true
+            javaScriptCanOpenWindowsAutomatically = false
             domStorageEnabled = true
             databaseEnabled = true
             allowFileAccess = true
             allowContentAccess = true
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            supportMultipleWindows = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+              safeBrowsingEnabled = true
+            }
             // Keep local Android assets accessible, but never grant file-origin access to other files or origins.
             allowFileAccessFromFileURLs = false
             allowUniversalAccessFromFileURLs = false
@@ -257,6 +262,13 @@ fun DashboardWebView() {
             private fun openExternalUrl(url: String): Boolean {
               val uri = Uri.parse(url)
               val scheme = uri.scheme?.lowercase()
+              val host = uri.host?.lowercase().orEmpty()
+
+              // Keep navigation inside the bundled Android assets only.
+              if (scheme == "file" && uri.path?.startsWith("/android_asset/") == true) {
+                return false
+              }
+
               if (scheme == "tel") {
                 try {
                   context.startActivity(Intent(Intent.ACTION_DIAL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -266,18 +278,25 @@ fun DashboardWebView() {
                 return true
               }
 
-              val host = uri.host?.lowercase().orEmpty()
-              val isWhatsAppLink = scheme == "https" &&
-                (host == "wa.me" || host == "whatsapp.com" || host.endsWith(".whatsapp.com"))
-              if (isWhatsAppLink) {
+              val isAllowedExternalUrl = scheme == "https" && (
+                host == "docs.google.com" ||
+                  host == "wa.me" ||
+                  host == "whatsapp.com" ||
+                  host.endsWith(".whatsapp.com")
+              )
+              if (isAllowedExternalUrl) {
                 try {
                   context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 } catch (error: Exception) {
-                  Log.e("DashboardWebView", "Unable to open WhatsApp link $url", error)
+                  Log.e("DashboardWebView", "Unable to open approved external URL $url", error)
+                  Toast.makeText(context, "تعذر فتح الرابط الخارجي", Toast.LENGTH_SHORT).show()
                 }
                 return true
               }
-              return false
+
+              // Do not let arbitrary web pages load inside a WebView that exposes the JS bridge.
+              Log.w("DashboardWebView", "Blocked untrusted WebView navigation: $url")
+              return true
             }
 
             override fun shouldOverrideUrlLoading(
