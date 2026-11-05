@@ -2210,6 +2210,66 @@
     }
     html[data-theme="dark"] #chartsView #kpiAttendanceRate { color: #4ade80 !important; }
     html[data-theme="dark"] #chartsView #kpiFollowupRate { color: #60a5fa !important; }
+    
+    /* Help assistant: anchor to the top and keep the background page fixed while typing */
+    #helpModal {
+      overflow: hidden !important;
+      padding: 0 !important;
+      overscroll-behavior: none !important;
+    }
+    #helpModal .modal-dialog,
+    #helpModal.modal.fade .modal-dialog,
+    #helpModal.modal.show .modal-dialog {
+      width: min(720px, calc(100vw - 16px));
+      max-width: min(720px, calc(100vw - 16px));
+      margin: max(8px, env(safe-area-inset-top, 0px)) auto 8px !important;
+      align-items: flex-start !important;
+      transform: none !important;
+      height: auto;
+      max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px));
+    }
+    #helpModal .modal-content {
+      height: auto;
+      max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #helpModal .help-header-box { flex: 0 0 auto; }
+    #helpModal .modal-body {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden !important;
+      padding: 10px !important;
+      gap: 8px;
+    }
+    #helpModal .help-quick-prompts { flex: 0 0 auto; }
+    #helpModal .help-chat-window {
+      height: clamp(110px, 30dvh, 270px);
+      min-height: 0;
+      flex: 1 1 auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    #helpModal .help-input-row {
+      flex: 0 0 auto;
+      position: relative;
+      z-index: 2;
+      padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+    }
+    html.modal-open, body.modal-open {
+      position: fixed !important;
+      width: 100% !important;
+      overflow: hidden !important;
+      overscroll-behavior: none !important;
+    }
+    @media (max-height: 520px) {
+      #helpModal .help-chat-window { height: 100px; }
+      #helpModal .help-quick-prompts { max-height: 64px; overflow-y: auto; }
+    }
 </style>
 </head>
 <body>
@@ -3586,6 +3646,31 @@
   /* ============================================================
      عرض الكروت
      ============================================================ */
+  function getCardFollowupSummary(student) {
+    const log = Array.isArray(window._followupLogData) ? window._followupLogData : [];
+    const code = String(student.code || '').trim();
+    const name = String(student.name || '').trim();
+    const matches = log.filter(record => {
+      const recordCode = String(record.code || '').trim();
+      const recordName = String(record.name || '').trim();
+      return code && recordCode ? recordCode === code : recordName === name;
+    });
+    const fallbackValues = Object.values(student.fu || {}).filter(value =>
+      value && value !== 'بدون' && !String(value).includes('لم')
+    );
+    const count = matches.length || fallbackValues.length;
+    const latestType = matches.length
+      ? String(matches[matches.length - 1].type || '')
+      : String(student.followupStatus || '');
+    let method = 'لم يتم الافتقاد بعد';
+    if (/زيار|منزل/i.test(latestType)) method = 'تم بزيارة';
+    else if (/تليفون|اتصال|مكالمة|phone|call/i.test(latestType)) method = 'تم بمكالمة';
+    else if (/واتساب/i.test(latestType)) method = 'تم عبر واتساب';
+    else if (/رسالة/i.test(latestType)) method = 'تم برسالة نصية';
+    else if (latestType && latestType !== 'بدون' && !latestType.includes('لم')) method = latestType;
+    return { count, method };
+  }
+
   function renderCards() {
     const container = document.getElementById('cardsView');
     const emptyState = document.getElementById('emptyState');
@@ -3728,16 +3813,17 @@
               </div>
 
               <div class="card-back-meta-strip">
-                <span>المخدوم: <strong class="text-primary">${escapeHtml(s.name)}</strong></span>
-                <span>إجمالي: <strong>${s.attendanceTotal}</strong></span>
-                <span>الشهر: <strong>${s.attendanceMonth}</strong></span>
+                <span>عدد مرات الافتقاد: <strong>${getCardFollowupSummary(s).count}</strong></span>
+                <span>وسيلة الافتقاد: <strong>${escapeHtml(getCardFollowupSummary(s).method)}</strong></span>
+                <span>إجمالي الحضور: <strong>${s.attendanceTotal}</strong></span>
+                <span>حضور الشهر: <strong>${s.attendanceMonth}</strong></span>
               </div>
 
               <div class="card-edit-form">
                 <div class="row g-1">
                   <div class="col-12">
                     <div class="edit-field-group">
-                      <label>الاسم بالكامل</label>
+                      <label>اسم المخدوم</label>
                       <input type="text" id="editName-${s.id}" value="${escapeHtml(s.name)}">
                     </div>
                   </div>
