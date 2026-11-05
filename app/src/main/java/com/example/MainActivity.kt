@@ -247,7 +247,7 @@ fun DashboardWebView() {
             allowFileAccess = true
             allowContentAccess = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            supportMultipleWindows = false
+            setSupportMultipleWindows(false)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
               safeBrowsingEnabled = true
             }
