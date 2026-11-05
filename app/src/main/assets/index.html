@@ -897,34 +897,8 @@
     .modal-header, .modal-footer { border-color: var(--border) !important; }
     .modal-body { overscroll-behavior: contain; }
     .about-hero-ext-icon { background: transparent !important; mix-blend-mode: normal; }
-    .alpha-scroll-shell {
-      position: fixed; left: 5px; top: 50%; transform: translateY(-50%);
-      z-index: 9800; display: flex; align-items: center; gap: 3px;
-    }
-    .alpha-scroll-bar {
-      position: static; transform: none; width: 38px; max-height: 78vh;
-      overflow-y: auto; gap: 3px; padding: 7px 4px;
-      border: 1px solid var(--primary); border-radius: 12px;
-      background: color-mix(in srgb, var(--card-bg) 92%, transparent);
-      scrollbar-width: thin; scrollbar-color: var(--primary) var(--input-bg);
-      box-shadow: 0 3px 16px rgba(0,0,0,.22);
-    }
-    .alpha-scroll-bar::-webkit-scrollbar { display: block; width: 4px; }
-    .alpha-scroll-bar::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 8px; }
-    .alpha-scroll-bar span {
-      width: 28px; min-width: 28px; height: 25px; flex-basis: 25px;
-      font-size: 13px; font-weight: 800; border-radius: 7px;
-    }
-    .alpha-scroll-bar span.unavailable { display: none; }
-    .alpha-scroll-toggle {
-      width: 25px; height: 42px; border: 1px solid var(--primary);
-      border-radius: 0 9px 9px 0; background: var(--card-bg);
-      color: var(--primary); display: flex; align-items: center;
-      justify-content: center; box-shadow: 0 3px 12px rgba(0,0,0,.18);
-    }
-    .alpha-scroll-shell.collapsed .alpha-scroll-bar { display: none !important; }
     .alpha-scroll-shell.collapsed .alpha-scroll-toggle i { transform: rotate(180deg); }
-    [data-theme="dark"] .alpha-scroll-bar { background: rgba(15,31,46,.96); }
+
     .kpi-stat-card { height: 100%; min-width: 0; }
     .kpi-progress { overflow: hidden; border-radius: 99px; }
     .kpi-bar { min-height: 6px; border-radius: 99px; transition: width .8s ease; }
