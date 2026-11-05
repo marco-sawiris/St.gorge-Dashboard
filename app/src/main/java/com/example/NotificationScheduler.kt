@@ -302,7 +302,7 @@ object NotificationScheduler {
     alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextAlarm.timeInMillis, pendingIntent)
   }
 
-  private fun parseBirthdayMonthDay(rawDate: String): Pair<Int, Int>? {
+  internal fun parseBirthdayMonthDay(rawDate: String): Pair<Int, Int>? {
     val value = rawDate.trim()
     val iso = Regex("^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})$").matchEntire(value)
     val month: Int
@@ -315,7 +315,13 @@ object NotificationScheduler {
       day = dayFirst.groupValues[1].toIntOrNull() ?: return null
       month = dayFirst.groupValues[2].toIntOrNull() ?: return null
     }
-    if (month !in 1..12 || day !in 1..31) return null
+    if (month !in 1..12 || day < 1) return null
+    val maximumDay = when (month) {
+      2 -> 29
+      4, 6, 9, 11 -> 30
+      else -> 31
+    }
+    if (day > maximumDay) return null
     return month to day
   }
 
