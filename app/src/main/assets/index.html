@@ -2378,6 +2378,62 @@
       #helpModal .help-chat-window { height: 100px; }
       #helpModal .help-quick-prompts { max-height: 64px; overflow-y: auto; }
     }
+
+    /* Final keyboard, modal and sync presentation fixes */
+    .bottom-keyboard-dock,
+    [data-theme="dark"] .bottom-keyboard-dock {
+      background: var(--card-bg) !important;
+      border-top-color: var(--border) !important;
+      box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.10) !important;
+      padding: 4px 8px calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    .kb-dock-header { height: 28px; margin-bottom: 4px; }
+    .kb-all-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      height: 25px;
+      padding: 0 10px;
+      border: 1px solid var(--primary);
+      border-radius: 8px;
+      background: var(--input-bg);
+      color: var(--primary);
+      font: 700 11px 'Almarai', sans-serif;
+      cursor: pointer;
+    }
+    #kbKeysContainer { display: flex; flex-direction: column; gap: 4px; }
+    .kb-grid-row {
+      display: grid;
+      grid-template-columns: repeat(14, minmax(0, 1fr));
+      gap: 4px;
+      width: 100%;
+    }
+    .kb-grid-row .kb-key {
+      width: 100%;
+      min-width: 0;
+      height: clamp(30px, 8vw, 36px);
+      padding: 0;
+      border-radius: 7px;
+      background: var(--input-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      box-shadow: none;
+      font-size: clamp(12px, 3.5vw, 15px);
+    }
+    .kb-grid-row .kb-key.active,
+    [data-theme="dark"] .kb-grid-row .kb-key.active {
+      background: var(--primary) !important;
+      color: #fff !important;
+      border-color: var(--primary) !important;
+    }
+    .main-app { padding-bottom: calc(126px + env(safe-area-inset-bottom, 0px)) !important; }
+    .modal { z-index: 20000 !important; background: rgba(0, 0, 0, 0.48); }
+    .modal.show { display: block !important; opacity: 1 !important; visibility: visible !important; }
+    .modal:not(.show) { display: none !important; }
+    #aboutModal .modal-dialog { max-width: min(720px, calc(100vw - 24px)); }
+    #aboutModal .about-hero { max-height: calc(100dvh - 32px); overflow-y: auto; }
+
 </style>
 </head>
 <body>
@@ -3207,9 +3263,11 @@
   function showModal(modalId) {
     const el = document.getElementById(modalId);
     if (!el) return;
+    el.style.display = 'block';
     el.classList.add('show');
     el.removeAttribute('aria-hidden');
     el.setAttribute('aria-modal', 'true');
+    el.setAttribute('role', 'dialog');
     document.documentElement.classList.add('modal-open');
     document.body.classList.add('modal-open');
   }
@@ -3218,8 +3276,10 @@
     const el = document.getElementById(modalId);
     if (!el) return;
     el.classList.remove('show');
+    el.style.display = 'none';
     el.setAttribute('aria-hidden', 'true');
     el.removeAttribute('aria-modal');
+    el.removeAttribute('role');
     if (!document.querySelector('.modal.show')) {
       document.documentElement.classList.remove('modal-open');
       document.body.classList.remove('modal-open');
@@ -3231,7 +3291,9 @@
       hideModal(e.target.id);
       return;
     }
-    const closeBtn = e.target.closest('[data-bs-dismiss="modal"], .btn-close');
+    const target = e.target instanceof Element ? e.target : null;
+    if (!target) return;
+    const closeBtn = target.closest('[data-bs-dismiss="modal"], .btn-close');
     if (closeBtn) {
       const modal = closeBtn.closest('.modal');
       if (modal && modal.id) {
@@ -3378,7 +3440,12 @@
     if (!question) return;
     appendHelpMessage(question, 'user');
     input.value = '';
-    appendHelpMessage(findAppHelpAnswer(question), 'bot');
+    try {
+      appendHelpMessage(findAppHelpAnswer(question), 'bot');
+    } catch (error) {
+      console.error('Help assistant error:', error);
+      appendHelpMessage('حصل خطأ أثناء تجهيز الإجابة. جرّب مرة تانية، ولو المشكلة مستمرة أعد فتح المساعد.', 'bot');
+    }
     input?.focus();
   }
 
@@ -3578,27 +3645,15 @@
       return namedRows;
     };
 
+    let lastLoadError = null;
     for (const target of candidates) {
-      const param = typeof target === 'number' ? `gid=${target}` : `sheet=${encodeURIComponent(target)}`;
-      try {
-        const res = await fetch(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?headers=1&${param}&tqx=out:csv`);
-        if (res.ok) {
-          const text = await res.text();
-          if (!text.trim().startsWith('<')) {
-            const all = parseCSV(text);
-            if (all.length) {
-              const namedRows = consider(all[0], all.slice(1));
-              if (namedRows > 0) return bestTable;
-            }
-          }
-        }
-      } catch (e) {}
-
       try {
         const data = await loadViaJsonp(target);
         const namedRows = consider(data.header, data.rows);
         if (namedRows > 0) return bestTable;
-      } catch (e) {}
+      } catch (e) {
+        lastLoadError = e;
+      }
     }
 
     if (bestTable && bestCount === 0) return bestTable;
@@ -3665,6 +3720,32 @@
   let autoSyncInterval = null;
   let lastSyncTimeStr = '';
 
+  function formatSyncTimestamp(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const dayMonth = date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'numeric' });
+    const time = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    return { short: `${dayMonth} ${time}`, full: date.toLocaleString('ar-EG') };
+  }
+
+  function restoreLastSyncDisplay(sheetName = currentSheetName) {
+    try {
+      const saved = localStorage.getItem(`stgorge_last_sync_${sheetName}`);
+      if (!saved) return false;
+      const formatted = formatSyncTimestamp(saved);
+      if (!formatted) return false;
+      lastSyncTimeStr = formatted.short;
+      const syncText = document.getElementById('syncText');
+      const topBadge = document.getElementById('topSyncStatus');
+      if (syncText) syncText.textContent = `آخر مزامنة: ${formatted.short}`;
+      if (topBadge) topBadge.title = `آخر مزامنة ناجحة: ${formatted.full} — المزامنة التلقائية كل 5 دقائق (اضغط للتحديث)`;
+      return true;
+    } catch (error) {
+      console.warn('تعذر استعادة وقت آخر مزامنة:', error);
+      return false;
+    }
+  }
+
   function setSyncProgress(active) {
     const track = document.getElementById('topSyncProgressTrack');
     const bar = document.getElementById('topSyncProgressBar');
@@ -3711,6 +3792,7 @@
     const loadingState = document.getElementById('loadingState');
     const topBadge = document.getElementById('topSyncStatus');
 
+    restoreLastSyncDisplay(requested);
     setSyncProgress(true);
 
     if (spinIcon) spinIcon.classList.add('fa-spin');
@@ -3742,11 +3824,16 @@
         parseRows(header, rows, requested, 0, false, firstDataRow);
       }
       const now = new Date();
-      const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-      lastSyncTimeStr = timeStr;
+      const formattedSync = formatSyncTimestamp(now);
+      lastSyncTimeStr = formattedSync.short;
+      try {
+        localStorage.setItem(`stgorge_last_sync_${requested}`, now.toISOString());
+      } catch (storageError) {
+        console.warn('تعذر حفظ وقت آخر مزامنة:', storageError);
+      }
 
-      if (syncText) syncText.textContent = `متزامن (${timeStr})`;
-      if (topBadge) topBadge.title = `آخر تحديث: ${timeStr} — المزامنة التلقائية القادمة بعد 5 دقائق (اضغط للتحديث الفوري)`;
+      if (syncText) syncText.textContent = `متزامن (${formattedSync.short})`;
+      if (topBadge) topBadge.title = `آخر مزامنة ناجحة: ${formattedSync.full} — المزامنة التلقائية القادمة بعد 5 دقائق (اضغط للتحديث الفوري)`;
 
       if (isAutoSync) {
         // لا نحتاج إظهار توست للمزامنة التلقائية إلا إذا كان هناك خطأ، لنقلل الإزعاج
@@ -5268,46 +5355,32 @@
         activeBadge.textContent = `الحرف: ${currentLetterFilter} (${count})`;
         activeBadge.style.display = 'inline-flex';
       }
-      if (clearBtn) clearBtn.style.display = 'inline-block';
+      if (clearBtn) clearBtn.style.display = 'inline-flex';
     } else {
       if (activeBadge) activeBadge.style.display = 'none';
-      if (clearBtn) clearBtn.style.display = 'none';
+      if (clearBtn) clearBtn.style.display = 'inline-flex';
     }
 
     container.replaceChildren();
-    const strip = document.createElement('div');
-    strip.className = 'kb-horizontal-strip';
-
-    // زر "الكل" كأول زر في الشريط
-    const allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.className = 'kb-key kb-backspace' + (!currentLetterFilter ? ' active' : '');
-    allBtn.textContent = 'الكل';
-    allBtn.setAttribute('aria-label', 'عرض جميع المخدومين');
-    allBtn.onclick = (e) => {
-      e.stopPropagation();
-      clearLetterFilter();
-    };
-    strip.appendChild(allBtn);
-
-    ARABIC_ALPHABET_ORDER.forEach(letter => {
-      const count = letterCounts[letter] || 0;
-      // شرط المستخدم: لو مفيش مخدومين بيبدأوا بالحرف ده (زي خ) شيله خالص
-      if (count === 0) return;
-
-      const keyBtn = document.createElement('button');
-      keyBtn.type = 'button';
-      keyBtn.className = 'kb-key' + (currentLetterFilter === letter ? ' active' : '');
-      keyBtn.textContent = letter;
-      keyBtn.setAttribute('aria-label', `تصفية بحرف ${letter} (${count} مخدوم)`);
-      keyBtn.onclick = (e) => {
-        e.stopPropagation();
-        selectLetterFilter(letter);
-      };
-      strip.appendChild(keyBtn);
-    });
-
-    container.appendChild(strip);
+    const letters = ARABIC_ALPHABET_ORDER.filter(letter => (letterCounts[letter] || 0) > 0);
+    for (let i = 0; i < letters.length; i += 14) {
+      const row = document.createElement('div');
+      row.className = 'kb-grid-row';
+      letters.slice(i, i + 14).forEach(letter => {
+        const count = letterCounts[letter] || 0;
+        const keyBtn = document.createElement('button');
+        keyBtn.type = 'button';
+        keyBtn.className = 'kb-key' + (currentLetterFilter === letter ? ' active' : '');
+        keyBtn.textContent = letter;
+        keyBtn.setAttribute('aria-label', `تصفية بحرف ${letter} (${count} مخدوم)`);
+        keyBtn.onclick = (e) => {
+          e.stopPropagation();
+          selectLetterFilter(letter);
+        };
+        row.appendChild(keyBtn);
+      });
+      container.appendChild(row);
+    }
   }
 
   function selectLetterFilter(letter) {
@@ -5370,8 +5443,8 @@
     </button>
     <div class="d-flex align-items-center gap-2">
       <span id="kbActiveBadge" class="kb-active-badge" style="display:none;"></span>
-      <button type="button" id="kbClearBtn" class="kb-clear-btn" onclick="event.stopPropagation(); clearLetterFilter()" style="display:none;">
-        <i class="fa-solid fa-xmark"></i> إلغاء
+      <button type="button" id="kbClearBtn" class="kb-all-btn" onclick="event.stopPropagation(); clearLetterFilter()" aria-label="عرض جميع المخدومين">
+        الكل
       </button>
     </div>
   </div>
