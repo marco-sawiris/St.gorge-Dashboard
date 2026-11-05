@@ -2434,6 +2434,95 @@
     #aboutModal .modal-dialog { max-width: min(720px, calc(100vw - 24px)); }
     #aboutModal .about-hero { max-height: calc(100dvh - 32px); overflow-y: auto; }
 
+    /* Android safe-area: keep the alphabet dock above system navigation controls. */
+    .bottom-keyboard-dock {
+      bottom: 0 !important;
+      padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
+      max-height: min(170px, 32dvh);
+      overflow: hidden;
+      z-index: 9700 !important;
+    }
+    #kbKeysContainer {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .kb-grid-row {
+      display: grid;
+      grid-template-columns: repeat(14, minmax(0, 1fr));
+      gap: clamp(2px, 0.8vw, 5px);
+      width: 100%;
+    }
+    .kb-grid-row .kb-key {
+      min-width: 0;
+      width: 100%;
+      height: clamp(32px, 7.8vw, 38px);
+      font-size: clamp(13px, 3.8vw, 16px);
+      touch-action: manipulation;
+    }
+    .main-app {
+      padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    /* Keep help dialog above all app layers and usable on short screens / Android IME. */
+    #helpModal {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 20000 !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+      padding: max(10px, env(safe-area-inset-top, 0px)) 10px
+        max(10px, env(safe-area-inset-bottom, 0px)) !important;
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.58) !important;
+    }
+    #helpModal .modal-dialog {
+      width: 100%;
+      max-width: min(720px, calc(100vw - 20px));
+      min-height: 0;
+      margin: 0 auto !important;
+      display: flex;
+      align-items: center;
+      min-height: calc(100% - 0px);
+    }
+    #helpModal .modal-content {
+      width: 100%;
+      max-height: calc(100dvh - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+      min-height: 0;
+    }
+    #helpModal .modal-body {
+      min-height: 0;
+      overflow-y: auto !important;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #helpModal .help-quick-prompts {
+      flex: 0 0 auto;
+      max-height: 24dvh;
+      overflow-y: auto;
+    }
+    #helpModal .help-chat-window {
+      height: clamp(90px, 30dvh, 260px);
+      min-height: 80px;
+      flex: 1 1 auto;
+      overflow-y: auto;
+    }
+    #helpModal .help-input-row {
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      flex: 0 0 auto;
+      background: var(--card-bg);
+      padding-top: 6px;
+    }
+    @media (max-height: 600px) {
+      #helpModal .modal-dialog { align-items: flex-start; }
+      #helpModal .help-quick-prompts { max-height: 16dvh; }
+      #helpModal .help-chat-window { height: 20dvh; min-height: 70px; }
+    }
+
 </style>
 </head>
 <body>
@@ -3263,6 +3352,8 @@
   function showModal(modalId) {
     const el = document.getElementById(modalId);
     if (!el) return;
+    // Move dialogs to body so transforms/overflow on app containers cannot hide them.
+    if (el.parentElement !== document.body) document.body.appendChild(el);
     el.style.display = 'block';
     el.classList.add('show');
     el.removeAttribute('aria-hidden');
@@ -3361,9 +3452,20 @@
 
   function openHelpModal() {
     closeSidebar();
+    const modal = document.getElementById('helpModal');
+    if (!modal) {
+      showToast('المساعد غير متاح', 'تعذر فتح نافذة المساعد. أعد تشغيل التطبيق وحاول مرة أخرى.', 'error');
+      return;
+    }
     resetHelpChat();
     showModal('helpModal');
-    setTimeout(() => document.getElementById('helpChatInput')?.focus(), 250);
+    // Do not autofocus: Android opens its system keyboard and may pan the dialog
+    // out of view. The user taps the input when ready to type.
+    requestAnimationFrame(() => {
+      modal.scrollTop = 0;
+      const chat = document.getElementById('helpChatWindow');
+      if (chat) chat.scrollTop = 0;
+    });
   }
 
   function normalizeHelpQuestion(value) {
