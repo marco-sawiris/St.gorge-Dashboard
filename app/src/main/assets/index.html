@@ -1082,7 +1082,6 @@
     }
     .modal-header, .modal-footer { border-color: var(--border) !important; }
     .modal-body { overscroll-behavior: contain; overflow-y: auto; }
-    .about-hero-ext-icon { background: transparent !important; mix-blend-mode: normal; }
 
     .kpi-stat-card { height: 100%; min-width: 0; }
     .kpi-progress { overflow: hidden; border-radius: 99px; }
@@ -2144,52 +2143,6 @@
     .btn-export.excel { background: #16a34a; }
     .btn-export.whatsapp { background: #25d366; }
 
-    /* Modal Hero Banner "عن التطبيق" */
-    .about-hero {
-      background: linear-gradient(125deg, #091b27 0%, #133954 50%, #1b4965 100%);
-      border-radius: 20px;
-      padding: 24px;
-      color: #fff;
-      position: relative;
-      overflow: hidden;
-    }
-    .about-hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(212, 154, 55, 0.2);
-      border: 1px solid rgba(212, 154, 55, 0.4);
-      color: #fbd68b;
-      padding: 4px 12px;
-      border-radius: 30px;
-      font-size: 11px;
-      font-weight: 800;
-      margin-bottom: 10px;
-    }
-    .about-hero h2 {
-      font-family: 'Almarai' !important;
-      font-size: 24px;
-      font-weight: 900;
-      color: #fbd68b;
-      margin: 0 0 8px;
-    }
-    .about-hero p {
-      font-size: 13px;
-      color: #d1e2ed;
-      line-height: 1.6;
-      margin: 0 0 16px;
-    }
-    .about-hero-ext-icon {
-      display: block;
-      background: transparent;
-      width: 120px;
-      height: 120px;
-      border-radius: 0;
-      object-fit: contain;
-      filter: drop-shadow(0 6px 20px rgba(0,0,0,0.35));
-      margin-bottom: 12px;
-    }
-
     /* مودال اختيار المنطقة السكنية للتصفية */
     .areas-grid-select {
       display: grid;
@@ -2406,133 +2359,32 @@
       visibility: hidden !important;
       pointer-events: none !important;
     }
-    /* ===== عن التطبيق (About Modal) - تصميم نظيف وعصري بالكامل ===== */
-    #aboutModal {
-      overflow-x: hidden !important;
-      overflow-y: auto !important;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-y !important;
-    }
-    #aboutModal .modal-dialog {
-      width: min(540px, 94%) !important;
-      max-width: 540px !important;
-      margin: 16px auto !important;
-      touch-action: pan-y !important;
-    }
-    .about-modal-card {
-      background: var(--card-bg) !important;
-      border: 1px solid var(--border) !important;
-      border-radius: 22px !important;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
-      overflow: hidden !important;
-      display: flex !important;
-      flex-direction: column !important;
-      max-height: calc(100dvh - 40px) !important;
-    }
-    .about-modal-header {
-      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #3b82f6 100%);
-      padding: 14px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      color: #ffffff;
-      flex-shrink: 0;
-    }
-    [data-theme="dark"] .about-modal-header {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e3a8a 100%);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .about-head-badge {
-      width: 38px;
-      height: 38px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.18);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      color: #fbbf24;
-      flex-shrink: 0;
-    }
-    .about-modal-body {
-      padding: 18px;
-      overflow-y: auto !important;
-      -webkit-overflow-scrolling: touch !important;
-      touch-action: pan-y !important;
-      overscroll-behavior: contain;
-      flex: 1 1 auto;
-      color: var(--text-main);
-    }
-    .about-hero-banner {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 12px 14px;
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      margin-bottom: 14px;
-    }
-    .about-hero-logo {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      object-fit: cover;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      flex-shrink: 0;
-      border: 2px solid var(--primary);
-    }
-    .about-grid-features {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-    .about-feature-box {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 10px 12px;
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      transition: transform 0.15s ease;
-    }
-    .about-feature-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: rgba(37, 99, 235, 0.12);
-      color: var(--primary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-    .about-feature-box strong {
-      display: block;
-      font-size: 13px;
-      color: var(--text-main);
-      margin-bottom: 2px;
-    }
-    .about-feature-box small {
-      display: block;
-      font-size: 11px;
-      color: var(--text-muted);
-      line-height: 1.4;
-    }
-    .about-modal-footer {
-      padding: 12px 18px;
-      background: var(--input-bg);
-      border-top: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-    }
-
+    /* App information dialog — isolated styles, independent from Bootstrap modal lifecycle */
+    #appInfoDialog{width:min(560px,calc(100vw - 28px));max-width:560px;max-height:min(82dvh,720px);margin:auto;padding:0;border:1px solid var(--border);border-radius:22px;color:var(--text-main);background:var(--card-bg);box-shadow:0 24px 70px rgba(0,0,0,.38);overflow:hidden}
+    #appInfoDialog::backdrop{background:rgba(5,17,29,.68);backdrop-filter:blur(3px)}
+    .app-info-shell{display:flex;flex-direction:column;max-height:min(82dvh,720px)}
+    .app-info-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 19px;color:#fff;background:linear-gradient(125deg,#102b43,#1b5a83 62%,#2879b5);flex:0 0 auto}
+    .app-info-brand{display:flex;align-items:center;gap:12px;min-width:0}
+    .app-info-mark{width:43px;height:43px;border-radius:14px;display:grid;place-items:center;color:#fbd68b;background:rgba(255,255,255,.14);font-size:20px;flex:0 0 auto}
+    .app-info-head h2{margin:0;color:#fff;font-size:16px;font-weight:900}
+    .app-info-head p{margin:3px 0 0;color:#d9eaf6;font-size:10px}
+    .app-info-close{border:0;border-radius:10px;width:36px;height:36px;color:#fff;background:rgba(255,255,255,.14);font-size:19px;flex:0 0 auto}
+    .app-info-content{padding:18px;overflow:auto;-webkit-overflow-scrolling:touch}
+    .app-info-identity{display:flex;align-items:center;gap:14px;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--input-bg)}
+    .app-info-identity img{width:66px;height:66px;object-fit:contain;flex:0 0 auto}
+    .app-info-identity h3{margin:0 0 5px;font-size:14px;font-weight:900;color:var(--text-main)}
+    .app-info-identity p{margin:0;color:var(--text-muted);font-size:11px;line-height:1.7}
+    .app-info-version{display:inline-block;margin-top:7px;padding:4px 10px;border-radius:20px;background:rgba(26,115,232,.12);color:var(--primary);font-size:10px;font-weight:800}
+    .app-info-description{margin:15px 2px;color:var(--text-muted);font-size:12px;line-height:1.9}
+    .app-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .app-info-item{display:flex;align-items:flex-start;gap:9px;padding:11px;border:1px solid var(--border);border-radius:13px;background:var(--input-bg)}
+    .app-info-item>i{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;border-radius:10px;color:var(--primary);background:rgba(26,115,232,.12)}
+    .app-info-item strong{display:block;margin-bottom:3px;font-size:11px;color:var(--text-main)}
+    .app-info-item small{display:block;color:var(--text-muted);font-size:10px;line-height:1.6}
+    .app-info-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--border);background:var(--input-bg);color:var(--text-muted);font-size:10px;flex:0 0 auto}
+    .app-info-done{border:0;border-radius:22px;padding:8px 20px;color:#fff;background:var(--primary);font-family:'Almarai',sans-serif;font-weight:800}
+    @media(max-width:420px){#appInfoDialog{width:calc(100vw - 18px);border-radius:18px}.app-info-content{padding:12px}.app-info-identity img{width:54px;height:54px}.app-info-grid{gap:7px}.app-info-item{padding:9px;gap:7px}}
+    
     /* Android safe-area: Alphabet dock fixed at bottom */
     .bottom-keyboard-dock {
       position: fixed !important;
@@ -2706,7 +2558,7 @@
 </div>
 </div>
 
-<!-- الـ Sidebar (أيقونة واحدة لكل عنصر - عن التطبيق آخر حاجة) -->
+<!-- Sidebar navigation -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-header">
@@ -2760,8 +2612,8 @@
       <i class="fa-solid fa-file-excel"></i>
       <span>فتح ملف الشيت</span>
     </a>
-    <!-- "عن التطبيق" هي آخر حاجة تماماً وبأيقونة واحدة -->
-    <button class="sidebar-nav-item" style="--i:7" onclick="openAboutModal()">
+    <!-- Rebuilt app information entry -->
+    <button class="sidebar-nav-item" style="--i:7" type="button" onclick="openAppInfo()">
       <i class="fa-solid fa-circle-info"></i>
       <span>عن التطبيق</span>
     </button>
@@ -3097,66 +2949,32 @@
   </div>
 </div>
 
-<!-- نافذة عن التطبيق — تصميم جديد بالكامل -->
-<div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true" style="display:none;">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content about-modal-card">
-      <div class="about-modal-header">
-        <div class="d-flex align-items-center gap-2">
-          <div class="about-head-badge"><i class="fa-solid fa-shield-halved"></i></div>
-          <div>
-            <h5 class="m-0 fw-bold fs-6 text-white">لوحة خدمة مارجرجس</h5>
-            <small class="text-white-50" style="font-size:11px;">St.Gorge Dashboard • الإصدار v6</small>
-          </div>
-        </div>
-        <button type="button" class="btn-close btn-close-white" onclick="hideModal('aboutModal')" aria-label="إغلاق"></button>
+<!-- App information: rebuilt as a native dialog, independent from Bootstrap modals -->
+<dialog id="appInfoDialog" aria-labelledby="appInfoTitle" dir="rtl">
+  <div class="app-info-shell">
+    <header class="app-info-head">
+      <div class="app-info-brand">
+        <span class="app-info-mark"><i class="fa-solid fa-circle-info"></i></span>
+        <div><h2 id="appInfoTitle">عن التطبيق</h2><p>St.Gorge Dashboard · لوحة الخدمة والمتابعة</p></div>
       </div>
-      <div class="about-modal-body">
-        <div class="about-hero-banner">
-          <img src="app_icon.png" onerror="this.src='https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png'" alt="أيقونة الشهيد مارجرجس" class="about-hero-logo">
-          <div>
-            <h6 class="fw-bold mb-1" style="color:var(--text-main);">فصل الشهيد العظيم مارجرجس الروماني</h6>
-            <div class="text-muted small">كنيسة السيدة العذراء مريم بالزيتون</div>
-            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mt-2">
-              <i class="fa-solid fa-code-branch me-1"></i> الإصدار v6 • 2026
-            </span>
-          </div>
-        </div>
-
-        <p class="text-muted small mb-3" style="line-height:1.7;">
-          تطبيق إلكتروني متكامل لخدام فصل مارجرجس؛ لتنظيم ومتابعة بيانات المخدومين، وتسجيل حضور الجمعة، ومتابعة سجل الافتقاد، مع إحصائيات بيانية ومزامنة تلقائية مع Google Sheets.
-        </p>
-
-        <div class="about-grid-features">
-          <div class="about-feature-box">
-            <span class="about-feature-icon"><i class="fa-solid fa-address-card"></i></span>
-            <div><strong>بيانات المخدومين</strong><small>كروت تفاعلية ببيانات الاتصال والعناوين والملاحظات</small></div>
-          </div>
-          <div class="about-feature-box">
-            <span class="about-feature-icon"><i class="fa-solid fa-calendar-check"></i></span>
-            <div><strong>تسجيل الحضور</strong><small>متابعة نسب حضور الجمعة والغياب أسبوعياً</small></div>
-          </div>
-          <div class="about-feature-box">
-            <span class="about-feature-icon"><i class="fa-solid fa-phone-volume"></i></span>
-            <div><strong>سجل الافتقاد</strong><small>تسجيل المتابعات التليفونية والزيارات ورسائل الواتساب</small></div>
-          </div>
-          <div class="about-feature-box">
-            <span class="about-feature-icon"><i class="fa-solid fa-chart-pie"></i></span>
-            <div><strong>الإحصائيات والتصدير</strong><small>تقارير تفاعلية وتصدير ملفات Excel و PDF والطباعة</small></div>
-          </div>
-        </div>
-
-        <div class="p-2 rounded-3 text-center" style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.2);color:var(--text-muted);font-size:11px;">
-          <i class="fa-solid fa-heart text-success me-1"></i> هدف البرنامج تسهيل الخدمة والمتابعة المنتظمة، صلوا من أجل الخدمة 🙏
-        </div>
-      </div>
-      <div class="about-modal-footer">
-        <span class="text-muted small">لوحة خدمة التربية الكنسية</span>
-        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" onclick="hideModal('aboutModal')">إغلاق</button>
-      </div>
+      <button class="app-info-close" type="button" onclick="closeAppInfo()" aria-label="إغلاق">×</button>
+    </header>
+    <div class="app-info-content">
+      <section class="app-info-identity">
+        <img src="app_icon.png" onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png';" alt="أيقونة الشهيد مارجرجس">
+        <div><h3>فصل الشهيد العظيم مارجرجس الروماني</h3><p>كنيسة السيدة العذراء مريم بالزيتون</p><span class="app-info-version">الإصدار v6</span></div>
+      </section>
+      <p class="app-info-description">لوحة إلكترونية لمساعدة خدام الفصل في تنظيم بيانات المخدومين ومتابعة الحضور والافتقاد، مع عرض الإحصائيات ومزامنة البيانات مع Google Sheets.</p>
+      <section class="app-info-grid" aria-label="مميزات التطبيق">
+        <article class="app-info-item"><i class="fa-solid fa-address-card"></i><div><strong>بيانات المخدومين</strong><small>عرض بيانات المخدومين وتحديثها ومتابعة الملاحظات.</small></div></article>
+        <article class="app-info-item"><i class="fa-solid fa-calendar-check"></i><div><strong>الحضور والمتابعة</strong><small>تسجيل الحضور ومراجعة الغياب بصورة منتظمة.</small></div></article>
+        <article class="app-info-item"><i class="fa-solid fa-phone-volume"></i><div><strong>سجل الافتقاد</strong><small>تسجيل الاتصالات والزيارات ومتابعة الحالات.</small></div></article>
+        <article class="app-info-item"><i class="fa-solid fa-chart-pie"></i><div><strong>الإحصائيات والتقارير</strong><small>متابعة المؤشرات وتصدير التقارير والبيانات.</small></div></article>
+      </section>
     </div>
+    <footer class="app-info-foot"><span>صلّوا من أجل الخدمة 🙏</span><button class="app-info-done" type="button" onclick="closeAppInfo()">إغلاق</button></footer>
   </div>
-</div>
+</dialog>
 
 <!-- مركز التنبيهات وأعياد الميلاد --><!-- مركز التنبيهات وأعياد الميلاد -->
 <div class="modal fade" id="remindersModal" tabindex="-1" aria-hidden="true">
@@ -3360,15 +3178,22 @@
     switchView(view);
   }
 
-  function openAboutModal() {
-    try {
-      closeSidebar();
-      showModal('aboutModal');
-    } catch (err) {
-      console.error('openAboutModal error:', err);
-      showModal('aboutModal');
-    }
+  function openAppInfo() {
+    closeSidebar();
+    const dialog = document.getElementById('appInfoDialog');
+    if (dialog && !dialog.open) dialog.showModal();
   }
+
+  function closeAppInfo() {
+    const dialog = document.getElementById('appInfoDialog');
+    if (dialog && dialog.open) dialog.close();
+  }
+
+  document.addEventListener('click', (event) => {
+    const dialog = document.getElementById('appInfoDialog');
+    if (dialog && event.target === dialog) closeAppInfo();
+  });
+
 
   /* اختيار السمة (فاتح / داكن) كأيقونتين */
   function initTheme() {
