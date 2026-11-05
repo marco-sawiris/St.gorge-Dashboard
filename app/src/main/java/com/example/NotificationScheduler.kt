@@ -173,6 +173,7 @@ object NotificationScheduler {
     val copyIntent = Intent(context, NotificationActionReceiver::class.java).apply {
       action = "com.example.ACTION_COPY_GREETING"
       putExtra("greeting", greeting)
+      putExtra(EXTRA_NOTIFICATION_ID, notificationId)
     }
     val copyPendingIntent = PendingIntent.getBroadcast(
       context, notificationId, copyIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
