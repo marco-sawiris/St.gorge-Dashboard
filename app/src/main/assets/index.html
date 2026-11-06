@@ -5385,6 +5385,8 @@
         '<div class="notif-time">' + n.time + '</div></div><span class="notif-dot"></span></div>';
     }).join('');
   }
+  window.renderNotifList = renderNotifList;
+
   function updateBellBadge() {
     var btn = document.getElementById('btnBell');
     if (!btn) return;
