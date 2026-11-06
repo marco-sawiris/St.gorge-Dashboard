@@ -1527,6 +1527,19 @@
       box-shadow: 0 10px 24px rgba(18, 52, 77, 0.12);
     }
 
+    /* تحسين أداء التمرير على شاشات اللمس: تجنب فلاتر grayscale وblur أثناء تحريك الصفحة */
+    @media (hover: none) and (pointer: coarse) {
+      .student-card {
+        filter: none;
+        opacity: 1;
+        transition: transform 180ms ease, box-shadow 180ms ease;
+      }
+      .top-bar {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+      }
+    }
+
     .card-front {
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
