@@ -1461,6 +1461,8 @@
       animation-delay: calc(min(var(--i, 0), 10) * 90ms);
     }
     .card-flip-container {
+      content-visibility: auto;
+      contain-intrinsic-size: 480px;
       perspective: 1200px;
       -webkit-perspective: 1200px;
       height: 480px;
@@ -5129,14 +5131,6 @@
     document.getElementById('activeAreaBadge').classList.remove('visible');
     fetchLiveGoogleSheetData();
   });
-
-  document.addEventListener('touchstart', (e) => {
-    const card = e.target.closest('.student-card');
-    document.querySelectorAll('.student-card.hover-active').forEach(c => {
-      if (c !== card) c.classList.remove('hover-active');
-    });
-    if (card) card.classList.add('hover-active');
-  }, { passive: true });
 
   document.addEventListener('DOMContentLoaded', () => {
     updateOfflineQueueUI();
