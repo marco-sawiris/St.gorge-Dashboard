@@ -2576,7 +2576,7 @@
       <i class="fa-solid fa-file-excel"></i>
       <span>فتح ملف الشيت</span>
     </a>
-    <button class="sidebar-nav-item" style="--i:7" onclick="closeSidebar(); showModal('aboutModal')">
+    <button class="sidebar-nav-item" id="btnAboutApp" style="--i:7" onclick="window.openAboutModal()">
       <i class="fa-solid fa-circle-info"></i>
       <span>عن التطبيق</span>
     </button>
@@ -2648,7 +2648,7 @@
     <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
   </div>
   <div class="top-actions-group">
-    <button class="btn-bell" id="btnBell" onclick="toggleNotifPanel()" aria-label="التنبيهات" title="التنبيهات">
+    <button class="btn-bell" id="btnBell" onclick="window.toggleNotifPanel()" aria-label="التنبيهات" title="التنبيهات">
       <i class="fa-solid fa-bell"></i><span class="bell-badge"></span>
     </button>
 <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
@@ -5425,5 +5425,65 @@
 })();
 </script>
 
+<!-- Android WebView-safe handlers for About and Notifications -->
+<script>
+(function () {
+  function get(id) { return document.getElementById(id); }
+  window.showModal = function (modalId) {
+    var modal = get(modalId);
+    if (!modal) { console.error("[Dashboard] Modal not found:", modalId); return false; }
+    try {
+      if (modal.parentElement !== document.body) document.body.appendChild(modal);
+      modal.style.setProperty("display", "flex", "important");
+      modal.style.setProperty("z-index", "30010", "important");
+      modal.classList.add("show");
+      modal.removeAttribute("aria-hidden");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("role", "dialog");
+      document.documentElement.classList.add("modal-open");
+      document.body.classList.add("modal-open");
+      return true;
+    } catch (error) { console.error("[Dashboard] Could not open modal:", error); return false; }
+  };
+  window.hideModal = function (modalId) {
+    var modal = get(modalId);
+    if (!modal) return;
+    modal.classList.remove("show");
+    modal.style.setProperty("display", "none", "important");
+    modal.setAttribute("aria-hidden", "true");
+    modal.removeAttribute("aria-modal");
+    modal.removeAttribute("role");
+    if (!document.querySelector(".modal.show")) {
+      document.documentElement.classList.remove("modal-open");
+      document.body.classList.remove("modal-open");
+    }
+  };
+  window.openAboutModal = function () {
+    try { if (typeof window.closeSidebar === "function") window.closeSidebar(); }
+    catch (error) { console.warn("[Dashboard] Sidebar close failed:", error); }
+    window.showModal("aboutModal");
+  };
+  window.closeNotifPanel = function () {
+    var panel = get("notifPanel"), overlay = get("notifOverlay");
+    if (panel) { panel.classList.remove("is-open"); panel.style.setProperty("display", "none", "important"); }
+    if (overlay) { overlay.classList.remove("open"); overlay.style.setProperty("display", "none", "important"); }
+  };
+  window.toggleNotifPanel = function () {
+    var panel = get("notifPanel"), overlay = get("notifOverlay");
+    if (!panel || !overlay) { console.error("[Dashboard] Notifications elements are missing."); return; }
+    var isOpen = panel.classList.contains("is-open") || window.getComputedStyle(panel).display !== "none";
+    if (isOpen) { window.closeNotifPanel(); return; }
+    if (typeof window.renderNotifList === "function") window.renderNotifList();
+    if (panel.parentElement !== document.body) document.body.appendChild(panel);
+    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
+    overlay.style.setProperty("display", "block", "important");
+    overlay.style.setProperty("z-index", "30000", "important");
+    overlay.classList.add("open");
+    panel.style.setProperty("display", "flex", "important");
+    panel.style.setProperty("z-index", "30001", "important");
+    panel.classList.add("is-open");
+  };
+})();
+</script>
 </body>
 </html>
