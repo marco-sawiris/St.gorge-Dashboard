@@ -25,7 +25,8 @@ inlineScripts.forEach((match, index) => {
 
 
 const requiredUiContracts = [
-  ['About button uses the existing modal handler', /id="btnAboutApp"[^>]*onclick="closeSidebar\(\);\s*showModal\('aboutModal'\)"/],
+  ['About button uses the dedicated modal handler', /id="btnAboutApp"[^>]*onclick="openAboutModal\(\)"/],
+  ['Dedicated About modal handler exists', /window\.openAboutModal\s*=\s*function/],
   ['About modal markup exists', /id="aboutModal"/],
   ['Original modal open function exists', /function showModal\(modalId\)/],
   ['Original modal close function exists', /function hideModal\(modalId\)/],
