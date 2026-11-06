@@ -862,70 +862,6 @@
       touch-action: pan-y;
     }
 
-    /* شاشة عن التطبيق — خفيفة ومتوافقة مع ألوان الداشبورد وخط Almarai */
-    #aboutModal .modal-dialog { max-width: min(540px, calc(100vw - 24px)); }
-    #aboutModal .modal-content {
-      background: var(--card-bg);
-      color: var(--text-main);
-      border: 1px solid var(--border) !important;
-      border-radius: 20px;
-      box-shadow: 0 16px 44px rgba(0,0,0,.18);
-    }
-    #aboutModal .modal-header,
-    #aboutModal .modal-footer { border-color: var(--border); }
-    #aboutModal .modal-body { padding: 18px; }
-    .about-app-hero {
-      display: flex; align-items: center; gap: 14px;
-      padding: 16px; border-radius: 16px;
-      background: linear-gradient(135deg, rgba(26,115,232,.12), rgba(26,115,232,.035));
-      border: 1px solid rgba(26,115,232,.14);
-      margin-bottom: 16px;
-    }
-    .about-app-logo {
-      width: 62px; height: 62px; object-fit: contain; flex: 0 0 62px;
-    }
-    .about-app-title { font-size: 17px; font-weight: 900; margin: 0 0 5px; }
-    .about-app-subtitle { font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.7; }
-    .about-app-version {
-      display: inline-flex; align-items: center; gap: 5px;
-      margin-top: 8px; padding: 4px 10px; border-radius: 30px;
-      background: rgba(26,115,232,.12); color: var(--primary);
-      font-size: 11px; font-weight: 800;
-    }
-    .about-app-section-title { font-size: 13px; font-weight: 900; margin: 0 0 10px; }
-    .about-app-features { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
-    .about-app-feature {
-      display: flex; align-items: center; gap: 9px;
-      min-height: 58px; padding: 10px;
-      border: 1px solid var(--border); border-radius: 13px;
-      background: var(--bg-main);
-      opacity: 0; transform: translateY(7px);
-    }
-    #aboutModal.show .about-app-feature { animation: aboutFeatureIn 260ms ease forwards; }
-    #aboutModal.show .about-app-feature:nth-child(2) { animation-delay: 35ms; }
-    #aboutModal.show .about-app-feature:nth-child(3) { animation-delay: 70ms; }
-    #aboutModal.show .about-app-feature:nth-child(4) { animation-delay: 105ms; }
-    .about-app-feature i {
-      width: 30px; height: 30px; flex: 0 0 30px;
-      display: grid; place-items: center; border-radius: 9px;
-      color: var(--primary); background: rgba(26,115,232,.11); font-size: 14px;
-    }
-    .about-app-feature span { font-size: 11px; font-weight: 800; line-height: 1.6; }
-    .about-app-note {
-      margin-top: 14px; padding: 12px 14px; border-radius: 13px;
-      background: var(--bg-main); color: var(--text-muted);
-      text-align: center; font-size: 12px; line-height: 1.9;
-    }
-    @keyframes aboutFeatureIn { to { opacity: 1; transform: translateY(0); } }
-    @media (max-width: 380px) {
-      #aboutModal .modal-body { padding: 12px; }
-      .about-app-features { gap: 7px; }
-      .about-app-feature { padding: 8px; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #aboutModal.show .about-app-feature { animation: none; opacity: 1; transform: none; }
-    }
-
     /* ============================================================
        لوحة المفاتيح العربية المثبتة في الأسفل (Bottom Arabic Keyboard)
        ============================================================ */
@@ -1309,64 +1245,6 @@
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
     }
-    .btn-notif-bell {
-      position: relative;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      color: var(--text-main);
-      width: 36px;
-      height: 36px;
-      border-radius: 18px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 200ms ease;
-    }
-    .btn-notif-bell:hover {
-      background: rgba(26, 115, 232, 0.12);
-      color: var(--primary);
-    }
-    .notif-badge-dot {
-      position: absolute;
-      top: -3px;
-      right: -3px;
-      background: #e53935;
-      color: #fff;
-      font-size: 10px;
-      font-weight: 900;
-      min-width: 17px;
-      height: 17px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 2px solid var(--card-bg);
-    }
-
-    .reminder-card-item {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 10px;
-      transition: transform 150ms ease;
-    }
-    .reminder-card-item:hover {
-      transform: translateY(-2px);
-    }
-    .reminder-icon-box {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      flex-shrink: 0;
-    }
-
     /* فلتر المنطقة النشط */
     .active-area-filter-badge {
       display: none;
@@ -2650,11 +2528,7 @@
       <i class="fa-solid fa-file-excel"></i>
       <span>فتح ملف الشيت</span>
     </a>
-    <button class="sidebar-nav-item" style="--i:7" onclick="openAboutModal()">
-      <i class="fa-solid fa-circle-info"></i>
-      <span>عن التطبيق</span>
-    </button>
-  </nav>
+</nav>
 
   <div class="sidebar-divider"></div>
 
@@ -2710,12 +2584,7 @@
     <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
   </div>
   <div class="top-actions-group">
-    <button class="btn-notif-bell" id="btnNotifBell" onclick="openRemindersModal()" title="مركز التنبيهات وأعياد الميلاد">
-      <i class="fa-solid fa-bell"></i>
-      <span class="notif-badge-dot d-none" id="notifBadgeDot">0</span>
-    </button>
-    
-    <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
+<div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
       <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
       <span><strong id="pendingOpsCount">0</strong> معلق</span>
     </div>
@@ -2981,66 +2850,6 @@
           إلغاء الفلتر
         </button>
         <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">إغلاق</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- مركز التنبيهات وأعياد الميلاد --><!-- مركز التنبيهات وأعياد الميلاد -->
-<!-- عن التطبيق -->
-<div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title fw-bold"><i class="fa-solid fa-circle-info text-primary me-2"></i>عن التطبيق</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
-      </div>
-      <div class="modal-body">
-        <div class="about-app-hero">
-          <img class="about-app-logo" src="app_icon.png" alt="شعار التطبيق" onerror="this.style.display='none'">
-          <div>
-            <h3 class="about-app-title">فصل الشهيد العظيم مارجرجس الروماني</h3>
-            <p class="about-app-subtitle">كنيسة السيدة العذراء مريم بالزيتون</p>
-            <span class="about-app-version"><i class="fa-solid fa-code-branch"></i> الإصدار v6</span>
-          </div>
-        </div>
-        <h6 class="about-app-section-title">مميزات التطبيق</h6>
-        <div class="about-app-features">
-          <div class="about-app-feature"><i class="fa-solid fa-users"></i><span>بيانات المخدومين</span></div>
-          <div class="about-app-feature"><i class="fa-solid fa-calendar-check"></i><span>الحضور والمتابعة</span></div>
-          <div class="about-app-feature"><i class="fa-solid fa-phone-volume"></i><span>سجل الافتقاد</span></div>
-          <div class="about-app-feature"><i class="fa-solid fa-chart-pie"></i><span>الإحصائيات والتقارير</span></div>
-        </div>
-        <div class="about-app-note">
-          «نخدم بمحبة، ونتابع بأمانة، ونصلي أن يثمر الله تعبنا».
-          <br>كل تعب المحبة من أجل أولاد ربنا.
-        </div>
-      </div>
-      <div class="modal-footer justify-content-center">
-        <button type="button" class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-<div class="modal fade" id="remindersModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content rounded-4 border-0 shadow-lg">
-      <div class="modal-header">
-        <h5 class="modal-title fw-bold"><i class="fa-solid fa-bell text-primary me-2"></i>مركز التنبيهات</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
-      </div>
-      <div class="modal-body">
-        <div class="reminder-card-item">
-          <div class="fw-bold mb-1">تذكيرات الخدمة</div>
-          <div class="small text-muted">التنبيهات الأسبوعية وأعياد الميلاد تُجدول على الجهاز، وقد تحتاج إذن الإشعارات ليتم عرضها.</div>
-        </div>
-        <div class="fw-bold mb-2">أعياد الميلاد القادمة</div>
-        <div id="remindersBirthdayList" aria-live="polite"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
       </div>
     </div>
   </div>
@@ -3406,52 +3215,6 @@
       }
     }
   });
-
-  function openAboutModal() {
-    closeSidebar();
-    window.setTimeout(() => showModal('aboutModal'), 220);
-  }
-
-  function openRemindersModal() {
-    const modalElement = document.getElementById('remindersModal');
-    const list = document.getElementById('remindersBirthdayList');
-    if (!modalElement || !list) {
-      showToast('مركز التنبيهات غير متاح', 'تعذر تحميل نافذة التنبيهات.', 'error');
-      return;
-    }
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const upcoming = (Array.isArray(studentsData) ? studentsData : [])
-      .filter(student => String(student.birthDate || '').trim())
-      .map(student => {
-        const raw = String(student.birthDate).trim();
-        const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-        const dayFirst = raw.match(/^(\d{1,2})[-/](\d{1,2})(?:[-/](?:\d{2}|\d{4}))?$/);
-        const month = iso ? Number(iso[2]) : (dayFirst ? Number(dayFirst[2]) : 0);
-        const day = iso ? Number(iso[3]) : (dayFirst ? Number(dayFirst[1]) : 0);
-        if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-        let year = today.getFullYear();
-        let date = null;
-        for (let attempt = 0; attempt < 8; attempt++, year++) {
-          const candidate = new Date(year, month - 1, day);
-          if (candidate.getMonth() === month - 1 && candidate.getDate() === day && candidate >= todayStart) {
-            date = candidate;
-            break;
-          }
-        }
-        if (!date) return null;
-        return { name: student.name || 'بدون اسم', date, days: Math.ceil((date - todayStart) / 86400000) };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.date - b.date)
-      .slice(0, 10);
-    list.innerHTML = upcoming.length ? upcoming.map(item => `
-      <div class="reminder-card-item d-flex align-items-center justify-content-between gap-2">
-        <div><div class="fw-bold">${escapeHtml(item.name)}</div><small class="text-muted">${item.date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' })}</small></div>
-        <span class="badge bg-primary rounded-pill">${item.days === 0 ? 'اليوم' : 'بعد ' + item.days + ' يوم'}</span>
-      </div>`).join('') : '<p class="text-muted small text-center py-3">لا توجد تواريخ ميلاد مسجلة أو لم يتم تحميل البيانات بعد.</p>';
-    showModal('remindersModal');
-  }
 
   /* PWA Manifest */
   try {
@@ -3856,11 +3619,7 @@
       renderStats();
       loadFollowupLog();
       
-      // مزامنة أعياد الميلاد مع الأندرويد
-      if (window.AndroidServiceBridge && window.AndroidServiceBridge.scheduleBirthdayAlarms) {
-          window.AndroidServiceBridge.scheduleBirthdayAlarms(JSON.stringify(studentsData));
-      }
-    }
+}
   }
 
   function applyFilters() {
