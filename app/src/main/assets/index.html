@@ -836,6 +836,17 @@
       overscroll-behavior: none !important;
       touch-action: pan-y;
     }
+    /* Freeze background interaction while a modal is open; keep the modal itself interactive. */
+    body.modal-open .top-bar,
+    body.modal-open .main-app,
+    body.modal-open #sidebar,
+    body.modal-open #sidebarOverlay {
+      pointer-events: none !important;
+    }
+    body.modal-open .modal,
+    body.modal-open .modal * {
+      pointer-events: auto;
+    }
     .modal { overflow: hidden !important; overscroll-behavior: contain; touch-action: pan-y; }
     .modal-dialog {
       max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px));
@@ -1045,9 +1056,8 @@
       height: 100vh !important;
       height: 100dvh !important;
       z-index: 11000 !important;
+      /* Avoid a full-screen backdrop blur: it can stall GPU compositing in Android WebView. */
       background: rgba(0, 0, 0, 0.65) !important;
-      backdrop-filter: blur(8px) !important;
-      -webkit-backdrop-filter: blur(8px) !important;
       align-items: center;
       justify-content: center;
       padding: 16px !important;
@@ -1239,7 +1249,8 @@
     .btn-bell{position:relative;width:44px;height:44px;border-radius:12px;background:var(--input-bg);border:1px solid var(--border);color:var(--text-main);display:grid;place-items:center;font-size:20px;cursor:pointer;flex-shrink:0}
     .btn-bell .bell-badge{position:absolute;top:6px;left:6px;width:10px;height:10px;background:#e53935;border-radius:50%;border:2px solid var(--card-bg);display:none}
     .btn-bell.has-notif .bell-badge{display:block}
-    .notif-overlay{position:fixed;inset:0;z-index:10500;display:none}
+    /* Keep the dismiss layer below the fixed top bar so the bell remains clickable. */
+    .notif-overlay{position:fixed;inset:0;z-index:9800;display:none}
     .notif-overlay.open{display:block}
     .notif-panel{position:fixed;top:70px;right:14px;width:min(360px,calc(100vw - 28px));max-height:70vh;background:var(--card-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:10501;display:flex;flex-direction:column;overflow:hidden;animation:panelSlideIn 220ms cubic-bezier(.34,1.56,.64,1) both}
     @keyframes panelSlideIn{from{opacity:0;transform:translateY(-16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
@@ -2576,7 +2587,7 @@
       <i class="fa-solid fa-file-excel"></i>
       <span>فتح ملف الشيت</span>
     </a>
-    <button class="sidebar-nav-item" id="btnAboutApp" style="--i:7" onclick="window.openAboutModal()">
+    <button class="sidebar-nav-item" id="btnAboutApp" style="--i:7" onclick="openAboutModal()">
       <i class="fa-solid fa-circle-info"></i>
       <span>عن التطبيق</span>
     </button>
@@ -2648,7 +2659,7 @@
     <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
   </div>
   <div class="top-actions-group">
-    <button class="btn-bell" id="btnBell" onclick="window.toggleNotifPanel()" aria-label="التنبيهات" title="التنبيهات">
+    <button class="btn-bell" id="btnBell" onclick="toggleNotifPanel()" aria-label="التنبيهات" title="التنبيهات">
       <i class="fa-solid fa-bell"></i><span class="bell-badge"></span>
     </button>
 <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
@@ -3285,9 +3296,7 @@
         console.warn('showModal: element not found', modalId);
         return;
       }
-      if (el.parentElement !== document.body) {
-        document.body.appendChild(el);
-      }
+      // The modal is already a direct child of body; do not detach/reparent it at runtime.
       el.style.display = 'flex';
       el.classList.add('show');
       el.removeAttribute('aria-hidden');
@@ -3317,6 +3326,12 @@
       console.error('hideModal error:', err);
     }
   }
+
+  // Keep About on the original modal lifecycle; freeze only the background, not WebView/JS.
+  window.openAboutModal = function () {
+    closeSidebar();
+    showModal('aboutModal');
+  };
 
   document.addEventListener('click', (e) => {
     if (e.target && e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('show')) {
@@ -5427,65 +5442,6 @@
 })();
 </script>
 
-<!-- Android WebView-safe handlers for About and Notifications -->
-<script>
-(function () {
-  function get(id) { return document.getElementById(id); }
-  window.showModal = function (modalId) {
-    var modal = get(modalId);
-    if (!modal) { console.error("[Dashboard] Modal not found:", modalId); return false; }
-    try {
-      if (modal.parentElement !== document.body) document.body.appendChild(modal);
-      modal.style.setProperty("display", "flex", "important");
-      modal.style.setProperty("z-index", "30010", "important");
-      modal.classList.add("show");
-      modal.removeAttribute("aria-hidden");
-      modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("role", "dialog");
-      document.documentElement.classList.add("modal-open");
-      document.body.classList.add("modal-open");
-      return true;
-    } catch (error) { console.error("[Dashboard] Could not open modal:", error); return false; }
-  };
-  window.hideModal = function (modalId) {
-    var modal = get(modalId);
-    if (!modal) return;
-    modal.classList.remove("show");
-    modal.style.setProperty("display", "none", "important");
-    modal.setAttribute("aria-hidden", "true");
-    modal.removeAttribute("aria-modal");
-    modal.removeAttribute("role");
-    if (!document.querySelector(".modal.show")) {
-      document.documentElement.classList.remove("modal-open");
-      document.body.classList.remove("modal-open");
-    }
-  };
-  window.openAboutModal = function () {
-    try { if (typeof window.closeSidebar === "function") window.closeSidebar(); }
-    catch (error) { console.warn("[Dashboard] Sidebar close failed:", error); }
-    window.showModal("aboutModal");
-  };
-  window.closeNotifPanel = function () {
-    var panel = get("notifPanel"), overlay = get("notifOverlay");
-    if (panel) { panel.classList.remove("is-open"); panel.style.setProperty("display", "none", "important"); }
-    if (overlay) { overlay.classList.remove("open"); overlay.style.setProperty("display", "none", "important"); }
-  };
-  window.toggleNotifPanel = function () {
-    var panel = get("notifPanel"), overlay = get("notifOverlay");
-    if (!panel || !overlay) { console.error("[Dashboard] Notifications elements are missing."); return; }
-    var isOpen = panel.classList.contains("is-open") || window.getComputedStyle(panel).display !== "none";
-    if (isOpen) { window.closeNotifPanel(); return; }
-    if (typeof window.renderNotifList === "function") window.renderNotifList();
-    if (panel.parentElement !== document.body) document.body.appendChild(panel);
-    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
-    overlay.style.setProperty("display", "block", "important");
-    overlay.style.setProperty("z-index", "30000", "important");
-    overlay.classList.add("open");
-    panel.style.setProperty("display", "flex", "important");
-    panel.style.setProperty("z-index", "30001", "important");
-    panel.classList.add("is-open");
-  };
-})();
-</script>
+
 </body>
 </html>
