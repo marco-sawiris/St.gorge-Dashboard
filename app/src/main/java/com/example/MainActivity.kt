@@ -22,9 +22,6 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import android.content.ActivityNotFoundException
-import android.content.pm.PackageManager
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -49,16 +46,6 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
-
-    // Request notification permission on Android 13+
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-        ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
-      }
-    }
-
-    // Schedule all weekly recurring reminders (Wed daytime, Wed night, Thu evening, Fri 2pm)
-    NotificationScheduler.scheduleAllWeeklyReminders(this)
 
     setContent {
       MyApplicationTheme {
@@ -179,38 +166,6 @@ class ServiceWebBridge(private val webView: WebView) {
   @JavascriptInterface
   fun isAvailable(): Boolean = true
 
-  @JavascriptInterface
-  fun scheduleBirthdayAlarms(studentsJson: String) {
-    NotificationScheduler.scheduleBirthdayAlarms(webView.context, studentsJson)
-  }
-
-  @JavascriptInterface
-  fun showBirthdayNotification(studentName: String, notes: String) {
-    val context = webView.context
-    val title = "🎂 عيد ميلاد اليوم: $studentName"
-    val body = if (notes.isNotBlank()) "كل سنة والمخدوم $studentName طيب وبخير! $notes" else "كل سنة والمخدوم $studentName طيب وبخير وسنة حلوة مع يسوع ومارجرجس 🎉"
-    NotificationScheduler.showLocalNotification(
-      context = context,
-      title = title,
-      body = body,
-      notificationId = 300 + (studentName.hashCode() % 1000).let { if (it < 0) -it else it },
-      channelId = CHANNEL_ID_BIRTHDAYS
-    )
-  }
-
-  @JavascriptInterface
-  fun showWeeklySummaryNotification(visitedCount: Int, remainingCount: Int) {
-    val context = webView.context
-    val title = "📞 متابعة الافتقاد الأسبوعي"
-    val body = "افتقدت $visitedCount مخدوم وباقي $remainingCount لمتابعتهم هذا الأسبوع!"
-    NotificationScheduler.showLocalNotification(
-      context = context,
-      title = title,
-      body = body,
-      notificationId = 205,
-      channelId = CHANNEL_ID_REMINDERS
-    )
-  }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
