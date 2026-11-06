@@ -522,14 +522,17 @@
       top: 0;
       right: 0;
       left: 0;
-      width: 0%;
+      width: 100%;
       height: 6px;
       background: linear-gradient(90deg, #1a73e8, #4da3ff, #fbd68b, #ffb300);
       z-index: 999999;
       pointer-events: none;
-      box-shadow: 0 2px 10px rgba(26, 115, 232, 0.85);
-      transition: width 80ms ease-out, opacity 250ms ease;
-      opacity: 0.95;
+      box-shadow: 0 2px 10px rgba(26, 115, 232, 0.55);
+      transform: scaleX(0);
+      transform-origin: right center;
+      transition: transform 60ms linear, opacity 180ms ease;
+      will-change: transform, opacity;
+      opacity: 0.3;
     }
 
     /* شريط التمرير الرأسي والأفقي المخصص (Scrollbar) عريض وواضح */
@@ -1231,6 +1234,38 @@
       align-items: center;
       gap: 8px;
     }
+
+    /* ======= زر الجرس ولوحة التنبيهات ======= */
+    .btn-bell{position:relative;width:44px;height:44px;border-radius:12px;background:var(--input-bg);border:1px solid var(--border);color:var(--text-main);display:grid;place-items:center;font-size:20px;cursor:pointer;flex-shrink:0}
+    .btn-bell .bell-badge{position:absolute;top:6px;left:6px;width:10px;height:10px;background:#e53935;border-radius:50%;border:2px solid var(--card-bg);display:none}
+    .btn-bell.has-notif .bell-badge{display:block}
+    .notif-overlay{position:fixed;inset:0;z-index:10500;display:none}
+    .notif-overlay.open{display:block}
+    .notif-panel{position:fixed;top:70px;right:14px;width:min(360px,calc(100vw - 28px));max-height:70vh;background:var(--card-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:10501;display:flex;flex-direction:column;overflow:hidden;animation:panelSlideIn 220ms cubic-bezier(.34,1.56,.64,1) both}
+    @keyframes panelSlideIn{from{opacity:0;transform:translateY(-16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .notif-panel-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .notif-panel-header h3{font-family:'Almarai',sans-serif;font-size:16px;font-weight:800;color:var(--text-main);margin:0}
+    .btn-mark-all-read{font-size:12px;color:var(--navy);background:none;border:0;cursor:pointer;font-family:'Almarai',sans-serif;font-weight:700;padding:4px 8px;border-radius:8px}
+    .btn-mark-all-read:hover,.notif-item:hover{background:var(--input-bg)}
+    .notif-list{overflow-y:auto;flex:1;padding:8px 0;-webkit-overflow-scrolling:touch}
+    .notif-item{display:flex;align-items:flex-start;gap:12px;padding:12px 18px;cursor:pointer;transition:background 150ms;border-bottom:1px solid var(--border)}
+    .notif-item:last-child{border-bottom:0}
+    .notif-item.unread{background:rgba(36,100,154,.07)}
+    .notif-icon{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:16px;flex-shrink:0}
+    .notif-icon.type-info{background:rgba(36,100,154,.15);color:#24649a}
+    .notif-icon.type-warn{background:rgba(251,214,139,.25);color:#c8970a}
+    .notif-icon.type-success{background:rgba(40,167,69,.15);color:#28a745}
+    .notif-icon.type-danger{background:rgba(229,57,53,.15);color:#e53935}
+    .notif-body{flex:1;min-width:0}
+    .notif-body .notif-title{font-family:'Almarai',sans-serif;font-size:13.5px;font-weight:700;color:var(--text-main);margin-bottom:3px}
+    .notif-body .notif-desc{font-size:12px;color:var(--text-muted,#888);line-height:1.5}
+    .notif-body .notif-time{font-size:11px;color:var(--text-muted,#888);margin-top:4px}
+    .notif-dot{width:8px;height:8px;border-radius:50%;background:#24649a;flex-shrink:0;margin-top:5px}
+    .notif-item:not(.unread) .notif-dot{opacity:0}
+    .notif-empty{text-align:center;padding:40px 20px;color:var(--text-muted,#888);font-family:'Almarai',sans-serif}
+    .notif-empty i{font-size:38px;opacity:.3;display:block;margin-bottom:12px}
+    [dir="rtl"] .notif-panel{right:14px;left:auto}
+
     .btn-help-quick {
       background: linear-gradient(135deg, #12344d, #24649a);
       color: #fff;
@@ -2528,6 +2563,10 @@
       <i class="fa-solid fa-file-excel"></i>
       <span>فتح ملف الشيت</span>
     </a>
+    <button class="sidebar-nav-item" style="--i:7" onclick="closeSidebar(); showModal('aboutModal')">
+      <i class="fa-solid fa-circle-info"></i>
+      <span>عن التطبيق</span>
+    </button>
 </nav>
 
   <div class="sidebar-divider"></div>
@@ -2563,6 +2602,18 @@
 <!-- حاوية التنبيهات Toast -->
 <div id="toastStack"></div>
 
+<!-- ======= Overlay + Panel التنبيهات ======= -->
+<div class="notif-overlay" id="notifOverlay" onclick="closeNotifPanel()"></div>
+<div class="notif-panel" id="notifPanel" style="display:none;">
+  <div class="notif-panel-header">
+    <h3><i class="fa-solid fa-bell me-2"></i>التنبيهات</h3>
+    <button class="btn-mark-all-read" onclick="markAllNotifsRead()">قراءة الكل</button>
+  </div>
+  <div class="notif-list" id="notifList">
+    <div class="notif-empty"><i class="fa-regular fa-bell-slash"></i>لا توجد تنبيهات</div>
+  </div>
+</div>
+
 <!-- 1. الشريط العلوي Top Bar مثبت دائماً بأعلى الشاشة -->
 <header class="top-bar">
   <button class="btn-menu" onclick="openSidebar()" aria-label="فتح القائمة">
@@ -2584,6 +2635,9 @@
     <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
   </div>
   <div class="top-actions-group">
+    <button class="btn-bell" id="btnBell" onclick="toggleNotifPanel()" aria-label="التنبيهات" title="التنبيهات">
+      <i class="fa-solid fa-bell"></i><span class="bell-badge"></span>
+    </button>
 <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
       <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
       <span><strong id="pendingOpsCount">0</strong> معلق</span>
@@ -2831,6 +2885,56 @@
   </section>
 </div>
 
+<!-- مودال عن التطبيق -->
+<div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content rounded-4 border-0 shadow-lg" style="background:var(--card-bg);color:var(--text-main)">
+      <div class="modal-header border-bottom" style="padding:16px 20px">
+        <div class="d-flex align-items-center gap-3">
+          <img src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png" alt="St.Gorge" style="width:42px;height:42px;border-radius:12px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.2))">
+          <div>
+            <h5 class="modal-title fw-bold mb-0" style="font-family:'Almarai',sans-serif;font-size:16px">St.Gorge Dashboard</h5>
+            <span style="font-size:11px;background:rgba(36,100,154,.12);color:#24649a;border:1px solid rgba(36,100,154,.25);border-radius:20px;padding:1px 10px;font-family:'Almarai',sans-serif;font-weight:800">الإصدار v6</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close" onclick="hideModal('aboutModal')" aria-label="إغلاق"></button>
+      </div>
+      <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:16px">
+        <div style="background:var(--input-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:14px">
+          <i class="fa-solid fa-church" style="font-size:28px;color:#24649a;flex-shrink:0"></i>
+          <div>
+            <div style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:800;color:var(--text-main);line-height:1.5">فصل الشهيد العظيم مارجرجس الروماني</div>
+            <div style="font-family:'Almarai',sans-serif;font-size:12px;color:var(--text-muted,#888);margin-top:2px">كنيسة السيدة العذراء مريم بالزيتون</div>
+          </div>
+        </div>
+        <div style="background:var(--input-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
+          <p style="font-family:'Almarai',sans-serif;font-size:13.5px;line-height:1.9;color:var(--text-main);margin:0;text-align:center">تطبيق مخصص لتنظيم ومتابعة خدمة الفصل، وتسهيل إدارة بيانات المخدومين ومتابعة حضورهم وافتقادهم، من خلال واجهة بسيطة وسهلة الاستخدام.</p>
+        </div>
+        <div style="background:var(--input-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
+          <div style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:800;color:var(--navy);margin-bottom:12px"><i class="fa-solid fa-star me-2" style="color:#f59e0b"></i>مميزات التطبيق</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-id-card"></i></span>إدارة بيانات المخدومين وتنظيمها</div>
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-calendar-check"></i></span>تسجيل ومتابعة الحضور والغياب</div>
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-phone"></i></span>متابعة الافتقاد وتسجيل الملاحظات</div>
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-cake-candles"></i></span>متابعة أعياد ميلاد المخدومين</div>
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-chart-pie"></i></span>إحصائيات وتقارير لمتابعة الخدمة</div>
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-users"></i></span>تنظيم بيانات الفصول والخدام</div>
+          </div>
+        </div>
+        <div style="background:linear-gradient(135deg,#12344d 0%,#24649a 100%);border-radius:14px;padding:20px 18px;text-align:center">
+          <i class="fa-solid fa-heart" style="font-size:28px;color:#fbd68b;display:block;margin-bottom:8px"></i>
+          <div style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:800;color:#fff;margin-bottom:8px">رسالتنا</div>
+          <p style="font-family:'Almarai',sans-serif;font-size:13px;line-height:1.8;color:rgba(255,255,255,.88);margin:0 0 12px">نخدم بمحبة، ونتابع بأمانة، ونسعى دائمًا لتطوير خدمتنا من أجل أولاد ربنا.</p>
+          <div style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:800;color:#fbd68b;border-top:1px solid rgba(255,255,255,.2);padding-top:12px">كل تعب المحبة من أجل أولاد ربنا.</div>
+        </div>
+      </div>
+      <div class="modal-footer border-top" style="padding:12px 20px">
+        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" style="font-family:'Almarai',sans-serif" onclick="hideModal('aboutModal')"><i class="fa-solid fa-xmark me-2"></i>إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- مودال اختيار وتطبيق فلتر المنطقة السكنية -->
 <div class="modal fade" id="areaFilterModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -3002,20 +3106,21 @@
   });
 
 
-  /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
+  /* شريط تقدم التمرير: تحديث واحد كحد أقصى لكل إطار عرض */
+  let scrollProgressFrame = 0;
   function updateScrollProgress() {
-    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-    const docHeight = (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight;
-    const progress = docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0;
-    const bar = document.getElementById('scrollBar');
-    if (bar) {
-      bar.style.width = progress + '%';
-      bar.style.opacity = progress > 0 ? '0.95' : '0.4';
-      clearTimeout(window._scrollBarTimer);
-      window._scrollBarTimer = setTimeout(() => {
-        bar.style.opacity = progress > 0 ? '0.8' : '0.3';
-      }, 500);
-    }
+    if (scrollProgressFrame) return;
+    scrollProgressFrame = requestAnimationFrame(() => {
+      scrollProgressFrame = 0;
+      const root = document.documentElement;
+      const scrollTop = window.scrollY || root.scrollTop || 0;
+      const maxScroll = Math.max(0, root.scrollHeight - window.innerHeight);
+      const progress = maxScroll > 0 ? Math.min(1, Math.max(0, scrollTop / maxScroll)) : 0;
+      const bar = document.getElementById('scrollBar');
+      if (!bar) return;
+      bar.style.transform = 'scaleX(' + progress + ')';
+      bar.style.opacity = progress > 0 ? '0.95' : '0.3';
+    });
   }
   window.addEventListener('scroll', updateScrollProgress, { passive: true });
   window.addEventListener('resize', updateScrollProgress, { passive: true });
@@ -3638,7 +3743,7 @@
     const badge = document.getElementById('cardsCountBadge');
     if (badge) badge.textContent = filteredData.length;
     renderCurrentView();
-    if (typeof renderBottomKeyboard === 'function') {
+    if ((window._currentDashboardView || 'cards') !== 'cards' && typeof renderBottomKeyboard === 'function') {
       renderBottomKeyboard();
     }
   }
@@ -4481,6 +4586,7 @@
   }
 
   function switchView(viewName) {
+    window._currentDashboardView = viewName;
     document.querySelectorAll('.app-tab-btn').forEach(b => b.classList.remove('active'));
     const activeTab = document.getElementById(`tab-${viewName}`);
     if (activeTab) activeTab.classList.add('active');
@@ -4505,8 +4611,11 @@
   }
 
   function renderCurrentView() {
-    renderCards();
-    renderTable();
+    const viewName = window._currentDashboardView || 'cards';
+    if (viewName === 'table') renderTable();
+    else if (viewName === 'charts') renderStats();
+    else if (viewName === 'followupLog') renderFollowupLog();
+    else renderCards();
   }
 
   function renderTable() {
@@ -5004,7 +5113,11 @@
 
 
 
-  document.getElementById('searchInput').addEventListener('input', applyFilters);
+  let searchFilterTimer = 0;
+  document.getElementById('searchInput').addEventListener('input', () => {
+    clearTimeout(searchFilterTimer);
+    searchFilterTimer = setTimeout(applyFilters, 90);
+  });
   document.getElementById('servantFilterSelector').addEventListener('change', function() {
     setServantFilter(this.value);
   });
@@ -5221,5 +5334,91 @@
   </div>
   <div id="kbKeysContainer"></div>
 </div>
+
+<script>
+/* =============================================
+   نظام التنبيهات — Notifications System
+   ============================================= */
+(function () {
+  var STORAGE_KEY = 'stgorge_notifications';
+  function loadNotifs() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
+  }
+  function saveNotifs(list) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch(e) {}
+  }
+  window.addNotification = function(opts) {
+    var notifs = loadNotifs();
+    var icons = { info:'fa-circle-info', warn:'fa-triangle-exclamation', success:'fa-circle-check', danger:'fa-circle-xmark' };
+    notifs.unshift({
+      id: Date.now() + Math.random(),
+      title: opts.title || 'تنبيه',
+      desc: opts.desc || '',
+      type: opts.type || 'info',
+      icon: icons[opts.type] || 'fa-circle-info',
+      time: new Date().toLocaleTimeString('ar-EG', { hour:'2-digit', minute:'2-digit' }),
+      unread: true
+    });
+    if (notifs.length > 30) notifs = notifs.slice(0, 30);
+    saveNotifs(notifs);
+    renderNotifList();
+    updateBellBadge();
+  };
+  function renderNotifList() {
+    var list = document.getElementById('notifList');
+    if (!list) return;
+    var notifs = loadNotifs();
+    if (!notifs.length) {
+      list.innerHTML = '<div class="notif-empty"><i class="fa-regular fa-bell-slash"></i>لا توجد تنبيهات</div>';
+      return;
+    }
+    list.innerHTML = notifs.map(function(n) {
+      return '<div class="notif-item ' + (n.unread ? 'unread' : '') + '" onclick="markNotifRead(\'' + n.id + '\')">' +
+        '<div class="notif-icon type-' + n.type + '"><i class="fa-solid ' + n.icon + '"></i></div>' +
+        '<div class="notif-body"><div class="notif-title">' + n.title + '</div>' +
+        (n.desc ? '<div class="notif-desc">' + n.desc + '</div>' : '') +
+        '<div class="notif-time">' + n.time + '</div></div><span class="notif-dot"></span></div>';
+    }).join('');
+  }
+  function updateBellBadge() {
+    var btn = document.getElementById('btnBell');
+    if (!btn) return;
+    var unread = loadNotifs().filter(function(n) { return n.unread; }).length;
+    btn.classList.toggle('has-notif', unread > 0);
+  }
+  window.markNotifRead = function(id) {
+    var notifs = loadNotifs().map(function(n) {
+      if (String(n.id) === String(id)) n.unread = false;
+      return n;
+    });
+    saveNotifs(notifs); renderNotifList(); updateBellBadge();
+  };
+  window.markAllNotifsRead = function() {
+    var notifs = loadNotifs().map(function(n) { n.unread = false; return n; });
+    saveNotifs(notifs); renderNotifList(); updateBellBadge();
+  };
+  window.toggleNotifPanel = function() {
+    var panel = document.getElementById('notifPanel');
+    var overlay = document.getElementById('notifOverlay');
+    if (!panel) return;
+    if (panel.style.display !== 'none') closeNotifPanel();
+    else { renderNotifList(); panel.style.display = 'flex'; overlay.classList.add('open'); }
+  };
+  window.closeNotifPanel = function() {
+    var panel = document.getElementById('notifPanel');
+    var overlay = document.getElementById('notifOverlay');
+    if (panel) panel.style.display = 'none';
+    if (overlay) overlay.classList.remove('open');
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!loadNotifs().length) {
+      window.addNotification({ title:'مرحباً بك في St.Gorge Dashboard', desc:'تم تحميل البيانات بنجاح.', type:'success' });
+      window.addNotification({ title:'تذكير', desc:'تأكد من مزامنة البيانات مع Google Sheets.', type:'info' });
+    }
+    updateBellBadge();
+  });
+})();
+</script>
+
 </body>
 </html>
