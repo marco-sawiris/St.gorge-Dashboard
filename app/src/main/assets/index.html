@@ -3281,31 +3281,26 @@
   function showModal(modalId) {
     try {
       const el = document.getElementById(modalId);
-      if (!el) {
-        console.warn('showModal: element not found', modalId);
-        return;
-      }
-      if (el.parentElement !== document.body) {
-        document.body.appendChild(el);
-      }
-      el.style.display = 'flex';
+      if (!el) { console.warn('showModal: element not found', modalId); return; }
+      if (el.parentElement !== document.body) document.body.appendChild(el);
+      el.style.setProperty('display', 'flex', 'important');
+      el.style.setProperty('z-index', '30010', 'important');
       el.classList.add('show');
       el.removeAttribute('aria-hidden');
       el.setAttribute('aria-modal', 'true');
       el.setAttribute('role', 'dialog');
       document.documentElement.classList.add('modal-open');
       document.body.classList.add('modal-open');
-    } catch (err) {
-      console.error('showModal error:', err);
-    }
+    } catch (err) { console.error('showModal error:', err); }
   }
+  window.showModal = showModal;
 
   function hideModal(modalId) {
     try {
       const el = document.getElementById(modalId);
       if (!el) return;
       el.classList.remove('show');
-      el.style.display = 'none';
+      el.style.setProperty('display', 'none', 'important');
       el.setAttribute('aria-hidden', 'true');
       el.removeAttribute('aria-modal');
       el.removeAttribute('role');
@@ -3313,10 +3308,9 @@
         document.documentElement.classList.remove('modal-open');
         document.body.classList.remove('modal-open');
       }
-    } catch (err) {
-      console.error('hideModal error:', err);
-    }
+    } catch (err) { console.error('hideModal error:', err); }
   }
+  window.hideModal = hideModal;
 
   document.addEventListener('click', (e) => {
     if (e.target && e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('show')) {
@@ -5404,18 +5398,47 @@
     var notifs = loadNotifs().map(function(n) { n.unread = false; return n; });
     saveNotifs(notifs); renderNotifList(); updateBellBadge();
   };
-  window.toggleNotifPanel = function() {
-    var panel = document.getElementById('notifPanel');
-    var overlay = document.getElementById('notifOverlay');
-    if (!panel) return;
-    if (panel.style.display !== 'none') closeNotifPanel();
-    else { renderNotifList(); panel.style.display = 'flex'; overlay.classList.add('open'); }
-  };
   window.closeNotifPanel = function() {
     var panel = document.getElementById('notifPanel');
     var overlay = document.getElementById('notifOverlay');
-    if (panel) panel.style.display = 'none';
-    if (overlay) overlay.classList.remove('open');
+    if (panel) {
+      panel.classList.remove('is-open');
+      panel.style.setProperty('display', 'none', 'important');
+    }
+    if (overlay) {
+      overlay.classList.remove('open');
+      overlay.style.setProperty('display', 'none', 'important');
+    }
+  };
+  window.toggleNotifPanel = function() {
+    var panel = document.getElementById('notifPanel');
+    var overlay = document.getElementById('notifOverlay');
+    if (!panel || !overlay) { console.error('[Dashboard] notifPanel or notifOverlay missing'); return; }
+    var isOpen = panel.classList.contains('is-open');
+    if (isOpen) { window.closeNotifPanel(); return; }
+    renderNotifList();
+    if (panel.parentElement !== document.body) document.body.appendChild(panel);
+    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
+    overlay.style.setProperty('display', 'block', 'important');
+    overlay.style.setProperty('z-index', '30000', 'important');
+    overlay.classList.add('open');
+    panel.style.setProperty('display', 'flex', 'important');
+    panel.style.setProperty('z-index', '30001', 'important');
+    panel.classList.add('is-open');
+  };
+  window.openAboutModal = function() {
+    try { if (typeof window.closeSidebar === 'function') window.closeSidebar(); } catch(e) {}
+    var modal = document.getElementById('aboutModal');
+    if (!modal) { console.error('[Dashboard] aboutModal not found'); return; }
+    if (modal.parentElement !== document.body) document.body.appendChild(modal);
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.style.setProperty('z-index', '30010', 'important');
+    modal.classList.add('show');
+    modal.removeAttribute('aria-hidden');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('role', 'dialog');
+    document.documentElement.classList.add('modal-open');
+    document.body.classList.add('modal-open');
   };
   document.addEventListener('DOMContentLoaded', function () {
     if (!loadNotifs().length) {
@@ -5427,65 +5450,5 @@
 })();
 </script>
 
-<!-- Android WebView-safe handlers for About and Notifications -->
-<script>
-(function () {
-  function get(id) { return document.getElementById(id); }
-  window.showModal = function (modalId) {
-    var modal = get(modalId);
-    if (!modal) { console.error("[Dashboard] Modal not found:", modalId); return false; }
-    try {
-      if (modal.parentElement !== document.body) document.body.appendChild(modal);
-      modal.style.setProperty("display", "flex", "important");
-      modal.style.setProperty("z-index", "30010", "important");
-      modal.classList.add("show");
-      modal.removeAttribute("aria-hidden");
-      modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("role", "dialog");
-      document.documentElement.classList.add("modal-open");
-      document.body.classList.add("modal-open");
-      return true;
-    } catch (error) { console.error("[Dashboard] Could not open modal:", error); return false; }
-  };
-  window.hideModal = function (modalId) {
-    var modal = get(modalId);
-    if (!modal) return;
-    modal.classList.remove("show");
-    modal.style.setProperty("display", "none", "important");
-    modal.setAttribute("aria-hidden", "true");
-    modal.removeAttribute("aria-modal");
-    modal.removeAttribute("role");
-    if (!document.querySelector(".modal.show")) {
-      document.documentElement.classList.remove("modal-open");
-      document.body.classList.remove("modal-open");
-    }
-  };
-  window.openAboutModal = function () {
-    try { if (typeof window.closeSidebar === "function") window.closeSidebar(); }
-    catch (error) { console.warn("[Dashboard] Sidebar close failed:", error); }
-    window.showModal("aboutModal");
-  };
-  window.closeNotifPanel = function () {
-    var panel = get("notifPanel"), overlay = get("notifOverlay");
-    if (panel) { panel.classList.remove("is-open"); panel.style.setProperty("display", "none", "important"); }
-    if (overlay) { overlay.classList.remove("open"); overlay.style.setProperty("display", "none", "important"); }
-  };
-  window.toggleNotifPanel = function () {
-    var panel = get("notifPanel"), overlay = get("notifOverlay");
-    if (!panel || !overlay) { console.error("[Dashboard] Notifications elements are missing."); return; }
-    var isOpen = panel.classList.contains("is-open") || window.getComputedStyle(panel).display !== "none";
-    if (isOpen) { window.closeNotifPanel(); return; }
-    if (typeof window.renderNotifList === "function") window.renderNotifList();
-    if (panel.parentElement !== document.body) document.body.appendChild(panel);
-    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
-    overlay.style.setProperty("display", "block", "important");
-    overlay.style.setProperty("z-index", "30000", "important");
-    overlay.classList.add("open");
-    panel.style.setProperty("display", "flex", "important");
-    panel.style.setProperty("z-index", "30001", "important");
-    panel.classList.add("is-open");
-  };
-})();
-</script>
 </body>
 </html>
