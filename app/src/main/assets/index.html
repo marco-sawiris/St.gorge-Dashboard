@@ -855,6 +855,21 @@
       -webkit-overflow-scrolling: touch;
       touch-action: pan-y;
     }
+    /* About modal: use the app's own sizing instead of Bootstrap's scrollable-dialog height rules. */
+    .about-modal-dialog {
+      width: 100%;
+      max-height: calc(100dvh - 48px);
+      margin: auto !important;
+    }
+    .about-modal-dialog .modal-content {
+      max-height: calc(100dvh - 48px);
+      min-height: 0;
+    }
+    .about-modal-dialog .modal-body {
+      min-height: 0;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
     #helpModal .modal-dialog { max-width: min(720px, calc(100vw - 24px)); }
     #helpModal .modal-body { display: flex; flex-direction: column; }
     #helpModal .help-chat-window {
@@ -2904,7 +2919,7 @@
 
 <!-- مودال عن التطبيق -->
 <div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog about-modal-dialog">
     <div class="modal-content rounded-4 border-0 shadow-lg" style="background:var(--card-bg);color:var(--text-main)">
       <div class="modal-header border-bottom" style="padding:16px 20px">
         <div class="d-flex align-items-center gap-3">
@@ -5463,7 +5478,7 @@
     var panel = document.getElementById('notifPanel');
     var overlay = document.getElementById('notifOverlay');
     if (!panel || !overlay) { console.error('[Dashboard] notifPanel or notifOverlay missing'); return; }
-    var isOpen = panel.classList.contains('is-open');
+    var isOpen = panel.classList.contains('is-open') || panel.style.display === 'flex';
     if (isOpen) { window.closeNotifPanel(); return; }
     renderNotifList();
     if (panel.parentElement !== document.body) document.body.appendChild(panel);
@@ -5476,18 +5491,9 @@
     panel.classList.add('is-open');
   };
   window.openAboutModal = function() {
-    try { if (typeof window.closeSidebar === 'function') window.closeSidebar(); } catch(e) {}
-    var modal = document.getElementById('aboutModal');
-    if (!modal) { console.error('[Dashboard] aboutModal not found'); return; }
-    if (modal.parentElement !== document.body) document.body.appendChild(modal);
-    modal.style.setProperty('display', 'flex', 'important');
-    modal.style.setProperty('z-index', '30010', 'important');
-    modal.classList.add('show');
-    modal.removeAttribute('aria-hidden');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('role', 'dialog');
-    document.documentElement.classList.add('modal-open');
-    document.body.classList.add('modal-open');
+    if (typeof closeSidebar === 'function') closeSidebar();
+    if (typeof window.closeNotifPanel === 'function') window.closeNotifPanel();
+    window.showModal('aboutModal');
   };
   document.addEventListener('DOMContentLoaded', function () {
     if (!loadNotifs().length) {
