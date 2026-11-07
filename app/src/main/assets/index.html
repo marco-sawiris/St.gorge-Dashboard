@@ -497,8 +497,7 @@
       font-size: 14px;
       color: #d1e2ed;
       font-weight: 600;
-      margin: -6px 0 0;
-      opacity: 0.9;
+      margin: -6px 0 0;      opacity: 0.9;
       animation: wordIn 800ms var(--ease-spring) 1050ms both;
       text-align: center;
     }
@@ -997,8 +996,7 @@
       user-select: none;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
-      transition: transform 80ms ease, background 120ms ease, box-shadow 80ms ease;
-      padding: 0;
+      transition: transform 80ms ease, background 120ms ease, box-shadow 80ms ease;      padding: 0;
       margin: 0;
     }
     .kb-key:active {
@@ -1497,8 +1495,7 @@
       list-style: none;
       padding: 0;
       margin: 0;
-      display: flex;
-      flex-direction: column;
+      display: flex;      flex-direction: column;
       gap: 10px;
     }
     .about-features-list li {
@@ -1750,15 +1747,15 @@
     .card-flip-container {
       perspective: 1200px;
       -webkit-perspective: 1200px;
-      height: 480px;
-      min-height: 480px;
+      height: 560px;
+      min-height: 560px;
       position: relative;
     }
     .card-flip-inner {
       position: relative;
       width: 100%;
       height: 100%;
-      min-height: 480px;
+      min-height: 560px;
       transition: transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
       transform-style: preserve-3d;
       -webkit-transform-style: preserve-3d;
@@ -1826,14 +1823,16 @@
       inset: 0;
       background: var(--card-bg);
       border-radius: var(--radius-xl);
-      padding: 14px 16px;
-      overflow: hidden; /* فيت كامل بدون سكرول */
+      padding: 12px 14px;
+      overflow: hidden;
       border: 2px solid var(--primary);
       box-shadow: var(--shadow-md);
       z-index: 10;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: flex-start;
+      gap: 7px;
+      box-sizing: border-box;
     }
 
     .card-accent-bar {
@@ -1995,8 +1994,7 @@
       cursor: pointer;
     }
 
-    .meta-list {
-      display: grid;
+    .meta-list {      display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
       margin-bottom: 10px;
@@ -2201,43 +2199,54 @@
       padding: 0 4px;
     }
     .card-back-meta-strip {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       align-items: center;
-      justify-content: space-between;
+      column-gap: 8px;
+      row-gap: 3px;
       background: var(--input-bg);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 3px 8px;
-      margin-bottom: 6px;
-      font-size: 10.5px;
+      padding: 5px 8px;
+      margin-bottom: 2px;
+      font-size: 10px;
+      line-height: 1.25;
       color: var(--text-muted);
-      flex-shrink: 0;
+      flex: 0 0 auto;
     }
+    .card-back-meta-strip span { min-width: 0; overflow-wrap: anywhere; }
     .card-back-meta-strip strong {
       color: var(--text-main);
     }
     .card-edit-form {
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      flex: 1;
-      justify-content: space-between;
+      gap: 3px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      justify-content: flex-start;
+      padding: 1px 2px 2px;
     }
+    .card-edit-form > .row { --bs-gutter-y: 4px; --bs-gutter-x: 6px; margin-top: 0; }
     .edit-field-group {
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 1px;
+      min-width: 0;
     }
     .edit-field-group label {
-      font-size: 10px;
+      font-size: 9.5px;
+      line-height: 1.15;
       font-weight: 700;
       color: var(--text-muted);
-      margin-bottom: 1px;
+      margin-bottom: 0;
     }
     .edit-field-group input, .edit-field-group select, .edit-field-group textarea {
-      padding: 4px 8px;
-      height: 29px;
-      font-size: 11.5px;
+      padding: 3px 7px;
+      height: 27px;
+      min-height: 27px;
+      font-size: 11px;
       border-radius: 6px;
       border: 1px solid var(--border);
       background: var(--input-bg);
@@ -2250,12 +2259,17 @@
       background: var(--card-bg);
     }
     .card-back-actions {
-      display: flex;
+      display: flex !important;
       gap: 8px;
-      margin-top: 8px;
-      padding-top: 6px;
+      margin-top: 0;
+      padding: 6px 2px 1px;
       border-top: 1px solid var(--border);
+      flex: 0 0 auto;
       flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+      background: var(--card-bg);
+      visibility: visible;
     }
     .btn-flip-save {
       flex: 1;
@@ -2282,6 +2296,17 @@
       font-size: 12px;
       font-weight: 800;
       cursor: pointer;
+    }
+
+    @media (max-width: 480px) {
+      .card-flip-container { height: 560px; min-height: 560px; }
+      .card-flip-inner { min-height: 560px; }
+      .card-back { padding: 9px 10px; gap: 5px; }
+      .card-back-header { margin-bottom: 3px; padding-bottom: 4px; }
+      .card-back-meta-strip { padding: 4px 6px; font-size: 9.5px; }
+      .card-back-actions { gap: 8px; padding-top: 5px; }
+      .btn-flip-save, .btn-flip-cancel { min-height: 36px; height: 36px; font-size: 12px; }
+      .card-edit-form textarea { height: 42px !important; min-height: 42px !important; max-height: 42px !important; resize: none !important; }
     }
 
     .add-student-card {
@@ -2468,8 +2493,7 @@
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin: 0 auto 12px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    }    @keyframes spin { to { transform: rotate(360deg); } }
 
     #toastStack {
       position: fixed;
@@ -2765,6 +2789,13 @@
       padding-bottom: calc(180px + env(safe-area-inset-bottom, 0px)) !important;
     }
 
+
+    #assistantModal .help-chat-window { height:min(42dvh,360px); min-height:180px; flex:0 1 auto; overscroll-behavior:contain; touch-action:pan-y; }
+    #assistantModal .modal-body { max-height:calc(100dvh - 110px); overflow:hidden; }
+    #assistantModal .help-quick-prompts { margin:0; }
+    #assistantModal .help-input-row { margin-top:0; }
+    #assistantModal .assistant-heading-icon { color:var(--primary); }
+    html[data-theme="dark"] #assistantModal .assistant-heading-icon { color:#fbd68b; }
 </style>
 </head>
 <body>
@@ -2853,6 +2884,10 @@
     <button class="sidebar-nav-item" style="--i:7" onclick="closeSidebar(); showModal('aboutModal')">
       <i class="fa-solid fa-circle-info"></i>
       <span>عن التطبيق</span>
+    </button>
+    <button class="sidebar-nav-item" id="btnAssistant" style="--i:8" onclick="closeSidebar(); window.openAssistantModal()">
+      <i class="fa-solid fa-robot" style="color:#fbd68b;"></i>
+      <span>المساعد الذكي</span>
     </button>
 </nav>
 
@@ -2957,8 +2992,7 @@
   <!-- 2. شريط البحث والفلترة Compact للموبايل -->
   <div class="search-filter-card">
     <div class="search-input-wrap">
-      <i class="fa-solid fa-magnifying-glass"></i>
-      <input type="text" id="searchInput" class="app-input" placeholder="بحث بالاسم أو الملاحظات...">
+      <i class="fa-solid fa-magnifying-glass"></i>      <input type="text" id="searchInput" class="app-input" placeholder="بحث بالاسم أو الملاحظات...">
     </div>
     
     <select id="sheetSelector" class="app-select" aria-label="اختيار الشيت أو الحالة">
@@ -3252,6 +3286,39 @@
   </div>
 </div>
 
+<!-- ===== مودال المساعد الذكي ===== -->
+<div class="modal fade" id="assistantModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:min(480px,calc(100vw - 24px));">
+    <div class="modal-content rounded-4 border-0 shadow-lg" style="background:var(--card-bg);color:var(--text-main);">
+      <div class="modal-header border-bottom" style="background:linear-gradient(135deg,#12344d,#24649a);border-radius:1rem 1rem 0 0;padding:14px 18px;">
+        <div class="d-flex align-items-center gap-2">
+          <i class="fa-solid fa-robot assistant-heading-icon" style="font-size:22px;"></i>
+          <div>
+            <h5 class="modal-title fw-bold mb-0" style="font-family:'Almarai',sans-serif;font-size:15px;color:#fff;">المساعد الذكي</h5>
+            <div style="font-size:11px;color:rgba(255,255,255,0.7);font-family:'Almarai',sans-serif;">اسألني عن المخدومين أو اطلب مني تجهيز رسالة</div>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" onclick="hideModal('assistantModal')"></button>
+      </div>
+      <div class="modal-body" style="padding:14px;display:flex;flex-direction:column;gap:10px;">
+        <div class="help-chat-window" id="assistantChat"></div>
+        <div class="help-quick-prompts" id="assistantQuickPrompts">
+          <button class="btn-help-prompt" onclick="assistantAsk('أعياد ميلاد هذا الأسبوع')">أعياد الميلاد</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('جهز رسائل عيد الميلاد للمخدومين اللي عيد ميلادهم قريب')">رسائل عيد الميلاد</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('حضر لي رسالة لمخدوم')">رسالة لمخدوم</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('رسالة افتقاد لمخدوم غايب')">رسالة افتقاد</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('جهز رسالة تشجيع لمخدوم')">رسالة تشجيع</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('كيف أسجل حضور مخدوم؟')">تسجيل حضور</button>
+        </div>
+        <div class="help-input-row">
+          <input class="form-control rounded-3" id="assistantInput" type="text" placeholder="اكتب سؤالك هنا…" onkeydown="if(event.key==='Enter') assistantSend()">
+          <button class="btn btn-primary rounded-3 px-3 fw-bold" onclick="assistantSend()" aria-label="إرسال"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- مودال اختيار وتطبيق فلتر المنطقة السكنية -->
 <div class="modal fade" id="areaFilterModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -3424,8 +3491,7 @@
 
 
   /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
-  function updateScrollProgress() {
-    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+  function updateScrollProgress() {    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
     const docHeight = (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight;
     const progress = docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0;
     const bar = document.getElementById('scrollBar');
@@ -3924,8 +3990,7 @@
 
   function setSyncProgress(active) {
     const track = document.getElementById('topSyncProgressTrack');
-    const bar = document.getElementById('topSyncProgressBar');
-    const badge = document.getElementById('topSyncStatus');
+    const bar = document.getElementById('topSyncProgressBar');    const badge = document.getElementById('topSyncStatus');
     const spin = document.getElementById('topSyncSpinIcon');
 
     if (!track || !bar) return;
@@ -4424,8 +4489,7 @@
       type: method,
       notes: `افتقاد عبر ${method}`
     });
-    renderFollowupLog();
-    refreshRenderedFollowupSummaries();
+    renderFollowupLog();    refreshRenderedFollowupSummaries();
   }
 
   // ============================================================
@@ -4924,7 +4988,6 @@
       renderFollowupLog();
     }
   }
-
   function renderCurrentView() {
     renderCards();
     renderTable();
@@ -5424,7 +5487,6 @@
   }
 
 
-
   document.getElementById('searchInput').addEventListener('input', applyFilters);
   document.getElementById('servantFilterSelector').addEventListener('change', function() {
     setServantFilter(this.value);
@@ -5756,5 +5818,308 @@
 
 })();
 </script>
+
+<script>
+/* =============================================================
+   المساعد الذكي — منطق المحادثة وتجهيز الرسائل
+   ============================================================= */
+(function () {
+  var assistantMode = null;
+  var assistantPendingType = 'general';
+
+  function getAssistantData() {
+    try {
+      if (typeof studentsData !== 'undefined' && Array.isArray(studentsData)) return studentsData;
+    } catch (e) {}
+    return Array.isArray(window.studentsData) ? window.studentsData : [];
+  }
+
+  function normalizeText(value) {
+    return String(value == null ? '' : value).toLowerCase().trim()
+      .replace(/[\u064b-\u065f\u0670\u0640]/g, '')
+      .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي')
+      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x660); })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x6f0); })
+      .replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function assistantBotMsg(message, actions) {
+    var chat = document.getElementById('assistantChat');
+    if (!chat) return;
+    var bubble = document.createElement('div');
+    bubble.className = 'help-message bot';
+    bubble.textContent = message;
+    (actions || []).forEach(function (action) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn-help-prompt mt-2 d-block';
+      button.style.cssText = 'width:100%;text-align:right;white-space:normal;';
+      button.textContent = action.label;
+      button.addEventListener('click', action.run);
+      bubble.appendChild(button);
+    });
+    chat.appendChild(bubble);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function assistantUserMsg(message) {
+    var chat = document.getElementById('assistantChat');
+    if (!chat) return;
+    var bubble = document.createElement('div');
+    bubble.className = 'help-message user';
+    bubble.textContent = message;
+    chat.appendChild(bubble);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  window.openAssistantModal = function () {
+    // ابدأ محادثة جديدة عند كل فتح للمساعد حتى لا تتراكم الرسائل القديمة.
+    assistantMode = null;
+    assistantPendingType = 'general';
+    var chat = document.getElementById('assistantChat');
+    var input = document.getElementById('assistantInput');
+    if (chat) chat.innerHTML = '';
+    if (input) input.value = '';
+    if (typeof window.showModal === 'function') window.showModal('assistantModal');
+    else if (typeof showModal === 'function') showModal('assistantModal');
+    assistantBotMsg('أهلاً بيك 👋\nأنا مساعدك في خدمة فصل مارجرجس. أقدر أطلع أعياد الميلاد، أبحث عن مخدوم، وأجهز رسائل شخصية للنسخ أو الإرسال على WhatsApp.');
+  };
+
+  window.assistantAsk = function (question) {
+    var input = document.getElementById('assistantInput');
+    if (!input) return;
+    input.value = question;
+    window.assistantSend();
+  };
+
+  window.assistantSend = function () {
+    var input = document.getElementById('assistantInput');
+    if (!input) return;
+    var question = input.value.trim();
+    if (!question) return;
+    input.value = '';
+    assistantUserMsg(question);
+    window.setTimeout(function () { respond(question); }, 120);
+  };
+
+  function detectIntent(text) {
+    var q = normalizeText(text);
+    var birthday = /عيد ميلاد|اعياد الميلاد|ميلاد|birthday|birthdays/.test(q);
+    var message = /رسالة|رسائل|رساله|حضر|جهز|اكتب|ابعت|ابعث|واتساب|whatsapp|تهنئة|مناسبة|تشجيع|شجع/.test(q);
+    var followup = /افتقاد|متابعه|غايب|غائب|غياب/.test(q);
+    if (birthday && message) return 'birthdayMessage';
+    if (birthday) return 'birthdays';
+    if (message || followup) return 'message';
+    if (/حضور|attend/.test(q)) return 'attendance';
+    if (/اضافه مخدوم|اضيف مخدوم|مخدوم جديد/.test(q)) return 'add';
+    if (/احصاء|احصائي|تقرير|stats|عدد المخدومين/.test(q)) return 'stats';
+    if (/مزامنه|تحديث|refresh|sync/.test(q)) return 'sync';
+    if (/غائب|غياب|absent/.test(q)) return 'absent';
+    return null;
+  }
+
+  function respond(raw) {
+    var q = normalizeText(raw);
+    var intent = detectIntent(raw);
+
+    // أي طلب جديد واضح يلغي انتظار الاسم السابق؛ لا نبحث عن "أعياد الميلاد" كاسم مخدوم.
+    if (assistantMode && intent) assistantMode = null;
+
+    if (assistantMode === 'studentName') {
+      assistantMode = null;
+      var matches = searchStudents(raw);
+      if (!matches.length) {
+        assistantBotMsg('مش لاقي مخدوم بالاسم ده. جرّب تكتب الاسم الأول أو جزء أوضح منه.');
+        assistantMode = 'studentName';
+        return;
+      }
+      chooseStudent(matches, assistantPendingType);
+      return;
+    }
+
+    if (intent === 'birthdayMessage') { prepareBirthdayMessages(); return; }
+    if (intent === 'birthdays') { listBirthdays(); return; }
+    if (intent === 'message') {
+      assistantPendingType = /افتقاد|متابعه|غايب|غائب|غياب/.test(q) ? 'followup' : (/تشجيع|شجع/.test(q) ? 'encouragement' : (/تهنئة|مناسبه/.test(q) ? 'congratulations' : 'general'));
+      var name = extractName(raw);
+      if (name) {
+        var found = searchStudents(name);
+        if (found.length) { chooseStudent(found, assistantPendingType); return; }
+      }
+      assistantMode = 'studentName';
+      assistantBotMsg('أكيد. مين المخدوم اللي تحب أجهز له الرسالة؟ اكتب اسمه أو جزء منه.');
+      return;
+    }
+    if (intent === 'attendance') {
+      assistantBotMsg('لتسجيل الحضور:\n1) افتح كارت المخدوم.\n2) اضغط «حضور».\n3) اختار تاريخ الجمعة ثم اضغط «حفظ».\nوتقدر كمان تسجل الحضور من تبويب جدول الحضور.');
+      return;
+    }
+    if (intent === 'add') {
+      assistantBotMsg('لإضافة مخدوم جديد، اضغط زر الإضافة (+)، أدخل البيانات، ثم اضغط «حفظ في الشيت».');
+      return;
+    }
+    if (intent === 'absent') {
+      var absent = getAssistantData().filter(function (s) { return !String(s.lastAttendance || '').trim(); });
+      assistantBotMsg(absent.length ? 'المخدومون الذين لا يوجد لهم تاريخ حضور مسجل:\n' + absent.slice(0, 20).map(function (s) { return '• ' + s.name; }).join('\n') : 'لا توجد أسماء بدون تاريخ حضور مسجل في البيانات الحالية.');
+      return;
+    }
+    if (intent === 'stats') {
+      var data = getAssistantData();
+      assistantBotMsg('📊 إحصائيات الشيت الحالي:\n👥 إجمالي المخدومين: ' + data.length + '\n✅ لديهم تاريخ حضور مسجل: ' + data.filter(function (s) { return !!s.lastAttendance; }).length + '\n📞 لديهم حالة افتقاد: ' + data.filter(function (s) { return s.followupStatus && s.followupStatus !== 'بدون'; }).length);
+      return;
+    }
+    if (intent === 'sync') {
+      assistantBotMsg('لتحديث البيانات اضغط أيقونة المزامنة 🔄 أعلى الشاشة. المزامنة التلقائية تعمل كل 5 دقائق.');
+      return;
+    }
+    assistantBotMsg('ممكن أساعدك في:\n• عرض أعياد الميلاد القريبة\n• تجهيز رسائل عيد الميلاد\n• كتابة رسالة لمخدوم بالاسم\n• رسالة افتقاد لمخدوم غايب\n• تسجيل الحضور أو إضافة مخدوم\n\nاكتب طلبك بالطريقة اللي تريحك.');
+  }
+
+  function extractName(raw) {
+    var text = String(raw || '').trim();
+    var patterns = [/(?:للمخدوم|للمخدومه|للمخدومة|لـ)\s+(.+)$/i, /(?:اسمه|اسمها|اسمه ايه)\s+(.+)$/i];
+    for (var i = 0; i < patterns.length; i++) {
+      var m = text.match(patterns[i]);
+      if (m && m[1]) {
+        var candidate = m[1].replace(/(?:اللي|الذين|اللي عيد ميلادهم).*$/i, '').trim();
+        if (candidate && !/^(قريب|قريبه|قريبين|غايب|غائب)$/i.test(normalizeText(candidate))) return candidate;
+      }
+    }
+    return '';
+  }
+  function searchStudents(query) {
+    var needle = normalizeText(query);
+    if (!needle) return [];
+    return getAssistantData().filter(function (student) {
+      return normalizeText(student.name).includes(needle);
+    });
+  }
+
+  function chooseStudent(matches, type) {
+    if (matches.length === 1) { showPreparedMessage(matches[0], type); return; }
+    assistantBotMsg('لقيت أكتر من مخدوم بالاسم ده. اختار المقصود:', matches.slice(0, 8).map(function (student) {
+      return { label: student.name + (student.servant ? ' — ' + student.servant : ''), run: function () { showPreparedMessage(student, type); } };
+    }));
+  }
+
+  function makeMessage(student, type) {
+    var name = String(student.name || '');
+    if (type === 'birthday') return 'كل سنة وأنت طيب يا ' + name + ' 🎂❤️\nربنا يبارك حياتك ويفرح قلبك، ويديك سنة جديدة مليانة نعمة وسلام ونجاح، وتفضل دايمًا قريب منه وفي حضوره. بنصلي إن ربنا يحفظك ويقود كل خطواتك. كل سنة وأنت في فرح ربنا! 🙏';
+    if (type === 'followup') return 'إزيك يا ' + name + ' ❤️\nوحشتنا في فصل مارجرجس وبنفتقد وجودك معانا. بنصلي إن ربنا يديك قوة وفرح وسلام، ونتمنى نشوفك معانا قريب. ربنا يباركك ويحفظك دايمًا 🙏';
+    if (type === 'encouragement') return 'ربنا معاك يا ' + name + ' ❤️\nعايزين نفكرك إن ربنا قريب منك وبيحبك، وهو قادر يسندك ويفرح قلبك. إحنا بنصلي من أجلك، وربنا يملأ حياتك سلام ورجاء ونعمة 🙏';
+    if (type === 'congratulations') return 'ألف مبروك يا ' + name + ' 🎉❤️\nفرحانين بيك وبنصلي إن ربنا يكمل فرحتك على خير، ويبارك خطواتك ويديك نجاح وسلام دايمًا. ربنا يفرح قلبك ويحفظك 🙏';
+    return 'إزيك يا ' + name + ' ❤️\nبنطمن عليك ونتمنى تكون بخير. ربنا يبارك حياتك ويديك فرح وسلام، ومستنيين نشوفك معانا في فصل مارجرجس. ربنا معاك دايمًا 🙏';
+  }
+
+  function showPreparedMessage(student, type) {
+    var message = makeMessage(student, type);
+    var phone = getStudentPhone(student);
+    assistantBotMsg('دي رسالة جاهزة لـ ' + student.name + ':\n\n' + message + '\n\nتحب تنسخها ولا تفتح WhatsApp؟', [
+      { label: '📋 نسخ الرسالة', run: function () { copyMessage(message); } },
+      { label: phone ? '💬 فتح WhatsApp وإرسال الرسالة' : '💬 فتح WhatsApp (من غير رقم مسجل)', run: function () { openWhatsAppMessage(phone, message); } }
+    ]);
+  }
+
+  function getStudentPhone(student) {
+    return String(student.phoneStudent || student.phoneParent1 || student.phoneParent2 || '').trim();
+  }
+
+  function copyMessage(message) {
+    function fallbackCopy() {
+      var area = document.createElement('textarea');
+      area.value = message;
+      area.style.position = 'fixed'; area.style.opacity = '0';
+      document.body.appendChild(area); area.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(area);
+      assistantBotMsg(ok ? 'تم نسخ الرسالة. تقدر تلصقها في أي مكان.' : 'تعذر النسخ التلقائي. اضغط مطولًا على نص الرسالة وانسخه يدويًا.');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(message).then(function () { assistantBotMsg('تم نسخ الرسالة. تقدر تلصقها في أي مكان.'); }).catch(fallbackCopy);
+    } else fallbackCopy();
+  }
+
+  function openWhatsAppMessage(phone, message) {
+    var digits = String(phone || '').replace(/\D/g, '');
+    if (digits && digits.charAt(0) === '0') digits = '20' + digits.slice(1);
+    var url = 'https://wa.me/' + (digits || '') + '?text=' + encodeURIComponent(message);
+    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openExternalPage === 'function') AndroidServiceBridge.openExternalPage(url);
+    else window.open(url, '_blank');
+  }
+
+  function parseBirthDate(value) {
+    if (value == null || value === '') return null;
+    if (value instanceof Date && !isNaN(value.getTime())) return { day: value.getDate(), month: value.getMonth() };
+    var raw = String(value).trim().replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x660); }).replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x6f0); });
+    // Google Sheets / Excel serial date.
+    if (/^\d{4,6}(?:\.0+)?$/.test(raw)) {
+      var serial = Number(raw);
+      if (serial > 20000 && serial < 80000) {
+        var serialDate = new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000);
+        return { day: serialDate.getUTCDate(), month: serialDate.getUTCMonth() };
+      }
+    }
+    raw = raw.replace(/T.*$/, '').replace(/\s+.*$/, '');
+    var match = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+    var day, month, year;
+    if (match) { day = Number(match[1]); month = Number(match[2]) - 1; year = Number(match[3]); }
+    else {
+      match = raw.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+      if (!match) return null;
+      year = Number(match[1]); month = Number(match[2]) - 1; day = Number(match[3]);
+    }
+    if (year < 100) year += year < 50 ? 2000 : 1900;
+    if (month < 0 || month > 11 || day < 1 || day > 31) return null;
+    var validation = new Date(year, month, day);
+    if (validation.getMonth() !== month || validation.getDate() !== day) return null;
+    return { day: day, month: month };
+  }
+
+  function getBirthdayStudents(daysAhead) {
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var todayList = [], upcoming = [], invalid = 0, withBirthDate = 0;
+    getAssistantData().forEach(function (student) {
+      if (!student.birthDate) return;
+      withBirthDate++;
+      var parsed = parseBirthDate(student.birthDate);
+      if (!parsed) { invalid++; return; }
+      var next = new Date(today.getFullYear(), parsed.month, parsed.day);
+      if (next < today) next = new Date(today.getFullYear() + 1, parsed.month, parsed.day);
+      var diff = Math.round((next - today) / 86400000);
+      if (diff === 0) todayList.push(student);
+      else if (diff <= daysAhead) upcoming.push({ student: student, daysLeft: diff });
+    });
+    upcoming.sort(function (a, b) { return a.daysLeft - b.daysLeft; });
+    return { today: todayList, upcoming: upcoming, invalid: invalid, withBirthDate: withBirthDate };
+  }
+
+  function listBirthdays() {
+    var data = getBirthdayStudents(7);
+    if (!data.withBirthDate) {
+      assistantBotMsg('مش لاقي تواريخ ميلاد مسجلة في بيانات الشيت الحالي. راجع عمود «تاريخ الميلاد» في الشيت وتأكد إنه متحمّل.');
+      return;
+    }
+    if (!data.today.length && !data.upcoming.length) {
+      assistantBotMsg('راجعت ' + data.withBirthDate + ' تاريخ ميلاد، ومفيش عيد ميلاد النهارده أو خلال الـ7 أيام الجاية.' + (data.invalid ? '\nملحوظة: فيه ' + data.invalid + ' تاريخ محتاج مراجعة لأنه بصيغة غير مفهومة.' : ''));
+      return;
+    }
+    var lines = [];
+    if (data.today.length) lines.push('🎉 أعياد ميلاد النهارده:\n' + data.today.map(function (s) { return '• ' + s.name; }).join('\n'));
+    if (data.upcoming.length) lines.push('📅 أعياد الميلاد خلال 7 أيام:\n' + data.upcoming.map(function (x) { return '• ' + x.student.name + ' — بعد ' + x.daysLeft + (x.daysLeft === 1 ? ' يوم' : ' أيام'); }).join('\n'));
+    if (data.invalid) lines.push('⚠️ فيه ' + data.invalid + ' تاريخ ميلاد غير مفهوم محتاج مراجعة.');
+    assistantBotMsg(lines.join('\n\n'), [{ label: '🎂 جهّز رسائل عيد الميلاد لكل الأسماء', run: prepareBirthdayMessages }]);
+  }
+
+  function prepareBirthdayMessages() {
+    var data = getBirthdayStudents(7);
+    var people = data.today.concat(data.upcoming.map(function (x) { return x.student; }));
+    if (!people.length) { listBirthdays(); return; }
+    assistantBotMsg('جهزت ' + people.length + ' رسالة شخصية. كل رسالة باسم صاحب عيد الميلاد، وتقدر تنسخها أو تفتح WhatsApp لكل شخص على حدة.');
+    people.forEach(function (student) { showPreparedMessage(student, 'birthday'); });
+  }
+})();
+</script>
+
 </body>
 </html>
