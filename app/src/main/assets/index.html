@@ -2580,6 +2580,10 @@
       <i class="fa-solid fa-circle-info"></i>
       <span>عن التطبيق</span>
     </button>
+    <button class="sidebar-nav-item" id="btnAssistant" style="--i:8" onclick="closeSidebar(); window.openAssistantModal()">
+      <i class="fa-solid fa-robot" style="color:#fbd68b;"></i>
+      <span>المساعد الذكي</span>
+    </button>
 </nav>
 
   <div class="sidebar-divider"></div>
@@ -2944,6 +2948,51 @@
       <div class="modal-footer border-top" style="padding:12px 20px">
         <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" style="font-family:'Almarai',sans-serif" onclick="hideModal('aboutModal')"><i class="fa-solid fa-xmark me-2"></i>إغلاق</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== مودال المساعد الذكي ===== -->
+<div class="modal fade" id="assistantModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:min(480px,calc(100vw - 24px));">
+    <div class="modal-content rounded-4 border-0 shadow-lg" style="background:var(--card-bg);color:var(--text-main);">
+
+      <!-- هيدر -->
+      <div class="modal-header border-bottom" style="background:linear-gradient(135deg,#12344d,#24649a);border-radius:1rem 1rem 0 0;padding:14px 18px;">
+        <div class="d-flex align-items-center gap-2">
+          <i class="fa-solid fa-robot" style="font-size:22px;color:#fbd68b;"></i>
+          <div>
+            <h5 class="modal-title fw-bold mb-0" style="font-family:'Almarai',sans-serif;font-size:15px;color:#fff;">المساعد الذكي</h5>
+            <div style="font-size:11px;color:rgba(255,255,255,0.7);font-family:'Almarai',sans-serif;">اسألني أي سؤال عن الخدمة</div>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" onclick="hideModal('assistantModal')"></button>
+      </div>
+
+      <!-- نافذة المحادثة -->
+      <div class="modal-body" style="padding:14px;display:flex;flex-direction:column;gap:10px;">
+        <div class="help-chat-window" id="assistantChat"></div>
+
+        <!-- أسئلة سريعة -->
+        <div class="help-quick-prompts" id="assistantQuickPrompts">
+          <button class="btn-help-prompt" onclick="assistantAsk('كيف أسجل حضور مخدوم؟')">تسجيل حضور</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('كيف أضيف مخدوم جديد؟')">إضافة مخدوم</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('أرسل رسالة متابعة')">رسالة متابعة</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('من غاب أكثر من مرتين؟')">الغائبين</button>
+          <button class="btn-help-prompt" onclick="assistantAsk('أعياد ميلاد هذا الأسبوع')">أعياد الميلاد</button>
+        </div>
+
+        <!-- حقل الإدخال -->
+        <div class="help-input-row">
+          <input class="form-control rounded-3" id="assistantInput" type="text"
+                 placeholder="اكتب سؤالك هنا…"
+                 onkeydown="if(event.key==='Enter') assistantSend()">
+          <button class="btn btn-primary rounded-3 px-3 fw-bold" onclick="assistantSend()">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -5447,6 +5496,350 @@
     }
     updateBellBadge();
   });
+})();
+</script>
+
+<script>
+/* =============================================================
+   المساعد الذكي — Smart Assistant + Birthday Notifications
+   ============================================================= */
+(function () {
+
+  /* ---- فتح وإغلاق المودال ---- */
+  window.openAssistantModal = function () {
+    window.showModal('assistantModal');
+    var chat = document.getElementById('assistantChat');
+    if (chat && chat.children.length === 0) {
+      assistantBotMsg('أهلاً! 👋\nأنا مساعدك الذكي في خدمة فصل مارجرجس.\nاسألني أي سؤال أو اطلب مني إرسال رسالة متابعة لأحد المخدومين.');
+    }
+  };
+
+  /* ---- إضافة رسائل ---- */
+  function assistantBotMsg(text, actions) {
+    var chat = document.getElementById('assistantChat');
+    if (!chat) return;
+    var div = document.createElement('div');
+    div.className = 'help-message bot';
+    div.textContent = text;
+    if (actions && actions.length) {
+      actions.forEach(function (a) {
+        var btn = document.createElement('button');
+        btn.className = 'btn-help-prompt mt-2 d-block';
+        btn.style.cssText = 'width:100%;text-align:right;';
+        btn.textContent = a.label;
+        btn.onclick = a.fn;
+        div.appendChild(btn);
+      });
+    }
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function assistantUserMsg(text) {
+    var chat = document.getElementById('assistantChat');
+    if (!chat) return;
+    var div = document.createElement('div');
+    div.className = 'help-message user';
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  window.assistantAsk = function (q) {
+    document.getElementById('assistantInput').value = q;
+    assistantSend();
+  };
+
+  window.assistantSend = function () {
+    var inp = document.getElementById('assistantInput');
+    if (!inp) return;
+    var q = inp.value.trim();
+    if (!q) return;
+    inp.value = '';
+    assistantUserMsg(q);
+    setTimeout(function () { assistantRespond(q); }, 300);
+  };
+
+  /* ---- منطق الردود ---- */
+  function assistantRespond(q) {
+    var lower = q.toLowerCase();
+
+    /* رسالة متابعة */
+    if (/رسال|متابع|follow|message|واتس|whatsapp/i.test(lower)) {
+      assistantBotMsg('تمام! 📲\nاكتب اسم المخدوم (أو جزء من اسمه) وهأجهزلك الرسالة على طول:');
+      window._assistantMode = 'followup_search';
+      return;
+    }
+
+    /* لو كنا في وضع البحث عن مخدوم للمتابعة */
+    if (window._assistantMode === 'followup_search') {
+      window._assistantMode = null;
+      var results = searchStudentsFor(q);
+      if (!results.length) {
+        assistantBotMsg('مش لاقي مخدوم بالاسم ده 🔍\nجرب جزء تاني من الاسم.');
+        window._assistantMode = 'followup_search';
+        return;
+      }
+      if (results.length === 1) {
+        showFollowupOptions(results[0]);
+        return;
+      }
+      var actions = results.slice(0, 5).map(function (s) {
+        return { label: s.name + (s.servant ? ' (' + s.servant + ')' : ''), fn: (function (st) { return function () { showFollowupOptions(st); }; })(s) };
+      });
+      assistantBotMsg('لقيت أكتر من مخدوم — اختار:', actions);
+      return;
+    }
+
+    /* تسجيل حضور */
+    if (/حضور|attend/i.test(lower)) {
+      assistantBotMsg('لتسجيل الحضور:\n1️⃣ افتح كارت المخدوم بالضغط عليه\n2️⃣ اضغط زر "حضور" باللون الأخضر\n3️⃣ اختار تاريخ الجمعة\n4️⃣ اضغط "حفظ"\n\nأو من التبويب "الجدول" اضغط على الخلية مباشرة.');
+      return;
+    }
+
+    /* إضافة مخدوم */
+    if (/إضاف|اضاف|جديد|new|add/i.test(lower)) {
+      assistantBotMsg('لإضافة مخدوم جديد:\n1️⃣ اضغط زر ➕ في أعلى الشاشة\n2️⃣ أدخل بيانات المخدوم\n3️⃣ اضغط "إضافة"\n\nالبيانات هتتضاف في الشيت تلقائياً.');
+      return;
+    }
+
+    /* الغائبين */
+    if (/غائب|غياب|absent|لم يحضر|مش حاضر/i.test(lower)) {
+      var absent = getAbsentStudents();
+      if (!absent.length) {
+        assistantBotMsg('ما فيش مخدومين غائبين مسجلين دلوقتي ✅');
+        return;
+      }
+      var msg = 'الغائبون (' + absent.length + '):\n';
+      absent.slice(0, 10).forEach(function (s) {
+        msg += '• ' + s.name + (s.lastAttendance ? ' — آخر حضور: ' + s.lastAttendance : '') + '\n';
+      });
+      if (absent.length > 10) msg += '… و' + (absent.length - 10) + ' أكتر';
+      assistantBotMsg(msg);
+      return;
+    }
+
+    /* أعياد الميلاد */
+    if (/عيد|ميلاد|birthday|birth/i.test(lower)) {
+      var bd = getBirthdayStudents(7);
+      if (!bd.today.length && !bd.upcoming.length) {
+        assistantBotMsg('ما فيش أعياد ميلاد في الأسبوع الجاي 🎂');
+        return;
+      }
+      var msg = '';
+      if (bd.today.length) {
+        msg += '🎉 عيد ميلاد النهارده:\n';
+        bd.today.forEach(function (s) { msg += '• ' + s.name + '\n'; });
+      }
+      if (bd.upcoming.length) {
+        msg += '\n📅 أعياد ميلاد خلال أسبوع:\n';
+        bd.upcoming.forEach(function (s) { msg += '• ' + s.name + ' (' + s.daysLeft + ' يوم)\n'; });
+      }
+      assistantBotMsg(msg.trim());
+      return;
+    }
+
+    /* إحصائيات */
+    if (/إحصاء|إحصائي|تقرير|report|stats|عدد|كم/i.test(lower)) {
+      var data = window.studentsData || [];
+      var attended = data.filter(function (s) { return s.lastAttendance; }).length;
+      var followup = data.filter(function (s) { return s.followupStatus && s.followupStatus !== 'بدون'; }).length;
+      assistantBotMsg(
+        '📊 إحصائيات الفصل:\n' +
+        '👥 إجمالي المخدومين: ' + data.length + '\n' +
+        '✅ حضروا: ' + attended + '\n' +
+        '📞 تم افتقادهم: ' + followup + '\n' +
+        '❌ لم يُتابَعوا: ' + (data.length - followup)
+      );
+      return;
+    }
+
+    /* مزامنة */
+    if (/مزامن|sync|تحديث|refresh/i.test(lower)) {
+      assistantBotMsg('لتحديث البيانات من الشيت:\nاضغط على أيقونة 🔄 في أعلى الشاشة\nأو اضغط "مزامنة" في الشريط العلوي.\n\nالتحديث التلقائي بيحصل كل 5 دقائق.');
+      return;
+    }
+
+    /* رد افتراضي */
+    assistantBotMsg(
+      'مش فاهم السؤال بالظبط 🤔\nجرب تسأل عن:\n' +
+      '• تسجيل حضور\n• إضافة مخدوم\n• رسالة متابعة\n• الغائبين\n• أعياد الميلاد\n• إحصائيات الفصل'
+    );
+  }
+
+  /* ---- خيارات رسالة المتابعة ---- */
+  function showFollowupOptions(s) {
+    var phone = getStudentPhone(s);
+    var name = s.name || 'المخدوم';
+
+    var msgs = [
+      {
+        label: '💙 رسالة افتقاد عامة',
+        text: 'السلام عليكم يا ' + name + ' 🌟\nبنفتقدك في فصل مارجرجس ❤️\nنتمنى نشوفك معانا الجمعة الجاية 🙏\nمع تحياتنا'
+      },
+      {
+        label: '✝️ رسالة تشجيعية',
+        text: 'السلام عليكم يا ' + name + ' 😊\nبنفتقد وجودك معانا في الفصل 🌸\n"لأن محبة المسيح تحثنا" ❤️\nمستنيينك الجمعة الجاية بإذن الله 🙏'
+      },
+      {
+        label: '📅 تذكير بموعد الفصل',
+        text: 'السلام عليكم يا ' + name + '\nبنذكرك بموعد فصل مارجرجس 📌\nيوم الجمعة ونتمنى نشوفك معانا 😊\nمع تحياتنا'
+      }
+    ];
+
+    if (!phone) {
+      var msgText = msgs[0].text;
+      assistantBotMsg(
+        '⚠️ ' + name + ' ما عندوش رقم مسجل.\n\nهتفتحلك WhatsApp بدون رقم — تقدر تنسخ الرسالة وتبعتها يدوي:',
+        msgs.map(function (m) {
+          return {
+            label: m.label,
+            fn: (function (txt) {
+              return function () { openWhatsAppMsg(null, txt); };
+            })(m.text)
+          };
+        })
+      );
+      return;
+    }
+
+    assistantBotMsg(
+      '📱 ' + name + '\nرقم: ' + phone + '\nاختار نوع الرسالة:',
+      msgs.map(function (m) {
+        return {
+          label: m.label,
+          fn: (function (txt) {
+            return function () { openWhatsAppMsg(phone, txt); };
+          })(m.text)
+        };
+      })
+    );
+  }
+
+  /* ---- فتح WhatsApp ---- */
+  function openWhatsAppMsg(phone, msg) {
+    var encoded = encodeURIComponent(msg);
+    var url = phone
+      ? 'https://wa.me/' + String(phone).replace(/\D/g, '') + '?text=' + encoded
+      : 'https://wa.me/?text=' + encoded;
+
+    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openExternalPage === 'function') {
+      AndroidServiceBridge.openExternalPage(url);
+    } else {
+      window.open(url, '_blank');
+    }
+    hideModal('assistantModal');
+  }
+
+  /* ---- مساعدات ---- */
+  function getStudentPhone(s) {
+    return (s.phoneStudent && String(s.phoneStudent).trim()) ||
+           (s.phoneParent1 && String(s.phoneParent1).trim()) ||
+           (s.phoneParent2 && String(s.phoneParent2).trim()) || null;
+  }
+
+  function searchStudentsFor(q) {
+    var data = window.studentsData || [];
+    var lower = q.trim().toLowerCase();
+    return data.filter(function (s) {
+      return s.name && s.name.toLowerCase().includes(lower);
+    });
+  }
+
+  function getAbsentStudents() {
+    var data = window.studentsData || [];
+    return data.filter(function (s) {
+      return !s.lastAttendance || s.lastAttendance === '';
+    });
+  }
+
+  /* ---- أعياد الميلاد ---- */
+  function getBirthdayStudents(daysAhead) {
+    var data = window.studentsData || [];
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var todayList = [], upcomingList = [];
+
+    data.forEach(function (s) {
+      if (!s.birthDate) return;
+      var parsed = parseBirthDate(s.birthDate);
+      if (!parsed) return;
+
+      var thisYear = new Date(today.getFullYear(), parsed.month, parsed.day);
+      var diff = Math.round((thisYear - today) / 86400000);
+      if (diff < 0) thisYear = new Date(today.getFullYear() + 1, parsed.month, parsed.day);
+      diff = Math.round((thisYear - today) / 86400000);
+
+      if (diff === 0) todayList.push(s);
+      else if (diff > 0 && diff <= daysAhead) upcomingList.push(Object.assign({}, s, { daysLeft: diff }));
+    });
+
+    upcomingList.sort(function (a, b) { return a.daysLeft - b.daysLeft; });
+    return { today: todayList, upcoming: upcomingList };
+  }
+
+  function parseBirthDate(str) {
+    if (!str) return null;
+    var s = String(str).trim();
+    // DD/MM/YYYY أو DD-MM-YYYY
+    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m) return { day: parseInt(m[1], 10), month: parseInt(m[2], 10) - 1 };
+    // YYYY-MM-DD
+    m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) return { day: parseInt(m[3], 10), month: parseInt(m[2], 10) - 1 };
+    return null;
+  }
+
+  /* ---- إشعارات الميلاد تلقائية ---- */
+  window.checkBirthdayNotifications = function () {
+    var bd = getBirthdayStudents(7);
+    var todayKey = new Date().toISOString().slice(0, 10);
+    var storageKey = 'stgorge_bday_notif_' + todayKey;
+    try { if (localStorage.getItem(storageKey)) return; } catch (e) {}
+
+    bd.today.forEach(function (s) {
+      window.addNotification({
+        title: '🎂 عيد ميلاد النهارده!',
+        desc: s.name + ' — عيد ميلاده النهارده 🎉',
+        type: 'success'
+      });
+    });
+
+    bd.upcoming.forEach(function (s) {
+      window.addNotification({
+        title: '📅 عيد ميلاد قريب',
+        desc: s.name + ' — بعد ' + s.daysLeft + ' يوم',
+        type: 'info'
+      });
+    });
+
+    try { if (bd.today.length || bd.upcoming.length) localStorage.setItem(storageKey, '1'); } catch (e) {}
+  };
+
+  /* ---- تشغيل الإشعارات بعد تحميل البيانات ---- */
+  var _origApply = null;
+  var _bdayCheckDone = false;
+  function hookBdayCheck() {
+    if (_bdayCheckDone) return;
+    var data = window.studentsData || [];
+    if (!data.length) return;
+    _bdayCheckDone = true;
+    window.checkBirthdayNotifications();
+  }
+  // نراقب studentsData بعد كل sync
+  var _origFetch = window.fetchLiveGoogleSheetData;
+  if (typeof _origFetch === 'function') {
+    window.fetchLiveGoogleSheetData = function () {
+      var result = _origFetch.apply(this, arguments);
+      if (result && typeof result.then === 'function') {
+        result.then(function () { _bdayCheckDone = false; hookBdayCheck(); });
+      }
+      return result;
+    };
+  }
+  // fallback: تحقق بعد 5 ثوانٍ من تحميل الصفحة
+  setTimeout(hookBdayCheck, 5000);
+
 })();
 </script>
 
