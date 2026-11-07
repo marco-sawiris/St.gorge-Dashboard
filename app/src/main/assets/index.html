@@ -2866,7 +2866,7 @@
       <span>الإحصائيات الذكية</span>
     </button>
     <button class="sidebar-nav-item" style="--i:3" onclick="navTo('followupLog')">
-      <i class="fa-solid fa-phone"></i>
+      <i class="fa-solid fa-user"></i>
       <span>سجل الافتقاد</span>
     </button>
     <!-- اختيار منطقة وتطبيق الفلتر بها مباشرة -->
@@ -2878,16 +2878,12 @@
 
     <a href="https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit" 
        onclick="return openExternalSheet(event)" class="sidebar-nav-item" style="--i:6">
-      <i class="fa-solid fa-file-excel"></i>
+      <i class="fa-solid fa-file-excel" style="color:#217346;"></i>
       <span>فتح ملف الشيت</span>
     </a>
     <button class="sidebar-nav-item" style="--i:7" onclick="closeSidebar(); showModal('aboutModal')">
       <i class="fa-solid fa-circle-info"></i>
       <span>عن التطبيق</span>
-    </button>
-    <button class="sidebar-nav-item" id="btnAssistant" style="--i:8" onclick="closeSidebar(); window.openAssistantModal()">
-      <i class="fa-solid fa-robot" style="color:#fbd68b;"></i>
-      <span>المساعد الذكي</span>
     </button>
 </nav>
 
@@ -2919,6 +2915,12 @@
   <div class="servants-chips-wrap" id="servantsChipsContainer">
     <span class="text-muted small">جاري تحميل الخدام...</span>
   </div>
+
+  <div class="sidebar-divider"></div>
+  <button class="sidebar-nav-item" id="btnAssistant" style="--i:9; margin-top:4px;" onclick="closeSidebar(); window.openAssistantModal()">
+    <i class="fa-solid fa-robot" style="color:#fbd68b;"></i>
+    <span>المساعد الذكي</span>
+  </button>
 </aside>
 
 <!-- حاوية التنبيهات Toast -->
