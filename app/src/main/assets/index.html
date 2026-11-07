@@ -522,17 +522,14 @@
       top: 0;
       right: 0;
       left: 0;
-      width: 100%;
+      width: 0%;
       height: 6px;
       background: linear-gradient(90deg, #1a73e8, #4da3ff, #fbd68b, #ffb300);
       z-index: 999999;
       pointer-events: none;
-      box-shadow: 0 2px 10px rgba(26, 115, 232, 0.55);
-      transform: scaleX(0);
-      transform-origin: right center;
-      transition: transform 60ms linear, opacity 180ms ease;
-      will-change: transform, opacity;
-      opacity: 0.3;
+      box-shadow: 0 2px 10px rgba(26, 115, 232, 0.85);
+      transition: width 80ms ease-out, opacity 250ms ease;
+      opacity: 0.95;
     }
 
     /* شريط التمرير الرأسي والأفقي المخصص (Scrollbar) عريض وواضح */
@@ -1234,38 +1231,328 @@
       align-items: center;
       gap: 8px;
     }
+    /* ======= زر الجرس ======= */
+    .btn-bell {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .btn-bell .bell-badge {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      width: 10px;
+      height: 10px;
+      background: #e53935;
+      border-radius: 50%;
+      border: 2px solid var(--card-bg);
+      display: none;
+    }
+    .btn-bell.has-notif .bell-badge {
+      display: block;
+    }
+    /* ======= Panel التنبيهات ======= */
+    .notif-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10500;
+      display: none;
+    }
+    .notif-overlay.open {
+      display: block;
+    }
+    .notif-panel {
+      position: fixed;
+      top: 70px;
+      right: 14px;
+      width: min(360px, calc(100vw - 28px));
+      max-height: 70vh;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      z-index: 10501;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: panelSlideIn 220ms cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    @keyframes panelSlideIn {
+      from { opacity: 0; transform: translateY(-16px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .notif-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .notif-panel-header h3 {
+      font-family: 'Almarai', sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin: 0;
+    }
+    .btn-mark-all-read {
+      font-size: 12px;
+      color: var(--navy);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: 'Almarai', sans-serif;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 8px;
+    }
+    .btn-mark-all-read:hover { background: var(--input-bg); }
+    .notif-list {
+      overflow-y: auto;
+      flex: 1;
+      padding: 8px 0;
+    }
+    .notif-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 18px;
+      cursor: pointer;
+      transition: background 150ms;
+      border-bottom: 1px solid var(--border);
+    }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-item:hover { background: var(--input-bg); }
+    .notif-item.unread { background: rgba(36, 100, 154, 0.07); }
+    .notif-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .notif-icon.type-info    { background: rgba(36,100,154,0.15); color: #24649a; }
+    .notif-icon.type-warn    { background: rgba(251,214,139,0.25); color: #c8970a; }
+    .notif-icon.type-success { background: rgba(40,167,69,0.15);  color: #28a745; }
+    .notif-icon.type-danger  { background: rgba(229,57,53,0.15);  color: #e53935; }
+    .notif-body { flex: 1; min-width: 0; }
+    .notif-body .notif-title {
+      font-family: 'Almarai', sans-serif;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 3px;
+    }
+    .notif-body .notif-desc {
+      font-size: 12px;
+      color: var(--text-muted, #888);
+      line-height: 1.5;
+    }
+    .notif-body .notif-time {
+      font-size: 11px;
+      color: var(--text-muted, #888);
+      margin-top: 4px;
+    }
+    .notif-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #24649a;
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+    .notif-item:not(.unread) .notif-dot { opacity: 0; }
+    .notif-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted, #888);
+      font-family: 'Almarai', sans-serif;
+    }
+    .notif-empty i { font-size: 38px; opacity: 0.3; display: block; margin-bottom: 12px; }
+    [dir="rtl"] .notif-panel { right: 14px; left: auto; }
 
-    /* ======= زر الجرس ولوحة التنبيهات ======= */
-    .btn-bell{position:relative;width:44px;height:44px;border-radius:12px;background:var(--input-bg);border:1px solid var(--border);color:var(--text-main);display:grid;place-items:center;font-size:20px;cursor:pointer;flex-shrink:0}
-    .btn-bell .bell-badge{position:absolute;top:6px;left:6px;width:10px;height:10px;background:#e53935;border-radius:50%;border:2px solid var(--card-bg);display:none}
-    .btn-bell.has-notif .bell-badge{display:block}
-    .notif-overlay{position:fixed;inset:0;z-index:10500;display:none}
-    .notif-overlay.open{display:block}
-    .notif-panel{position:fixed;top:70px;right:14px;width:min(360px,calc(100vw - 28px));max-height:70vh;background:var(--card-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:10501;display:flex;flex-direction:column;overflow:hidden;animation:panelSlideIn 220ms cubic-bezier(.34,1.56,.64,1) both}
-    @keyframes panelSlideIn{from{opacity:0;transform:translateY(-16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-    .notif-panel-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
-    .notif-panel-header h3{font-family:'Almarai',sans-serif;font-size:16px;font-weight:800;color:var(--text-main);margin:0}
-    .btn-mark-all-read{font-size:12px;color:var(--navy);background:none;border:0;cursor:pointer;font-family:'Almarai',sans-serif;font-weight:700;padding:4px 8px;border-radius:8px}
-    .btn-mark-all-read:hover,.notif-item:hover{background:var(--input-bg)}
-    .notif-list{overflow-y:auto;flex:1;padding:8px 0;-webkit-overflow-scrolling:touch}
-    .notif-item{display:flex;align-items:flex-start;gap:12px;padding:12px 18px;cursor:pointer;transition:background 150ms;border-bottom:1px solid var(--border)}
-    .notif-item:last-child{border-bottom:0}
-    .notif-item.unread{background:rgba(36,100,154,.07)}
-    .notif-icon{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:16px;flex-shrink:0}
-    .notif-icon.type-info{background:rgba(36,100,154,.15);color:#24649a}
-    .notif-icon.type-warn{background:rgba(251,214,139,.25);color:#c8970a}
-    .notif-icon.type-success{background:rgba(40,167,69,.15);color:#28a745}
-    .notif-icon.type-danger{background:rgba(229,57,53,.15);color:#e53935}
-    .notif-body{flex:1;min-width:0}
-    .notif-body .notif-title{font-family:'Almarai',sans-serif;font-size:13.5px;font-weight:700;color:var(--text-main);margin-bottom:3px}
-    .notif-body .notif-desc{font-size:12px;color:var(--text-muted,#888);line-height:1.5}
-    .notif-body .notif-time{font-size:11px;color:var(--text-muted,#888);margin-top:4px}
-    .notif-dot{width:8px;height:8px;border-radius:50%;background:#24649a;flex-shrink:0;margin-top:5px}
-    .notif-item:not(.unread) .notif-dot{opacity:0}
-    .notif-empty{text-align:center;padding:40px 20px;color:var(--text-muted,#888);font-family:'Almarai',sans-serif}
-    .notif-empty i{font-size:38px;opacity:.3;display:block;margin-bottom:12px}
-    [dir="rtl"] .notif-panel{right:14px;left:auto}
-
+    /* ======= صفحة عن التطبيق ======= */
+    .about-page-wrap {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 24px 16px 100px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      animation: aboutIn 400ms cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    @keyframes aboutIn {
+      from { opacity: 0; transform: translateY(28px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .about-icon-wrap {
+      margin-top: 8px;
+    }
+    .about-app-icon {
+      width: 96px;
+      height: 96px;
+      border-radius: 24px;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 24px rgba(18,52,77,0.25));
+    }
+    .about-title-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .about-app-name {
+      font-family: 'Almarai', sans-serif;
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--navy);
+      margin: 0;
+    }
+    [data-theme="dark"] .about-app-name { color: #fbd68b; }
+    .about-version-badge {
+      background: rgba(36,100,154,0.12);
+      color: #24649a;
+      border: 1px solid rgba(36,100,154,0.25);
+      border-radius: 20px;
+      padding: 3px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      font-family: 'Almarai', sans-serif;
+    }
+    .about-church-card {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .about-church-icon {
+      font-size: 32px;
+      color: #24649a;
+      flex-shrink: 0;
+    }
+    .about-church-name {
+      font-family: 'Almarai', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.4;
+    }
+    .about-church-sub {
+      font-family: 'Almarai', sans-serif;
+      font-size: 13px;
+      color: var(--text-muted, #888);
+      margin-top: 3px;
+    }
+    .about-desc-card {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .about-desc-text {
+      font-family: 'Almarai', sans-serif;
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--text-main);
+      margin: 0;
+      text-align: center;
+    }
+    .about-features-card {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .about-section-title {
+      font-family: 'Almarai', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--navy);
+      margin: 0 0 14px;
+    }
+    [data-theme="dark"] .about-section-title { color: #fbd68b; }
+    .about-features-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .about-features-list li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Almarai', sans-serif;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+    .about-features-list li i {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: rgba(36,100,154,0.1);
+      color: #24649a;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .about-mission-card {
+      width: 100%;
+      background: linear-gradient(135deg, #12344d 0%, #24649a 100%);
+      border-radius: 18px;
+      padding: 24px 20px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(18,52,77,0.25);
+    }
+    .about-mission-icon {
+      font-size: 32px;
+      color: #fbd68b;
+      display: block;
+      margin-bottom: 10px;
+    }
+    .about-mission-card .about-section-title {
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .about-mission-text {
+      font-family: 'Almarai', sans-serif;
+      font-size: 14px;
+      line-height: 1.8;
+      color: rgba(255,255,255,0.88);
+      margin: 0 0 14px;
+    }
+    .about-mission-quote {
+      font-family: 'Almarai', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      color: #fbd68b;
+      border-top: 1px solid rgba(255,255,255,0.2);
+      padding-top: 14px;
+    }
     .btn-help-quick {
       background: linear-gradient(135deg, #12344d, #24649a);
       color: #fff;
@@ -1525,19 +1812,6 @@
       opacity: 1 !important;
       transform: translateY(-2px);
       box-shadow: 0 10px 24px rgba(18, 52, 77, 0.12);
-    }
-
-    /* تحسين أداء التمرير على شاشات اللمس: تجنب فلاتر grayscale وblur أثناء تحريك الصفحة */
-    @media (hover: none) and (pointer: coarse) {
-      .student-card {
-        filter: none;
-        opacity: 1;
-        transition: transform 180ms ease, box-shadow 180ms ease;
-      }
-      .top-bar {
-        -webkit-backdrop-filter: none;
-        backdrop-filter: none;
-      }
     }
 
     .card-front {
@@ -2576,13 +2850,9 @@
       <i class="fa-solid fa-file-excel"></i>
       <span>فتح ملف الشيت</span>
     </a>
-    <button class="sidebar-nav-item" id="btnAboutApp" style="--i:7" onclick="window.openAboutModal()">
+    <button class="sidebar-nav-item" style="--i:7" onclick="closeSidebar(); showModal('aboutModal')">
       <i class="fa-solid fa-circle-info"></i>
       <span>عن التطبيق</span>
-    </button>
-    <button class="sidebar-nav-item" id="btnAssistant" style="--i:8" onclick="closeSidebar(); window.openAssistantModal()">
-      <i class="fa-solid fa-robot" style="color:#fbd68b;"></i>
-      <span>المساعد الذكي</span>
     </button>
 </nav>
 
@@ -2627,7 +2897,10 @@
     <button class="btn-mark-all-read" onclick="markAllNotifsRead()">قراءة الكل</button>
   </div>
   <div class="notif-list" id="notifList">
-    <div class="notif-empty"><i class="fa-regular fa-bell-slash"></i>لا توجد تنبيهات</div>
+    <div class="notif-empty">
+      <i class="fa-regular fa-bell-slash"></i>
+      لا توجد تنبيهات
+    </div>
   </div>
 </div>
 
@@ -2652,8 +2925,9 @@
     <h2 class="top-bar-title">St.Gorge-Dashboard</h2>
   </div>
   <div class="top-actions-group">
-    <button class="btn-bell" id="btnBell" onclick="window.toggleNotifPanel()" aria-label="التنبيهات" title="التنبيهات">
-      <i class="fa-solid fa-bell"></i><span class="bell-badge"></span>
+    <button class="btn-bell" id="btnBell" onclick="toggleNotifPanel()" aria-label="التنبيهات" title="التنبيهات">
+      <i class="fa-solid fa-bell"></i>
+      <span class="bell-badge"></span>
     </button>
 <div class="offline-queue-badge" id="offlineQueueBadge" onclick="processOfflineQueue()" style="display:none;" title="عمليات معلقة بانتظار النت">
       <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
@@ -2900,97 +3174,78 @@
       </div>
     </div>
   </section>
+
+
 </div>
 
 <!-- مودال عن التطبيق -->
 <div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content rounded-4 border-0 shadow-lg" style="background:var(--card-bg);color:var(--text-main)">
-      <div class="modal-header border-bottom" style="padding:16px 20px">
+    <div class="modal-content rounded-4 border-0 shadow-lg" style="background: var(--card-bg); color: var(--text-main);">
+
+      <!-- هيدر -->
+      <div class="modal-header border-bottom" style="padding: 16px 20px;">
         <div class="d-flex align-items-center gap-3">
-          <img src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png" alt="St.Gorge" style="width:42px;height:42px;border-radius:12px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.2))">
+          <img src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png"
+               alt="St.Gorge"
+               style="width:42px; height:42px; border-radius:12px; object-fit:contain; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.2));">
           <div>
-            <h5 class="modal-title fw-bold mb-0" style="font-family:'Almarai',sans-serif;font-size:16px">St.Gorge Dashboard</h5>
-            <span style="font-size:11px;background:rgba(36,100,154,.12);color:#24649a;border:1px solid rgba(36,100,154,.25);border-radius:20px;padding:1px 10px;font-family:'Almarai',sans-serif;font-weight:800">الإصدار v6</span>
+            <h5 class="modal-title fw-bold mb-0" style="font-family:'Almarai',sans-serif; font-size:16px;">St.Gorge Dashboard</h5>
+            <span style="font-size:11px; background:rgba(36,100,154,0.12); color:#24649a; border:1px solid rgba(36,100,154,0.25); border-radius:20px; padding:1px 10px; font-family:'Almarai',sans-serif; font-weight:800;">الإصدار v6</span>
           </div>
         </div>
         <button type="button" class="btn-close" onclick="hideModal('aboutModal')" aria-label="إغلاق"></button>
       </div>
-      <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:16px">
-        <div style="background:var(--input-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:14px">
-          <i class="fa-solid fa-church" style="font-size:28px;color:#24649a;flex-shrink:0"></i>
+
+      <!-- البودي -->
+      <div class="modal-body" style="padding: 20px; display:flex; flex-direction:column; gap:16px;">
+
+        <!-- الكنيسة والفصل -->
+        <div style="background:var(--input-bg); border:1px solid var(--border); border-radius:14px; padding:16px 18px; display:flex; align-items:center; gap:14px;">
+          <i class="fa-solid fa-church" style="font-size:28px; color:#24649a; flex-shrink:0;"></i>
           <div>
-            <div style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:800;color:var(--text-main);line-height:1.5">فصل الشهيد العظيم مارجرجس الروماني</div>
-            <div style="font-family:'Almarai',sans-serif;font-size:12px;color:var(--text-muted,#888);margin-top:2px">كنيسة السيدة العذراء مريم بالزيتون</div>
+            <div style="font-family:'Almarai',sans-serif; font-size:14px; font-weight:800; color:var(--text-main); line-height:1.5;">فصل الشهيد العظيم مارجرجس الروماني</div>
+            <div style="font-family:'Almarai',sans-serif; font-size:12px; color:var(--text-muted,#888); margin-top:2px;">كنيسة السيدة العذراء مريم بالزيتون</div>
           </div>
         </div>
-        <div style="background:var(--input-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
-          <p style="font-family:'Almarai',sans-serif;font-size:13.5px;line-height:1.9;color:var(--text-main);margin:0;text-align:center">تطبيق مخصص لتنظيم ومتابعة خدمة الفصل، وتسهيل إدارة بيانات المخدومين ومتابعة حضورهم وافتقادهم، من خلال واجهة بسيطة وسهلة الاستخدام.</p>
+
+        <!-- وصف التطبيق -->
+        <div style="background:var(--input-bg); border:1px solid var(--border); border-radius:14px; padding:16px 18px;">
+          <p style="font-family:'Almarai',sans-serif; font-size:13.5px; line-height:1.9; color:var(--text-main); margin:0; text-align:center;">
+            تطبيق مخصص لتنظيم ومتابعة خدمة الفصل، وتسهيل إدارة بيانات المخدومين ومتابعة حضورهم وافتقادهم، من خلال واجهة بسيطة وسهلة الاستخدام.
+          </p>
         </div>
-        <div style="background:var(--input-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
-          <div style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:800;color:var(--navy);margin-bottom:12px"><i class="fa-solid fa-star me-2" style="color:#f59e0b"></i>مميزات التطبيق</div>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-id-card"></i></span>إدارة بيانات المخدومين وتنظيمها</div>
-            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-calendar-check"></i></span>تسجيل ومتابعة الحضور والغياب</div>
-            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-phone"></i></span>متابعة الافتقاد وتسجيل الملاحظات</div>
-            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-cake-candles"></i></span>متابعة أعياد ميلاد المخدومين</div>
-            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-chart-pie"></i></span>إحصائيات وتقارير لمتابعة الخدمة</div>
-            <div style="display:flex;align-items:center;gap:10px;font-family:'Almarai',sans-serif;font-size:13px;color:var(--text-main)"><span style="width:30px;height:30px;border-radius:9px;background:rgba(36,100,154,.1);color:#24649a;display:grid;place-items:center;flex-shrink:0"><i class="fa-solid fa-users"></i></span>تنظيم بيانات الفصول والخدام</div>
+
+        <!-- المميزات -->
+        <div style="background:var(--input-bg); border:1px solid var(--border); border-radius:14px; padding:16px 18px;">
+          <div style="font-family:'Almarai',sans-serif; font-size:14px; font-weight:800; color:var(--navy); margin-bottom:12px;">
+            <i class="fa-solid fa-star me-2" style="color:#f59e0b;"></i>مميزات التطبيق
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px; font-family:'Almarai',sans-serif; font-size:13px; color:var(--text-main);"><span style="width:30px; height:30px; border-radius:9px; background:rgba(36,100,154,0.1); color:#24649a; display:grid; place-items:center; flex-shrink:0;"><i class="fa-solid fa-id-card"></i></span>إدارة بيانات المخدومين وتنظيمها</div>
+            <div style="display:flex; align-items:center; gap:10px; font-family:'Almarai',sans-serif; font-size:13px; color:var(--text-main);"><span style="width:30px; height:30px; border-radius:9px; background:rgba(36,100,154,0.1); color:#24649a; display:grid; place-items:center; flex-shrink:0;"><i class="fa-solid fa-calendar-check"></i></span>تسجيل ومتابعة الحضور والغياب</div>
+            <div style="display:flex; align-items:center; gap:10px; font-family:'Almarai',sans-serif; font-size:13px; color:var(--text-main);"><span style="width:30px; height:30px; border-radius:9px; background:rgba(36,100,154,0.1); color:#24649a; display:grid; place-items:center; flex-shrink:0;"><i class="fa-solid fa-phone"></i></span>متابعة الافتقاد وتسجيل الملاحظات</div>
+            <div style="display:flex; align-items:center; gap:10px; font-family:'Almarai',sans-serif; font-size:13px; color:var(--text-main);"><span style="width:30px; height:30px; border-radius:9px; background:rgba(36,100,154,0.1); color:#24649a; display:grid; place-items:center; flex-shrink:0;"><i class="fa-solid fa-cake-candles"></i></span>متابعة أعياد ميلاد المخدومين</div>
+            <div style="display:flex; align-items:center; gap:10px; font-family:'Almarai',sans-serif; font-size:13px; color:var(--text-main);"><span style="width:30px; height:30px; border-radius:9px; background:rgba(36,100,154,0.1); color:#24649a; display:grid; place-items:center; flex-shrink:0;"><i class="fa-solid fa-chart-pie"></i></span>إحصائيات وتقارير لمتابعة الخدمة</div>
+            <div style="display:flex; align-items:center; gap:10px; font-family:'Almarai',sans-serif; font-size:13px; color:var(--text-main);"><span style="width:30px; height:30px; border-radius:9px; background:rgba(36,100,154,0.1); color:#24649a; display:grid; place-items:center; flex-shrink:0;"><i class="fa-solid fa-users"></i></span>تنظيم بيانات الفصول والخدام</div>
           </div>
         </div>
-        <div style="background:linear-gradient(135deg,#12344d 0%,#24649a 100%);border-radius:14px;padding:20px 18px;text-align:center">
-          <i class="fa-solid fa-heart" style="font-size:28px;color:#fbd68b;display:block;margin-bottom:8px"></i>
-          <div style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:800;color:#fff;margin-bottom:8px">رسالتنا</div>
-          <p style="font-family:'Almarai',sans-serif;font-size:13px;line-height:1.8;color:rgba(255,255,255,.88);margin:0 0 12px">نخدم بمحبة، ونتابع بأمانة، ونسعى دائمًا لتطوير خدمتنا من أجل أولاد ربنا.</p>
-          <div style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:800;color:#fbd68b;border-top:1px solid rgba(255,255,255,.2);padding-top:12px">كل تعب المحبة من أجل أولاد ربنا.</div>
-        </div>
-      </div>
-      <div class="modal-footer border-top" style="padding:12px 20px">
-        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" style="font-family:'Almarai',sans-serif" onclick="hideModal('aboutModal')"><i class="fa-solid fa-xmark me-2"></i>إغلاق</button>
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- ===== مودال المساعد الذكي ===== -->
-<div class="modal fade" id="assistantModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:min(480px,calc(100vw - 24px));">
-    <div class="modal-content rounded-4 border-0 shadow-lg" style="background:var(--card-bg);color:var(--text-main);">
-
-      <!-- هيدر -->
-      <div class="modal-header border-bottom" style="background:linear-gradient(135deg,#12344d,#24649a);border-radius:1rem 1rem 0 0;padding:14px 18px;">
-        <div class="d-flex align-items-center gap-2">
-          <i class="fa-solid fa-robot" style="font-size:22px;color:#fbd68b;"></i>
-          <div>
-            <h5 class="modal-title fw-bold mb-0" style="font-family:'Almarai',sans-serif;font-size:15px;color:#fff;">المساعد الذكي</h5>
-            <div style="font-size:11px;color:rgba(255,255,255,0.7);font-family:'Almarai',sans-serif;">اسألني أي سؤال عن الخدمة</div>
-          </div>
+        <!-- رسالتنا -->
+        <div style="background:linear-gradient(135deg,#12344d 0%,#24649a 100%); border-radius:14px; padding:20px 18px; text-align:center;">
+          <i class="fa-solid fa-heart" style="font-size:28px; color:#fbd68b; display:block; margin-bottom:8px;"></i>
+          <div style="font-family:'Almarai',sans-serif; font-size:14px; font-weight:800; color:#fff; margin-bottom:8px;">رسالتنا</div>
+          <p style="font-family:'Almarai',sans-serif; font-size:13px; line-height:1.8; color:rgba(255,255,255,0.88); margin:0 0 12px;">نخدم بمحبة، ونتابع بأمانة، ونسعى دائمًا لتطوير خدمتنا من أجل أولاد ربنا.</p>
+          <div style="font-family:'Almarai',sans-serif; font-size:14px; font-weight:800; color:#fbd68b; border-top:1px solid rgba(255,255,255,0.2); padding-top:12px;">كل تعب المحبة من أجل أولاد ربنا.</div>
         </div>
-        <button type="button" class="btn-close btn-close-white" onclick="hideModal('assistantModal')"></button>
+
       </div>
 
-      <!-- نافذة المحادثة -->
-      <div class="modal-body" style="padding:14px;display:flex;flex-direction:column;gap:10px;">
-        <div class="help-chat-window" id="assistantChat"></div>
-
-        <!-- أسئلة سريعة -->
-        <div class="help-quick-prompts" id="assistantQuickPrompts">
-          <button class="btn-help-prompt" onclick="assistantAsk('كيف أسجل حضور مخدوم؟')">تسجيل حضور</button>
-          <button class="btn-help-prompt" onclick="assistantAsk('كيف أضيف مخدوم جديد؟')">إضافة مخدوم</button>
-          <button class="btn-help-prompt" onclick="assistantAsk('أرسل رسالة متابعة')">رسالة متابعة</button>
-          <button class="btn-help-prompt" onclick="assistantAsk('من غاب أكثر من مرتين؟')">الغائبين</button>
-          <button class="btn-help-prompt" onclick="assistantAsk('أعياد ميلاد هذا الأسبوع')">أعياد الميلاد</button>
-        </div>
-
-        <!-- حقل الإدخال -->
-        <div class="help-input-row">
-          <input class="form-control rounded-3" id="assistantInput" type="text"
-                 placeholder="اكتب سؤالك هنا…"
-                 onkeydown="if(event.key==='Enter') assistantSend()">
-          <button class="btn btn-primary rounded-3 px-3 fw-bold" onclick="assistantSend()">
-            <i class="fa-solid fa-paper-plane"></i>
-          </button>
-        </div>
+      <!-- فوتر -->
+      <div class="modal-footer border-top" style="padding:12px 20px;">
+        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" style="font-family:'Almarai',sans-serif;" onclick="hideModal('aboutModal')">
+          <i class="fa-solid fa-xmark me-2"></i>إغلاق
+        </button>
       </div>
 
     </div>
@@ -3168,21 +3423,20 @@
   });
 
 
-  /* شريط تقدم التمرير: تحديث واحد كحد أقصى لكل إطار عرض */
-  let scrollProgressFrame = 0;
+  /* شريط تقدم التمرير الأفقي في أعلى الشاشة */
   function updateScrollProgress() {
-    if (scrollProgressFrame) return;
-    scrollProgressFrame = requestAnimationFrame(() => {
-      scrollProgressFrame = 0;
-      const root = document.documentElement;
-      const scrollTop = window.scrollY || root.scrollTop || 0;
-      const maxScroll = Math.max(0, root.scrollHeight - window.innerHeight);
-      const progress = maxScroll > 0 ? Math.min(1, Math.max(0, scrollTop / maxScroll)) : 0;
-      const bar = document.getElementById('scrollBar');
-      if (!bar) return;
-      bar.style.transform = 'scaleX(' + progress + ')';
-      bar.style.opacity = progress > 0 ? '0.95' : '0.3';
-    });
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+    const docHeight = (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight;
+    const progress = docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0;
+    const bar = document.getElementById('scrollBar');
+    if (bar) {
+      bar.style.width = progress + '%';
+      bar.style.opacity = progress > 0 ? '0.95' : '0.4';
+      clearTimeout(window._scrollBarTimer);
+      window._scrollBarTimer = setTimeout(() => {
+        bar.style.opacity = progress > 0 ? '0.8' : '0.3';
+      }, 500);
+    }
   }
   window.addEventListener('scroll', updateScrollProgress, { passive: true });
   window.addEventListener('resize', updateScrollProgress, { passive: true });
@@ -3330,26 +3584,31 @@
   function showModal(modalId) {
     try {
       const el = document.getElementById(modalId);
-      if (!el) { console.warn('showModal: element not found', modalId); return; }
-      if (el.parentElement !== document.body) document.body.appendChild(el);
-      el.style.setProperty('display', 'flex', 'important');
-      el.style.setProperty('z-index', '30010', 'important');
+      if (!el) {
+        console.warn('showModal: element not found', modalId);
+        return;
+      }
+      if (el.parentElement !== document.body) {
+        document.body.appendChild(el);
+      }
+      el.style.display = 'flex';
       el.classList.add('show');
       el.removeAttribute('aria-hidden');
       el.setAttribute('aria-modal', 'true');
       el.setAttribute('role', 'dialog');
       document.documentElement.classList.add('modal-open');
       document.body.classList.add('modal-open');
-    } catch (err) { console.error('showModal error:', err); }
+    } catch (err) {
+      console.error('showModal error:', err);
+    }
   }
-  window.showModal = showModal;
 
   function hideModal(modalId) {
     try {
       const el = document.getElementById(modalId);
       if (!el) return;
       el.classList.remove('show');
-      el.style.setProperty('display', 'none', 'important');
+      el.style.display = 'none';
       el.setAttribute('aria-hidden', 'true');
       el.removeAttribute('aria-modal');
       el.removeAttribute('role');
@@ -3357,9 +3616,10 @@
         document.documentElement.classList.remove('modal-open');
         document.body.classList.remove('modal-open');
       }
-    } catch (err) { console.error('hideModal error:', err); }
+    } catch (err) {
+      console.error('hideModal error:', err);
+    }
   }
-  window.hideModal = hideModal;
 
   document.addEventListener('click', (e) => {
     if (e.target && e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('show')) {
@@ -3799,7 +4059,7 @@
     const badge = document.getElementById('cardsCountBadge');
     if (badge) badge.textContent = filteredData.length;
     renderCurrentView();
-    if ((window._currentDashboardView || 'cards') !== 'cards' && typeof renderBottomKeyboard === 'function') {
+    if (typeof renderBottomKeyboard === 'function') {
       renderBottomKeyboard();
     }
   }
@@ -4642,7 +4902,6 @@
   }
 
   function switchView(viewName) {
-    window._currentDashboardView = viewName;
     document.querySelectorAll('.app-tab-btn').forEach(b => b.classList.remove('active'));
     const activeTab = document.getElementById(`tab-${viewName}`);
     if (activeTab) activeTab.classList.add('active');
@@ -4667,11 +4926,8 @@
   }
 
   function renderCurrentView() {
-    const viewName = window._currentDashboardView || 'cards';
-    if (viewName === 'table') renderTable();
-    else if (viewName === 'charts') renderStats();
-    else if (viewName === 'followupLog') renderFollowupLog();
-    else renderCards();
+    renderCards();
+    renderTable();
   }
 
   function renderTable() {
@@ -5169,11 +5425,7 @@
 
 
 
-  let searchFilterTimer = 0;
-  document.getElementById('searchInput').addEventListener('input', () => {
-    clearTimeout(searchFilterTimer);
-    searchFilterTimer = setTimeout(applyFilters, 90);
-  });
+  document.getElementById('searchInput').addEventListener('input', applyFilters);
   document.getElementById('servantFilterSelector').addEventListener('change', function() {
     setServantFilter(this.value);
   });
@@ -5185,6 +5437,14 @@
     document.getElementById('activeAreaBadge').classList.remove('visible');
     fetchLiveGoogleSheetData();
   });
+
+  document.addEventListener('touchstart', (e) => {
+    const card = e.target.closest('.student-card');
+    document.querySelectorAll('.student-card.hover-active').forEach(c => {
+      if (c !== card) c.classList.remove('hover-active');
+    });
+    if (card) card.classList.add('hover-active');
+  }, { passive: true });
 
   document.addEventListener('DOMContentLoaded', () => {
     updateOfflineQueueUI();
@@ -5388,30 +5648,37 @@
    نظام التنبيهات — Notifications System
    ============================================= */
 (function () {
+  // بيانات التنبيهات محفوظة في localStorage
   var STORAGE_KEY = 'stgorge_notifications';
+
   function loadNotifs() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
   }
   function saveNotifs(list) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch(e) {}
   }
+
+  // إضافة تنبيه جديد من أي مكان في التطبيق:
+  // addNotification({ title:'...', desc:'...', type:'info|warn|success|danger' })
   window.addNotification = function(opts) {
     var notifs = loadNotifs();
     var icons = { info:'fa-circle-info', warn:'fa-triangle-exclamation', success:'fa-circle-check', danger:'fa-circle-xmark' };
     notifs.unshift({
       id: Date.now() + Math.random(),
       title: opts.title || 'تنبيه',
-      desc: opts.desc || '',
-      type: opts.type || 'info',
-      icon: icons[opts.type] || 'fa-circle-info',
-      time: new Date().toLocaleTimeString('ar-EG', { hour:'2-digit', minute:'2-digit' }),
+      desc:  opts.desc  || '',
+      type:  opts.type  || 'info',
+      icon:  icons[opts.type] || 'fa-circle-info',
+      time:  new Date().toLocaleTimeString('ar-EG', { hour:'2-digit', minute:'2-digit' }),
       unread: true
     });
+    // احتفظ بآخر 30 تنبيه فقط
     if (notifs.length > 30) notifs = notifs.slice(0, 30);
     saveNotifs(notifs);
     renderNotifList();
     updateBellBadge();
   };
+
   function renderNotifList() {
     var list = document.getElementById('notifList');
     if (!list) return;
@@ -5423,12 +5690,15 @@
     list.innerHTML = notifs.map(function(n) {
       return '<div class="notif-item ' + (n.unread ? 'unread' : '') + '" onclick="markNotifRead(\'' + n.id + '\')">' +
         '<div class="notif-icon type-' + n.type + '"><i class="fa-solid ' + n.icon + '"></i></div>' +
-        '<div class="notif-body"><div class="notif-title">' + n.title + '</div>' +
-        (n.desc ? '<div class="notif-desc">' + n.desc + '</div>' : '') +
-        '<div class="notif-time">' + n.time + '</div></div><span class="notif-dot"></span></div>';
+        '<div class="notif-body">' +
+          '<div class="notif-title">' + n.title + '</div>' +
+          (n.desc ? '<div class="notif-desc">' + n.desc + '</div>' : '') +
+          '<div class="notif-time">' + n.time + '</div>' +
+        '</div>' +
+        '<span class="notif-dot"></span>' +
+      '</div>';
     }).join('');
   }
-  window.renderNotifList = renderNotifList;
 
   function updateBellBadge() {
     var btn = document.getElementById('btnBell');
@@ -5436,412 +5706,55 @@
     var unread = loadNotifs().filter(function(n) { return n.unread; }).length;
     btn.classList.toggle('has-notif', unread > 0);
   }
+
   window.markNotifRead = function(id) {
     var notifs = loadNotifs().map(function(n) {
       if (String(n.id) === String(id)) n.unread = false;
       return n;
     });
-    saveNotifs(notifs); renderNotifList(); updateBellBadge();
+    saveNotifs(notifs);
+    renderNotifList();
+    updateBellBadge();
   };
+
   window.markAllNotifsRead = function() {
     var notifs = loadNotifs().map(function(n) { n.unread = false; return n; });
-    saveNotifs(notifs); renderNotifList(); updateBellBadge();
-  };
-  window.closeNotifPanel = function() {
-    var panel = document.getElementById('notifPanel');
-    var overlay = document.getElementById('notifOverlay');
-    if (panel) {
-      panel.classList.remove('is-open');
-      panel.style.setProperty('display', 'none', 'important');
-    }
-    if (overlay) {
-      overlay.classList.remove('open');
-      overlay.style.setProperty('display', 'none', 'important');
-    }
-  };
-  window.toggleNotifPanel = function() {
-    var panel = document.getElementById('notifPanel');
-    var overlay = document.getElementById('notifOverlay');
-    if (!panel || !overlay) { console.error('[Dashboard] notifPanel or notifOverlay missing'); return; }
-    var isOpen = panel.classList.contains('is-open');
-    if (isOpen) { window.closeNotifPanel(); return; }
+    saveNotifs(notifs);
     renderNotifList();
-    if (panel.parentElement !== document.body) document.body.appendChild(panel);
-    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
-    overlay.style.setProperty('display', 'block', 'important');
-    overlay.style.setProperty('z-index', '30000', 'important');
-    overlay.classList.add('open');
-    panel.style.setProperty('display', 'flex', 'important');
-    panel.style.setProperty('z-index', '30001', 'important');
-    panel.classList.add('is-open');
+    updateBellBadge();
   };
-  window.openAboutModal = function() {
-    try { if (typeof window.closeSidebar === 'function') window.closeSidebar(); } catch(e) {}
-    var modal = document.getElementById('aboutModal');
-    if (!modal) { console.error('[Dashboard] aboutModal not found'); return; }
-    if (modal.parentElement !== document.body) document.body.appendChild(modal);
-    modal.style.setProperty('display', 'flex', 'important');
-    modal.style.setProperty('z-index', '30010', 'important');
-    modal.classList.add('show');
-    modal.removeAttribute('aria-hidden');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('role', 'dialog');
-    document.documentElement.classList.add('modal-open');
-    document.body.classList.add('modal-open');
+
+  window.toggleNotifPanel = function() {
+    var panel   = document.getElementById('notifPanel');
+    var overlay = document.getElementById('notifOverlay');
+    if (!panel) return;
+    var isOpen = panel.style.display !== 'none';
+    if (isOpen) {
+      closeNotifPanel();
+    } else {
+      renderNotifList();
+      panel.style.display   = 'flex';
+      overlay.classList.add('open');
+    }
   };
+
+  window.closeNotifPanel = function() {
+    var panel   = document.getElementById('notifPanel');
+    var overlay = document.getElementById('notifOverlay');
+    if (panel)   panel.style.display = 'none';
+    if (overlay) overlay.classList.remove('open');
+  };
+
+  // تنبيهات تجريبية عند أول تشغيل (احذفها لو مش محتاجها)
   document.addEventListener('DOMContentLoaded', function () {
     if (!loadNotifs().length) {
-      window.addNotification({ title:'مرحباً بك في St.Gorge Dashboard', desc:'تم تحميل البيانات بنجاح.', type:'success' });
-      window.addNotification({ title:'تذكير', desc:'تأكد من مزامنة البيانات مع Google Sheets.', type:'info' });
+      window.addNotification({ title: 'مرحباً بك في St.Gorge Dashboard', desc: 'تم تحميل البيانات بنجاح.', type: 'success' });
+      window.addNotification({ title: 'تذكير', desc: 'تأكد من مزامنة البيانات مع Google Sheets.', type: 'info' });
     }
     updateBellBadge();
   });
-})();
-</script>
-
-<script>
-/* =============================================================
-   المساعد الذكي — Smart Assistant + Birthday Notifications
-   ============================================================= */
-(function () {
-
-  /* ---- فتح وإغلاق المودال ---- */
-  window.openAssistantModal = function () {
-    window.showModal('assistantModal');
-    var chat = document.getElementById('assistantChat');
-    if (chat && chat.children.length === 0) {
-      assistantBotMsg('أهلاً! 👋\nأنا مساعدك الذكي في خدمة فصل مارجرجس.\nاسألني أي سؤال أو اطلب مني إرسال رسالة متابعة لأحد المخدومين.');
-    }
-  };
-
-  /* ---- إضافة رسائل ---- */
-  function assistantBotMsg(text, actions) {
-    var chat = document.getElementById('assistantChat');
-    if (!chat) return;
-    var div = document.createElement('div');
-    div.className = 'help-message bot';
-    div.textContent = text;
-    if (actions && actions.length) {
-      actions.forEach(function (a) {
-        var btn = document.createElement('button');
-        btn.className = 'btn-help-prompt mt-2 d-block';
-        btn.style.cssText = 'width:100%;text-align:right;';
-        btn.textContent = a.label;
-        btn.onclick = a.fn;
-        div.appendChild(btn);
-      });
-    }
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-  function assistantUserMsg(text) {
-    var chat = document.getElementById('assistantChat');
-    if (!chat) return;
-    var div = document.createElement('div');
-    div.className = 'help-message user';
-    div.textContent = text;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-  window.assistantAsk = function (q) {
-    document.getElementById('assistantInput').value = q;
-    assistantSend();
-  };
-
-  window.assistantSend = function () {
-    var inp = document.getElementById('assistantInput');
-    if (!inp) return;
-    var q = inp.value.trim();
-    if (!q) return;
-    inp.value = '';
-    assistantUserMsg(q);
-    setTimeout(function () { assistantRespond(q); }, 300);
-  };
-
-  /* ---- منطق الردود ---- */
-  function assistantRespond(q) {
-    var lower = q.toLowerCase();
-
-    /* رسالة متابعة */
-    if (/رسال|متابع|follow|message|واتس|whatsapp/i.test(lower)) {
-      assistantBotMsg('تمام! 📲\nاكتب اسم المخدوم (أو جزء من اسمه) وهأجهزلك الرسالة على طول:');
-      window._assistantMode = 'followup_search';
-      return;
-    }
-
-    /* لو كنا في وضع البحث عن مخدوم للمتابعة */
-    if (window._assistantMode === 'followup_search') {
-      window._assistantMode = null;
-      var results = searchStudentsFor(q);
-      if (!results.length) {
-        assistantBotMsg('مش لاقي مخدوم بالاسم ده 🔍\nجرب جزء تاني من الاسم.');
-        window._assistantMode = 'followup_search';
-        return;
-      }
-      if (results.length === 1) {
-        showFollowupOptions(results[0]);
-        return;
-      }
-      var actions = results.slice(0, 5).map(function (s) {
-        return { label: s.name + (s.servant ? ' (' + s.servant + ')' : ''), fn: (function (st) { return function () { showFollowupOptions(st); }; })(s) };
-      });
-      assistantBotMsg('لقيت أكتر من مخدوم — اختار:', actions);
-      return;
-    }
-
-    /* تسجيل حضور */
-    if (/حضور|attend/i.test(lower)) {
-      assistantBotMsg('لتسجيل الحضور:\n1️⃣ افتح كارت المخدوم بالضغط عليه\n2️⃣ اضغط زر "حضور" باللون الأخضر\n3️⃣ اختار تاريخ الجمعة\n4️⃣ اضغط "حفظ"\n\nأو من التبويب "الجدول" اضغط على الخلية مباشرة.');
-      return;
-    }
-
-    /* إضافة مخدوم */
-    if (/إضاف|اضاف|جديد|new|add/i.test(lower)) {
-      assistantBotMsg('لإضافة مخدوم جديد:\n1️⃣ اضغط زر ➕ في أعلى الشاشة\n2️⃣ أدخل بيانات المخدوم\n3️⃣ اضغط "إضافة"\n\nالبيانات هتتضاف في الشيت تلقائياً.');
-      return;
-    }
-
-    /* الغائبين */
-    if (/غائب|غياب|absent|لم يحضر|مش حاضر/i.test(lower)) {
-      var absent = getAbsentStudents();
-      if (!absent.length) {
-        assistantBotMsg('ما فيش مخدومين غائبين مسجلين دلوقتي ✅');
-        return;
-      }
-      var msg = 'الغائبون (' + absent.length + '):\n';
-      absent.slice(0, 10).forEach(function (s) {
-        msg += '• ' + s.name + (s.lastAttendance ? ' — آخر حضور: ' + s.lastAttendance : '') + '\n';
-      });
-      if (absent.length > 10) msg += '… و' + (absent.length - 10) + ' أكتر';
-      assistantBotMsg(msg);
-      return;
-    }
-
-    /* أعياد الميلاد */
-    if (/عيد|ميلاد|birthday|birth/i.test(lower)) {
-      var bd = getBirthdayStudents(7);
-      if (!bd.today.length && !bd.upcoming.length) {
-        assistantBotMsg('ما فيش أعياد ميلاد في الأسبوع الجاي 🎂');
-        return;
-      }
-      var msg = '';
-      if (bd.today.length) {
-        msg += '🎉 عيد ميلاد النهارده:\n';
-        bd.today.forEach(function (s) { msg += '• ' + s.name + '\n'; });
-      }
-      if (bd.upcoming.length) {
-        msg += '\n📅 أعياد ميلاد خلال أسبوع:\n';
-        bd.upcoming.forEach(function (s) { msg += '• ' + s.name + ' (' + s.daysLeft + ' يوم)\n'; });
-      }
-      assistantBotMsg(msg.trim());
-      return;
-    }
-
-    /* إحصائيات */
-    if (/إحصاء|إحصائي|تقرير|report|stats|عدد|كم/i.test(lower)) {
-      var data = window.studentsData || [];
-      var attended = data.filter(function (s) { return s.lastAttendance; }).length;
-      var followup = data.filter(function (s) { return s.followupStatus && s.followupStatus !== 'بدون'; }).length;
-      assistantBotMsg(
-        '📊 إحصائيات الفصل:\n' +
-        '👥 إجمالي المخدومين: ' + data.length + '\n' +
-        '✅ حضروا: ' + attended + '\n' +
-        '📞 تم افتقادهم: ' + followup + '\n' +
-        '❌ لم يُتابَعوا: ' + (data.length - followup)
-      );
-      return;
-    }
-
-    /* مزامنة */
-    if (/مزامن|sync|تحديث|refresh/i.test(lower)) {
-      assistantBotMsg('لتحديث البيانات من الشيت:\nاضغط على أيقونة 🔄 في أعلى الشاشة\nأو اضغط "مزامنة" في الشريط العلوي.\n\nالتحديث التلقائي بيحصل كل 5 دقائق.');
-      return;
-    }
-
-    /* رد افتراضي */
-    assistantBotMsg(
-      'مش فاهم السؤال بالظبط 🤔\nجرب تسأل عن:\n' +
-      '• تسجيل حضور\n• إضافة مخدوم\n• رسالة متابعة\n• الغائبين\n• أعياد الميلاد\n• إحصائيات الفصل'
-    );
-  }
-
-  /* ---- خيارات رسالة المتابعة ---- */
-  function showFollowupOptions(s) {
-    var phone = getStudentPhone(s);
-    var name = s.name || 'المخدوم';
-
-    var msgs = [
-      {
-        label: '💙 رسالة افتقاد عامة',
-        text: 'السلام عليكم يا ' + name + ' 🌟\nبنفتقدك في فصل مارجرجس ❤️\nنتمنى نشوفك معانا الجمعة الجاية 🙏\nمع تحياتنا'
-      },
-      {
-        label: '✝️ رسالة تشجيعية',
-        text: 'السلام عليكم يا ' + name + ' 😊\nبنفتقد وجودك معانا في الفصل 🌸\n"لأن محبة المسيح تحثنا" ❤️\nمستنيينك الجمعة الجاية بإذن الله 🙏'
-      },
-      {
-        label: '📅 تذكير بموعد الفصل',
-        text: 'السلام عليكم يا ' + name + '\nبنذكرك بموعد فصل مارجرجس 📌\nيوم الجمعة ونتمنى نشوفك معانا 😊\nمع تحياتنا'
-      }
-    ];
-
-    if (!phone) {
-      var msgText = msgs[0].text;
-      assistantBotMsg(
-        '⚠️ ' + name + ' ما عندوش رقم مسجل.\n\nهتفتحلك WhatsApp بدون رقم — تقدر تنسخ الرسالة وتبعتها يدوي:',
-        msgs.map(function (m) {
-          return {
-            label: m.label,
-            fn: (function (txt) {
-              return function () { openWhatsAppMsg(null, txt); };
-            })(m.text)
-          };
-        })
-      );
-      return;
-    }
-
-    assistantBotMsg(
-      '📱 ' + name + '\nرقم: ' + phone + '\nاختار نوع الرسالة:',
-      msgs.map(function (m) {
-        return {
-          label: m.label,
-          fn: (function (txt) {
-            return function () { openWhatsAppMsg(phone, txt); };
-          })(m.text)
-        };
-      })
-    );
-  }
-
-  /* ---- فتح WhatsApp ---- */
-  function openWhatsAppMsg(phone, msg) {
-    var encoded = encodeURIComponent(msg);
-    var url = phone
-      ? 'https://wa.me/' + String(phone).replace(/\D/g, '') + '?text=' + encoded
-      : 'https://wa.me/?text=' + encoded;
-
-    if (window.AndroidServiceBridge && typeof AndroidServiceBridge.openExternalPage === 'function') {
-      AndroidServiceBridge.openExternalPage(url);
-    } else {
-      window.open(url, '_blank');
-    }
-    hideModal('assistantModal');
-  }
-
-  /* ---- مساعدات ---- */
-  function getStudentPhone(s) {
-    return (s.phoneStudent && String(s.phoneStudent).trim()) ||
-           (s.phoneParent1 && String(s.phoneParent1).trim()) ||
-           (s.phoneParent2 && String(s.phoneParent2).trim()) || null;
-  }
-
-  function searchStudentsFor(q) {
-    var data = window.studentsData || [];
-    var lower = q.trim().toLowerCase();
-    return data.filter(function (s) {
-      return s.name && s.name.toLowerCase().includes(lower);
-    });
-  }
-
-  function getAbsentStudents() {
-    var data = window.studentsData || [];
-    return data.filter(function (s) {
-      return !s.lastAttendance || s.lastAttendance === '';
-    });
-  }
-
-  /* ---- أعياد الميلاد ---- */
-  function getBirthdayStudents(daysAhead) {
-    var data = window.studentsData || [];
-    var today = new Date();
-    today.setHours(0, 0, 0, 0);
-    var todayList = [], upcomingList = [];
-
-    data.forEach(function (s) {
-      if (!s.birthDate) return;
-      var parsed = parseBirthDate(s.birthDate);
-      if (!parsed) return;
-
-      var thisYear = new Date(today.getFullYear(), parsed.month, parsed.day);
-      var diff = Math.round((thisYear - today) / 86400000);
-      if (diff < 0) thisYear = new Date(today.getFullYear() + 1, parsed.month, parsed.day);
-      diff = Math.round((thisYear - today) / 86400000);
-
-      if (diff === 0) todayList.push(s);
-      else if (diff > 0 && diff <= daysAhead) upcomingList.push(Object.assign({}, s, { daysLeft: diff }));
-    });
-
-    upcomingList.sort(function (a, b) { return a.daysLeft - b.daysLeft; });
-    return { today: todayList, upcoming: upcomingList };
-  }
-
-  function parseBirthDate(str) {
-    if (!str) return null;
-    var s = String(str).trim();
-    // DD/MM/YYYY أو DD-MM-YYYY
-    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-    if (m) return { day: parseInt(m[1], 10), month: parseInt(m[2], 10) - 1 };
-    // YYYY-MM-DD
-    m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-    if (m) return { day: parseInt(m[3], 10), month: parseInt(m[2], 10) - 1 };
-    return null;
-  }
-
-  /* ---- إشعارات الميلاد تلقائية ---- */
-  window.checkBirthdayNotifications = function () {
-    var bd = getBirthdayStudents(7);
-    var todayKey = new Date().toISOString().slice(0, 10);
-    var storageKey = 'stgorge_bday_notif_' + todayKey;
-    try { if (localStorage.getItem(storageKey)) return; } catch (e) {}
-
-    bd.today.forEach(function (s) {
-      window.addNotification({
-        title: '🎂 عيد ميلاد النهارده!',
-        desc: s.name + ' — عيد ميلاده النهارده 🎉',
-        type: 'success'
-      });
-    });
-
-    bd.upcoming.forEach(function (s) {
-      window.addNotification({
-        title: '📅 عيد ميلاد قريب',
-        desc: s.name + ' — بعد ' + s.daysLeft + ' يوم',
-        type: 'info'
-      });
-    });
-
-    try { if (bd.today.length || bd.upcoming.length) localStorage.setItem(storageKey, '1'); } catch (e) {}
-  };
-
-  /* ---- تشغيل الإشعارات بعد تحميل البيانات ---- */
-  var _origApply = null;
-  var _bdayCheckDone = false;
-  function hookBdayCheck() {
-    if (_bdayCheckDone) return;
-    var data = window.studentsData || [];
-    if (!data.length) return;
-    _bdayCheckDone = true;
-    window.checkBirthdayNotifications();
-  }
-  // نراقب studentsData بعد كل sync
-  var _origFetch = window.fetchLiveGoogleSheetData;
-  if (typeof _origFetch === 'function') {
-    window.fetchLiveGoogleSheetData = function () {
-      var result = _origFetch.apply(this, arguments);
-      if (result && typeof result.then === 'function') {
-        result.then(function () { _bdayCheckDone = false; hookBdayCheck(); });
-      }
-      return result;
-    };
-  }
-  // fallback: تحقق بعد 5 ثوانٍ من تحميل الصفحة
-  setTimeout(hookBdayCheck, 5000);
 
 })();
 </script>
-
 </body>
 </html>
