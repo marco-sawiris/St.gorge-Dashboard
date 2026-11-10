@@ -1,0 +1,6 @@
+{
+  "name": "St.Gorge Church Dashboard",
+  "description": "لوحة متابعة وإدارة خدمة فصل الشهيد مارجرجس بكنيسة السيدة العذراء بالزيتون",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
