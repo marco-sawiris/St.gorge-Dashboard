@@ -1,1 +1,423 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   Marco Sawiris Design System (v2.0) — Unified Liquid Glass Specification
+   Identity: Blue & Cyan (Midnight Black, Deep Navy, Electric Blue, Cyan)
+   RTL First | Ultra-Dark Foundations | Zero-Green Discipline
+   Central Design Tokens for Dark & Light Themes
+   ========================================================================== */
+
+:root, [data-theme="dark"] {
+  /* Central Design Tokens - Dark Theme */
+  --app-bg: #030711;
+  --surface-primary: #071B3B;
+  --surface-secondary: #0B2452;
+  --surface-glass: rgba(7, 27, 59, 0.70);
+  --surface-glass-strong: rgba(11, 36, 82, 0.85);
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.78);
+  --text-muted: rgba(255, 255, 255, 0.52);
+  --border-color: rgba(38, 122, 255, 0.24);
+  --border-focus: #20C7E8;
+  --accent-primary: #267AFF;
+  --accent-secondary: #20C7E8;
+  --success: #20C7E8; /* Cyan, strictly zero green */
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --shadow: 0 4px 20px rgba(3, 7, 17, 0.85);
+  --glass-blur: 24px;
+
+  /* 7 Approved Blue & Cyan Colors */
+  --midnight: #030711;
+  --navy: #071B3B;
+  --navy-mid: #0B2452;
+  --royal: #123FCE;
+  --primary: #267AFF;
+  --primary-hover: #3D8DFF;
+  --accent: #20C7E8;
+  --indigo: #3020A0;
+  --violet: #6548F5;
+
+  /* Backgrounds & Liquid Glass Surfaces (Ultra-Dark Foundation) */
+  --bg: var(--app-bg);
+  --bg-el: var(--surface-primary);
+  --bg-high: var(--surface-secondary);
+  --glass-bg: var(--surface-glass);
+  --glass-bg-2: var(--surface-glass-strong);
+  --glass-bg-3: rgba(38, 122, 255, 0.20);
+  --glass-border: var(--border-color);
+  --glass-border-2: rgba(32, 199, 232, 0.45);
+  --glass-inset-top: inset 0 1px 0 rgba(32, 199, 232, 0.35);
+  --glass-inset-bot: inset 0 -1px 0 rgba(3, 7, 17, 0.50);
+
+  /* Typography */
+  --text: var(--text-primary);
+  --on-primary: #030711;
+
+  /* Semantic States (Notice: Cyan is Success, ZERO GREEN) */
+  --info: #267AFF;
+
+  /* Gradients */
+  --grad-primary: linear-gradient(135deg, #267AFF 0%, #123FCE 100%);
+  --grad-accent: linear-gradient(135deg, #20C7E8 0%, #267AFF 60%, #3020A0 100%);
+  --grad-indigo: linear-gradient(135deg, #3020A0 0%, #6548F5 100%);
+  --grad-deep: linear-gradient(180deg, #071B3B 0%, #030711 100%);
+  --grad-lens: linear-gradient(180deg, rgba(32, 199, 232, 0.35) 0%, rgba(38, 122, 255, 0.18) 100%);
+
+  /* Shadows, Insets & Glows */
+  --shadow-1: var(--shadow);
+  --shadow-2: 0 14px 44px rgba(3, 7, 17, 0.95);
+  --shadow-primary: 0 0 0 1px rgba(38, 122, 255, 0.40), 0 10px 30px -6px rgba(38, 122, 255, 0.55);
+  --shadow-accent: 0 0 0 1px rgba(32, 199, 232, 0.35), 0 8px 24px -8px rgba(32, 199, 232, 0.45);
+  --focus-ring: 0 0 0 3px rgba(32, 199, 232, 0.35);
+
+  /* Spacing Scale & Easing Curves */
+  --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem; --s5: 1.25rem;
+  --s6: 1.5rem; --s8: 2rem; --s10: 2.5rem; --s12: 3rem;
+  --r-sm: .5rem; --r-md: .875rem; --r-lg: 1.25rem; --r-xl: 1.75rem; --r-pill: 999px;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+
+  /* Backward Compatibility Aliases for App Components */
+  --bg-main: var(--app-bg);
+  --card-bg: var(--surface-glass);
+  --text-main: var(--text-primary);
+  --border: var(--border-color);
+  --sidebar-bg: var(--surface-glass-strong);
+  --input-bg: rgba(7, 27, 59, 0.65);
+  --green-status: var(--success);
+  --red-status: #e11d48;
+  --gold-accent: var(--accent-secondary);
+}
+
+/* Dim Theme Specification */
+[data-theme="dim"] {
+  --bg: #071B3B;
+  --bg-el: #0B2452;
+  --glass-bg: rgba(18, 63, 206, 0.25);
+  --glass-bg-2: rgba(18, 63, 206, 0.38);
+  --glass-border: rgba(32, 199, 232, 0.30);
+  --bg-main: var(--bg);
+  --card-bg: var(--glass-bg);
+  --border: var(--glass-border);
+  --sidebar-bg: var(--glass-bg-2);
+  --input-bg: rgba(11, 36, 82, 0.60);
+}
+
+/* Light Theme Specification (Premium Liquid Glass Daylight) */
+[data-theme="light"] {
+  /* Central Design Tokens - Light Theme */
+  --app-bg: #F0F4FA;
+  --surface-primary: #FFFFFF;
+  --surface-secondary: #F8FAFD;
+  --surface-glass: rgba(255, 255, 255, 0.85);
+  --surface-glass-strong: rgba(255, 255, 255, 0.96);
+  --text-primary: #07152E;
+  --text-secondary: #2A3F5F;
+  --text-muted: #627894;
+  --border-color: rgba(18, 63, 206, 0.16);
+  --border-focus: #123FCE;
+  --accent-primary: #123FCE;
+  --accent-secondary: #267AFF;
+  --success: #20C7E8; /* Cyan, strictly zero green */
+  --warning: #D97706;
+  --danger: #DC2626;
+  --shadow: 0 4px 18px rgba(18, 63, 206, 0.08), 0 1px 3px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 14px 38px rgba(18, 63, 206, 0.14), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --glass-blur: 24px;
+
+  /* 7 Approved Blue & Cyan Colors adapted for Daylight Contrast */
+  --midnight: #FFFFFF;
+  --navy: #FFFFFF;
+  --navy-mid: #F0F4FA;
+  --royal: #123FCE;
+  --primary: #123FCE;
+  --primary-hover: #267AFF;
+  --accent: #20C7E8;
+  --indigo: #3020A0;
+  --violet: #6548F5;
+
+  /* Backgrounds & Liquid Glass Surfaces */
+  --bg: var(--app-bg);
+  --bg-el: var(--surface-primary);
+  --bg-high: var(--surface-secondary);
+  --glass-bg: var(--surface-glass);
+  --glass-bg-2: var(--surface-glass-strong);
+  --glass-bg-3: rgba(18, 63, 206, 0.08);
+  --glass-border: var(--border-color);
+  --glass-border-2: rgba(18, 63, 206, 0.32);
+  --glass-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --glass-inset-bot: inset 0 -1px 0 rgba(18, 63, 206, 0.08);
+
+  /* Typography */
+  --text: var(--text-primary);
+  --on-primary: #FFFFFF;
+
+  /* Gradients */
+  --grad-primary: linear-gradient(135deg, #123FCE 0%, #267AFF 100%);
+  --grad-accent: linear-gradient(135deg, #20C7E8 0%, #267AFF 60%, #123FCE 100%);
+  --grad-deep: linear-gradient(180deg, #FFFFFF 0%, #F0F4FA 100%);
+  --grad-lens: linear-gradient(180deg, rgba(38, 122, 255, 0.20) 0%, rgba(18, 63, 206, 0.10) 100%);
+
+  /* Shadows, Insets & Glows */
+  --shadow-1: var(--shadow);
+  --shadow-2: var(--shadow-lg);
+  --shadow-primary: 0 0 0 1px rgba(18, 63, 206, 0.25), 0 8px 24px -6px rgba(18, 63, 206, 0.35);
+  --shadow-accent: 0 0 0 1px rgba(32, 199, 232, 0.35), 0 6px 20px -6px rgba(32, 199, 232, 0.30);
+  --focus-ring: 0 0 0 3px rgba(18, 63, 206, 0.25);
+
+  /* Compatibility Aliases */
+  --bg-main: var(--app-bg);
+  --card-bg: var(--surface-glass);
+  --text-main: var(--text-primary);
+  --border: var(--border-color);
+  --sidebar-bg: var(--surface-glass-strong);
+  --input-bg: rgba(255, 255, 255, 0.95);
+  --green-status: var(--success);
+  --gold-accent: var(--accent-secondary);
+}
+
+[data-theme="light"] body::before {
+  background: radial-gradient(circle, rgba(38, 122, 255, 0.10) 0%, rgba(32, 199, 232, 0.05) 50%, transparent 75%);
+  filter: blur(80px);
+}
+
+[data-theme="light"] body::after {
+  background: radial-gradient(circle, rgba(18, 63, 206, 0.08) 0%, rgba(101, 72, 245, 0.04) 55%, transparent 80%);
+  filter: blur(90px);
+}
+
+[data-theme="light"] .clay-selection-bar {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(18, 63, 206, 0.16);
+  box-shadow: 0 4px 14px rgba(18, 63, 206, 0.08), inset 0 2px 3px rgba(255, 255, 255, 0.9), inset 0 -2px 3px rgba(18, 63, 206, 0.06);
+}
+
+[data-theme="light"] .clay-active-pill {
+  background: linear-gradient(135deg, #123FCE 0%, #267AFF 100%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.6), 0 4px 14px rgba(18, 63, 206, 0.35);
+  color: #FFFFFF;
+}
+
+[data-theme="light"] .btn--lens {
+  color: #FFFFFF;
+  border-color: rgba(18, 63, 206, 0.35);
+}
+
+/* ==========================================================================
+   Typography & Global Reset
+   ========================================================================== */
+* {
+  font-family: 'Cairo', 'Almarai', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 0;
+  direction: rtl;
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.3s var(--ease-standard), color 0.3s var(--ease-standard);
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Ambient Backlight Orbs (Liquid Glass Glow) */
+body::before {
+  content: '';
+  position: fixed;
+  bottom: -150px;
+  right: 10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(32, 199, 232, 0.15) 0%, rgba(38, 122, 255, 0.08) 50%, transparent 75%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -200px;
+  left: 5%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(18, 63, 206, 0.22) 0%, rgba(101, 72, 245, 0.08) 55%, transparent 80%);
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ==========================================================================
+   Liquid Scrollbar
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--primary) 0%, var(--accent) 100%);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: 0 0 10px rgba(32, 199, 232, 0.35);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--accent) 0%, var(--primary) 100%);
+  border-radius: var(--r-pill);
+}
+
+/* ==========================================================================
+   Motion System: wordIn Keyframe Animation
+   ========================================================================== */
+@keyframes wordIn {
+  from {
+    opacity: 0;
+    transform: translateY(35px) rotateX(-50deg) scale(0.85);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+.word-in-scope {
+  perspective: 800px;
+}
+
+.animate-wordIn, .word-in {
+  animation: wordIn 750ms var(--ease-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-wordIn, .word-in {
+    animation: none !important;
+  }
+}
+
+/* 3D Card Flip Transforms */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.transform-style-preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* ==========================================================================
+   Liquid Glass & Claymorphism Utility Classes
+   ========================================================================== */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-1), var(--glass-inset-top);
+  border-radius: var(--r-lg);
+}
+
+.glass-strong {
+  background: var(--glass-bg-2);
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border: 1px solid var(--glass-border-2);
+  box-shadow: var(--shadow-2), var(--glass-inset-top);
+  border-radius: var(--r-xl);
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-1), var(--glass-inset-top);
+}
+
+.glass-hover {
+  transition: transform 0.25s var(--ease-standard), border-color 0.25s var(--ease-standard), box-shadow 0.25s var(--ease-standard);
+}
+.glass-hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--glass-border-2);
+  box-shadow: var(--shadow-2), var(--shadow-accent), var(--glass-inset-top);
+}
+
+/* Liquid Lens Button (.btn--lens) */
+.btn--lens {
+  position: relative;
+  background: var(--grad-lens);
+  backdrop-filter: blur(16px) contrast(140%);
+  -webkit-backdrop-filter: blur(16px) contrast(140%);
+  border: 1px solid var(--glass-border-2);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.45), 0 8px 24px -4px rgba(32, 199, 232, 0.35);
+  border-radius: var(--r-pill);
+  color: #FFFFFF;
+  font-weight: 700;
+  transition: all 0.25s var(--ease-spring);
+}
+.btn--lens:hover {
+  transform: translateY(-1.5px) scale(1.02);
+  box-shadow: inset 0 1px 2px 0 rgba(255, 255, 255, 0.65), 0 12px 30px -4px rgba(32, 199, 232, 0.55);
+  border-color: rgba(32, 199, 232, 0.75);
+}
+.btn--lens:active {
+  transform: scale(0.97);
+}
+
+/* Claymorphism Model 3 Selection Bar */
+.clay-selection-bar {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 18px -4px rgba(3, 7, 17, 0.65), inset 0 2px 4px rgba(255, 255, 255, 0.08), inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--r-xl);
+}
+
+.clay-active-pill {
+  background: linear-gradient(135deg, rgba(38, 122, 255, 0.35) 0%, rgba(32, 199, 232, 0.22) 100%);
+  border: 1px solid var(--glass-border-2);
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.25), 0 4px 14px rgba(32, 199, 232, 0.35);
+  color: #FFFFFF;
+  border-radius: var(--r-lg);
+}
+
+/* Audio Player Equalizer Wave Bars */
+@keyframes audioWave {
+  0%, 100% { height: 4px; }
+  50% { height: 20px; }
+}
+.audio-bar {
+  width: 3px;
+  background: linear-gradient(180deg, var(--accent) 0%, var(--primary) 100%);
+  border-radius: 999px;
+  animation: audioWave 1.2s ease-in-out infinite;
+}
+.audio-bar:nth-child(1) { animation-delay: 0.1s; }
+.audio-bar:nth-child(2) { animation-delay: 0.3s; }
+.audio-bar:nth-child(3) { animation-delay: 0.5s; }
+.audio-bar:nth-child(4) { animation-delay: 0.2s; }
+.audio-bar:nth-child(5) { animation-delay: 0.4s; }
+.audio-bar:nth-child(6) { animation-delay: 0.15s; }
+.audio-bar:nth-child(7) { animation-delay: 0.35s; }
