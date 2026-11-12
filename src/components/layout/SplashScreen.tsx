@@ -1,71 +1,183 @@
-import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Sparkles } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Sparkles, CheckCircle2, ArrowLeft, RefreshCw } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 
+const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
+
+/**
+ * Blurry Loading Initial Screen inspired by CodePen LYBgdwr
+ * - Background starts strongly blurred and sharpens progressively
+ *   strictly based on real App initialization phases (IndexedDB read + Google Sheets sync)
+ * - ZERO fabricated percentage timers
+ * - Non-blocking safety timeout & immediate click/button bypass so user is never trapped
+ */
 export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => {
+  const { isInitialLoading, isSyncing, students, lastSyncError, isOnline } = useApp();
   const [isVisible, setIsVisible] = useState(true);
+  const [isExiting, setIsExiting] = useState(false);
 
-  useEffect(() => {
-    // Auto-dismiss splash screen after 3 seconds, or click immediately
-    const timer = setTimeout(() => {
-      handleDismiss();
-    }, 3200);
-
-    return () => clearTimeout(timer);
-  }, []);
+  const phase = useMemo(() => {
+    if (!isInitialLoading && !isSyncing) {
+      return {
+        stage: 'ready' as const,
+        blurPx: 0,
+        scale: 1,
+        label:
+          students.length > 0
+            ? `تم تحميل ${students.length} مخدوم — لوحة الخدمة جاهزة`
+            : lastSyncError
+            ? 'تعذر الاتصال بالخادم — المتابعة للوحة الخدمة'
+            : 'لوحة الخدمة جاهزة للاستخدام'
+      };
+    }
+    if (isSyncing) {
+      return {
+        stage: 'syncing' as const,
+        blurPx: 8,
+        scale: 1.03,
+        label:
+          students.length > 0
+            ? `عرض ${students.length} سجل محلي ومزامنة التحديثات...`
+            : 'جاري مزامنة السجلات الحقيقية من Google Sheets...'
+      };
+    }
+    return {
+      stage: 'boot' as const,
+      blurPx: 20,
+      scale: 1.07,
+      label: isOnline
+        ? 'جاري تهيئة قاعدة البيانات المحلية (IndexedDB)...'
+        : 'جاري فتح النسخة المحلية المحفوظة (وضع الأوفلاين)...'
+    };
+  }, [isInitialLoading, isSyncing, students.length, lastSyncError, isOnline]);
 
   const handleDismiss = () => {
-    setIsVisible(false);
-    setTimeout(onDismiss, 350);
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      setIsVisible(false);
+      onDismiss();
+    }, 360);
   };
+
+  // Auto-dissolve shortly after real initialization finishes
+  useEffect(() => {
+    if (phase.stage === 'ready') {
+      const doneTimer = setTimeout(handleDismiss, 550);
+      return () => clearTimeout(doneTimer);
+    }
+  }, [phase.stage]);
+
+  // Non-blocking fail-safe so slow/stalled mobile networks never trap the user on splash
+  useEffect(() => {
+    const safetyTimer = setTimeout(handleDismiss, 4200);
+    return () => clearTimeout(safetyTimer);
+  }, []);
 
   if (!isVisible) return null;
 
   return (
     <div
+      role="dialog"
+      aria-label="شاشة التحميل والتهيئة"
       onClick={handleDismiss}
-      className="fixed inset-0 z-50 bg-[#030711] flex flex-col items-center justify-center p-4 cursor-pointer select-none overflow-hidden transition-opacity duration-300"
+      className={`fixed inset-0 z-50 bg-[#030711] flex flex-col items-center justify-center p-4 cursor-pointer select-none overflow-hidden transition-opacity duration-350 ${
+        isExiting ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`}
     >
-      {/* Ambient Blue & Cyan Backlight Orbs */}
-      <div className="absolute w-[500px] h-[500px] rounded-full bg-radial from-[#20c7e8]/15 via-[#123fce]/10 to-transparent blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-20 w-[600px] h-[300px] rounded-full bg-radial from-[#267aff]/20 via-transparent to-transparent blur-3xl pointer-events-none" />
+      {/* Blurry Atmospheric Optical Background Layer (Sharpens as real initialization completes) */}
+      <div
+        aria-hidden="true"
+        className="blurry-splash-bg absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden"
+        style={{
+          filter: `blur(${phase.blurPx}px)`,
+          transform: `scale(${phase.scale})`
+        }}
+      >
+        <div className="absolute inset-0 bg-radial from-[#123FCE]/30 via-[#071B3B]/65 to-[#030711]" />
+        <img
+          src={stGeorgeIcon}
+          alt=""
+          className="w-[340px] sm:w-[460px] h-auto object-cover rounded-full opacity-18 mix-blend-screen"
+        />
+        <div className="absolute w-[520px] h-[520px] rounded-full bg-radial from-[#20C7E8]/20 via-[#123FCE]/10 to-transparent blur-3xl" />
+      </div>
 
-      {/* Decorative Rings */}
-      <div className="absolute w-80 h-80 rounded-full border border-[#20c7e8]/15 animate-ping opacity-25 pointer-events-none" />
-      <div className="absolute w-[440px] h-[440px] rounded-full border border-white/5 pointer-events-none" />
+      {/* Main Optical Glass Focus Stage */}
+      <div
+        className="relative z-10 flex flex-col items-center text-center max-w-md w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Crisp Crest Card */}
+        <div
+          className="blurry-splash-bg relative mb-6"
+          style={{
+            filter: `blur(${Math.max(0, phase.blurPx * 0.35)}px)`
+          }}
+        >
+          <div className="relative w-44 sm:w-52 p-2 rounded-3xl glass-strong border border-[#20C7E8]/35 shadow-[0_0_55px_rgba(32,199,232,0.28)]">
+            <img
+              src={stGeorgeIcon}
+              alt="الشهيد العظيم مارجرجس"
+              className="w-full h-auto object-contain rounded-2xl drop-shadow-[0_14px_28px_rgba(0,0,0,0.85)]"
+            />
+          </div>
+        </div>
 
-      {/* Main Saint Icon in Glowing Glass Container */}
-      <div className="relative mb-6 animate-wordIn">
-        <div className="relative w-48 sm:w-56 p-2 rounded-3xl glass-strong border border-white/15 shadow-[0_0_50px_rgba(32,199,232,0.25)]">
-          <img
-            src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png"
-            alt="الشهيد مارجرجس"
-            className="w-full h-auto object-contain drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)]"
-          />
+        {/* Service Identity (wordIn per-word spring reveal matching Ainmation_code_8feeba97.html) */}
+        <div className="space-y-1.5 mb-5">
+          <h1 className="word-in-text text-2xl sm:text-3xl font-black text-[#F4F7FC] drop-shadow-md m-0 tracking-tight flex flex-wrap justify-center gap-x-1.5">
+            {['فصل', 'الشهيد', 'العظيم', 'مارجرجس'].map((word, idx) => (
+              <span key={word} style={{ '--w': idx } as React.CSSProperties}>
+                {word}
+              </span>
+            ))}
+          </h1>
+          <p className="text-xs sm:text-sm font-bold text-[#8ECFFF] m-0 word-in" style={{ '--i': 4 } as React.CSSProperties}>
+            بكنيسة السيدة العذراء مريم بالزيتون
+          </p>
+          <p className="text-[11px] text-[#A6B1C2] font-semibold m-0 flex items-center justify-center gap-1.5 pt-1 word-in" style={{ '--i': 5 } as React.CSSProperties}>
+            <Sparkles className="w-3.5 h-3.5 text-[#20C7E8]" />
+            <span>Liquid Glass Service Dashboard</span>
+          </p>
+        </div>
+
+        {/* Real Initialization Status Capsule (Honest milestone indicator — NO fake 0-100% loop) */}
+        <div className="w-full max-w-xs p-3.5 rounded-2xl glass border border-[#20C7E8]/30 space-y-2.5 shadow-[0_10px_28px_rgba(3,7,17,0.75)]">
+          <div className="flex items-center justify-center gap-2 text-xs font-extrabold text-[#F4F7FC]">
+            {phase.stage === 'ready' ? (
+              <CheckCircle2 className="w-4 h-4 text-[#20C7E8] shrink-0" />
+            ) : (
+              <RefreshCw className="w-4 h-4 text-[#20C7E8] animate-spin shrink-0" />
+            )}
+            <span className="truncate">{phase.label}</span>
+          </div>
+
+          {/* Optical Loading Indicator (Honest indeterminate shimmer during load, full bar only on completion) */}
+          <div
+            className="relative w-full h-1.5 rounded-full bg-[#071B3B] overflow-hidden border border-[#267AFF]/25"
+            aria-hidden="true"
+          >
+            {phase.stage === 'ready' ? (
+              <div className="h-full w-full rounded-full transition-all duration-300 ease-out bg-gradient-to-r from-[#123FCE] via-[#267AFF] to-[#20C7E8]" />
+            ) : (
+              <div className="splash-shimmer h-full w-1/2 rounded-full bg-gradient-to-r from-transparent via-[#20C7E8] to-[#267AFF]" />
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="glass-btn--primary w-full py-2 px-4 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <span>دخول الآن</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* Text Info */}
-      <div className="text-center space-y-2 animate-wordIn" style={{ animationDelay: '150ms' }}>
-        <h1 className="text-2xl sm:text-3xl font-black text-[#f4f7fc] drop-shadow-md m-0 tracking-tight">
-          فصل الشهيد العظيم مارجرجس
-        </h1>
-        <p className="text-xs sm:text-sm font-bold text-[#8ecfff] m-0">
-          بكنيسة السيدة العذراء مريم بالزيتون
-        </p>
-        <p className="text-xs text-[#a6b1c2] font-semibold m-0">
-          لوحة الخدمة والمتابعة التفاعلية — Liquid Glass UI
-        </p>
-
-        <div className="pt-3">
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-[#20c7e8]/15 text-[#20c7e8] border border-[#20c7e8]/30 shadow-[0_0_15px_rgba(32,199,232,0.25)]">
-            <Sparkles className="w-3.5 h-3.5 text-[#20c7e8]" />
-            <span>Liquid Glass v2.0 Enterprise</span>
-          </span>
-        </div>
-      </div>
-
-      <div className="absolute bottom-8 text-[11px] text-[#a6b1c2]/60 tracking-wider flex items-center gap-1.5">
-        <span>اضغط في أي مكان للدخول</span>
+      <div className="relative z-10 mt-6 text-[11px] text-[#A6B1C2]/70 tracking-wide">
+        <span>اضغط في أي مكان للمتابعة</span>
       </div>
     </div>
   );

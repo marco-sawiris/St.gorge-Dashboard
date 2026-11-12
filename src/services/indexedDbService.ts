@@ -3,7 +3,17 @@ import { FollowupRecord } from '../types/followup';
 import { OfflineMutation } from '../types/auth';
 
 const DB_NAME = 'StGorgeServiceDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
+
+export interface AttendanceHistoryRecord {
+  id: string; // `${studentId}__${fridayDate}`
+  studentId: string;
+  studentCode: string;
+  fridayDate: string;
+  status: boolean;
+  recordedAt: number;
+  sourceSheet: string;
+}
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -38,6 +48,13 @@ export function getIndexedDB(): Promise<IDBDatabase> {
 
       if (!db.objectStoreNames.contains('mutations')) {
         db.createObjectStore('mutations', { keyPath: 'id' });
+      }
+
+      if (!db.objectStoreNames.contains('attendance_history')) {
+        const historyStore = db.createObjectStore('attendance_history', { keyPath: 'id' });
+        historyStore.createIndex('studentId', 'studentId', { unique: false });
+        historyStore.createIndex('fridayDate', 'fridayDate', { unique: false });
+        historyStore.createIndex('student_friday', ['studentId', 'fridayDate'], { unique: true });
       }
     };
 
@@ -154,6 +171,100 @@ export async function idbAtomicUpdateStudentWithMutation(
       tx.abort();
       safeReject(err);
     }
+  });
+}
+
+// 2b. Atomic Record Attendance + History Record + Mutation Deduplication in ONE transaction
+// Prevents duplicate pending mutations & duplicate student+friday records
+export async function idbAtomicRecordAttendanceWithMutation(
+  updatedStudent: Student,
+  historyRecord: AttendanceHistoryRecord,
+  mutation: OfflineMutation
+): Promise<void> {
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+    const safeResolve = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+
+    const tx = db.transaction(['students', 'attendance_history', 'mutations'], 'readwrite');
+    const studentStore = tx.objectStore('students');
+    const historyStore = tx.objectStore('attendance_history');
+    const mutationStore = tx.objectStore('mutations');
+
+    tx.oncomplete = () => safeResolve();
+    tx.onerror = () => safeReject(tx.error || new Error('فشلت المعاملة الذرية لتسجيل الحضور'));
+    tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء معاملة تسجيل الحضور'));
+
+    const getMutReq = mutationStore.getAll();
+    getMutReq.onerror = () => tx.abort();
+    getMutReq.onsuccess = () => {
+      try {
+        const existingMutations: OfflineMutation[] = getMutReq.result || [];
+        // Replace any superseded pending attendance mutation for the same (studentId, fridayDate)
+        for (const m of existingMutations) {
+          if (
+            m.action === 'attendance' &&
+            m.status === 'pending' &&
+            m.studentId === historyRecord.studentId &&
+            m.payload?.friday === historyRecord.fridayDate
+          ) {
+            mutationStore.delete(m.id);
+          }
+        }
+
+        const studentReq = studentStore.put(updatedStudent);
+        studentReq.onerror = () => tx.abort();
+
+        const historyReq = historyStore.put({
+          ...historyRecord,
+          id: `${historyRecord.studentId}__${historyRecord.fridayDate}`
+        });
+        historyReq.onerror = () => tx.abort();
+
+        const mutReq = mutationStore.put(mutation);
+        mutReq.onerror = () => tx.abort();
+      } catch (err) {
+        tx.abort();
+        safeReject(err);
+      }
+    };
+  });
+}
+
+export async function idbGetAttendanceHistory(studentId?: string): Promise<AttendanceHistoryRecord[]> {
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+
+    const tx = db.transaction('attendance_history', 'readonly');
+    const store = tx.objectStore('attendance_history');
+    let records: AttendanceHistoryRecord[] = [];
+
+    const req = studentId ? store.index('studentId').getAll(studentId) : store.getAll();
+    req.onsuccess = () => {
+      records = req.result || [];
+    };
+    req.onerror = () => safeReject(req.error || new Error('فشل قراءة سجل الحضور التاريخي'));
+
+    tx.oncomplete = () => resolve(records);
+    tx.onerror = () => safeReject(tx.error || new Error('فشلت معاملة قراءة سجل الحضور التاريخي'));
   });
 }
 
@@ -574,6 +685,58 @@ export async function idbGetFollowupRecords(): Promise<FollowupRecord[]> {
   });
 }
 
+// Reconcile remote Google Sheet سجل الافتقاد rows while preserving locally pending followup entries
+export async function idbSaveRemoteFollowupRecords(remoteRecords: FollowupRecord[]): Promise<FollowupRecord[]> {
+  if (!Array.isArray(remoteRecords) || remoteRecords.length === 0) {
+    return idbGetFollowupRecords();
+  }
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+
+    const tx = db.transaction(['followup', 'mutations'], 'readwrite');
+    const fuStore = tx.objectStore('followup');
+    const mutStore = tx.objectStore('mutations');
+
+    const getMutReq = mutStore.getAll();
+    getMutReq.onerror = () => tx.abort();
+    getMutReq.onsuccess = () => {
+      const pending: OfflineMutation[] = getMutReq.result || [];
+      const pendingRecordIds = new Set<string>(
+        pending
+          .filter((m) => m.action === 'followup' && m.payload?.recordId)
+          .map((m) => String(m.payload.recordId))
+      );
+
+      const getExistingReq = fuStore.getAll();
+      getExistingReq.onerror = () => tx.abort();
+      getExistingReq.onsuccess = () => {
+        const existing: FollowupRecord[] = getExistingReq.result || [];
+        for (const rec of existing) {
+          if (!pendingRecordIds.has(rec.id)) {
+            fuStore.delete(rec.id);
+          }
+        }
+        for (const remote of remoteRecords) {
+          fuStore.put(remote);
+        }
+      };
+    };
+
+    tx.oncomplete = () => {
+      idbGetFollowupRecords().then(resolve).catch(safeReject);
+    };
+    tx.onerror = () => safeReject(tx.error || new Error('فشل تحديث سجل الافتقاد محلياً'));
+    tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء معاملة تحديث سجل الافتقاد'));
+  });
+}
+
 // Idempotent Mutations Queue with transaction completion and error checking
 export async function idbQueueMutation(mutation: OfflineMutation): Promise<boolean> {
   const db = await getIndexedDB();
@@ -710,3 +873,59 @@ export async function idbClearMutations(): Promise<void> {
     clearReq.onerror = () => tx.abort();
   });
 }
+
+/**
+ * Removes legacy seeded mock records (`mock-std-*`, `mock-fu-*`) from IndexedDB
+ * so only genuine Google Sheets records or user-created entries are stored locally.
+ */
+export async function idbPurgeMockRecords(): Promise<number> {
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let removedCount = 0;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+
+    const tx = db.transaction(['students', 'followup'], 'readwrite');
+    const studentStore = tx.objectStore('students');
+    const followupStore = tx.objectStore('followup');
+
+    const sReq = studentStore.getAll();
+    sReq.onsuccess = () => {
+      const list: Student[] = sReq.result || [];
+      for (const st of list) {
+        if (st && typeof st.id === 'string' && st.id.startsWith('mock-')) {
+          studentStore.delete(st.id);
+          removedCount++;
+        }
+      }
+    };
+    sReq.onerror = () => tx.abort();
+
+    const fReq = followupStore.getAll();
+    fReq.onsuccess = () => {
+      const list: FollowupRecord[] = fReq.result || [];
+      for (const fu of list) {
+        if (fu && typeof fu.id === 'string' && fu.id.startsWith('mock-')) {
+          followupStore.delete(fu.id);
+          removedCount++;
+        }
+      }
+    };
+    fReq.onerror = () => tx.abort();
+
+    tx.oncomplete = () => {
+      if (!settled) {
+        settled = true;
+        resolve(removedCount);
+      }
+    };
+    tx.onerror = () => safeReject(tx.error || new Error('فشل تنظيف السجلات التجريبية القديمة'));
+    tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء تنظيف السجلات التجريبية القديمة'));
+  });
+}
+

@@ -330,7 +330,7 @@ async function runPhase2Tests() {
   }
 
   // ----------------------------------------------------
-  // TEST 4: executeProcessOfflineQueue with Network Drop & Preview Mode Block
+  // TEST 4: executeProcessOfflineQueue with Network Drop & Direct Queue Delivery
   // [Production Code: executeProcessOfflineQueue]
   // ----------------------------------------------------
   const originalFetch = globalThis.fetch;
@@ -352,17 +352,20 @@ async function runPhase2Tests() {
     };
     await idbQueueMutation(mutation);
 
-    // 4a. In Preview Mode: must block sending and retain in queue
-    const previewResult = await executeProcessOfflineQueue(null, true);
-    assert(previewResult.success === false, 'Preview mode must block queue processing');
-    assert(previewResult.remainingCount === 1, 'Mutation retained during preview mode');
+    // 4a. Direct execution succeeds without requiring servant login when server responds 200 ok
+    (globalThis as any).fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true })
+    });
+    const directResult = await executeProcessOfflineQueue(null, false);
+    assert(directResult.success === true, 'Direct queue processing works without servant login');
+    assert(directResult.sentCount === 1 && directResult.remainingCount === 0, 'Mutation sent and cleared');
 
-    // 4b. When unauthenticated: must block sending and retain in queue
-    const unauthResult = await executeProcessOfflineQueue({ ...mockAuthenticatedUser, token: '' }, false);
-    assert(unauthResult.success === false, 'Unauthenticated user must be blocked');
-    assert(unauthResult.remainingCount === 1, 'Mutation retained when unauthenticated');
+    // Re-queue for network drop test
+    await idbQueueMutation(mutation);
 
-    // 4c. When network drops:
+    // 4b. When network drops:
     (globalThis as any).fetch = async () => {
       throw new TypeError('Failed to fetch (Network connection lost)');
     };
@@ -375,7 +378,7 @@ async function runPhase2Tests() {
     assert(pendingAfter.length === 1, 'Mutation strictly retained in queue during network drop');
     assert(pendingAfter[0].id === mutation.id, 'Mutation ID intact');
 
-    console.log('✅ Test 4 Passed: executeProcessOfflineQueue with Network Failure & Preview Mode Block');
+    console.log('✅ Test 4 Passed: executeProcessOfflineQueue Direct Sync & Network Failure Retention');
     passedCount++;
   } catch (err: any) {
     console.error('❌ Test 4 Failed:', err.message);
@@ -819,10 +822,11 @@ async function runPhase2Tests() {
 
     assert(renderedOutput.includes('Rendered'), 'Component tree rendered inside providers');
     assert(receivedAuthContext !== null, 'AuthContext received actual runtime object');
-    assert(typeof receivedAuthContext.login === 'function', 'AuthContext provides real login function');
-    assert(typeof receivedAuthContext.logout === 'function', 'AuthContext provides real logout function');
+    assert(receivedAuthContext.isAuthenticated === true, 'AuthContext opens directly without servant login');
+    assert(receivedAuthContext.isPreviewMode === false, 'Direct service mode is never locked in Preview Mode');
+    assert(receivedAuthContext.login === undefined && receivedAuthContext.logout === undefined, 'Servant login/logout completely removed');
     assert(typeof receivedAuthContext.canPerformAction === 'function', 'AuthContext provides real canPerformAction function');
-    assert(receivedAuthContext.isPreviewMode === true, 'Initial state starts securely in Preview Mode');
+    assert(receivedAuthContext.canPerformAction('delete_student').allowed === false, 'Zero Delete Student policy enforced');
 
     assert(receivedAppContext !== null, 'AppContext received actual runtime object');
     assert(typeof receivedAppContext.syncData === 'function', 'AppContext provides real syncData function');

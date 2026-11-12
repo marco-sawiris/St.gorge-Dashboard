@@ -42,7 +42,8 @@ export const AreaFilterModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAreaModalOpen(false)}
-            className="w-8 h-8 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer transition-colors"
+            aria-label="إغلاق نافذة المناطق"
+            className="glass-btn w-8 h-8 rounded-xl text-[var(--text-secondary)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -67,10 +68,9 @@ export const AreaFilterModal: React.FC = () => {
                     key={areaName}
                     type="button"
                     onClick={() => handleSelectArea(areaName)}
-                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-[#123fce] to-[#267aff] text-white border-[#20c7e8]/50 shadow-[0_4px_16px_rgba(38,122,255,0.4)]'
-                        : 'bg-[var(--surface-primary)] border-[var(--border-color)] text-[var(--text-primary)] hover:border-[#20c7e8]/40'
+                    aria-pressed={isSelected}
+                    className={`glass-btn p-3 rounded-2xl text-center cursor-pointer ${
+                      isSelected ? 'glass-btn--active' : 'text-[var(--text-primary)]'
                     }`}
                   >
                     <strong className="block text-sm font-extrabold mb-1">{areaName}</strong>
@@ -87,7 +87,7 @@ export const AreaFilterModal: React.FC = () => {
           <button
             type="button"
             onClick={handleClear}
-            className="text-xs font-bold text-rose-400 hover:underline cursor-pointer"
+            className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-rose-400 cursor-pointer"
           >
             إلغاء تصفية المنطقة
           </button>
@@ -95,7 +95,7 @@ export const AreaFilterModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAreaModalOpen(false)}
-            className="px-4 py-1.5 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] cursor-pointer transition-colors"
+            className="glass-btn px-4 py-1.5 rounded-xl text-xs font-bold text-[var(--text-primary)] cursor-pointer"
           >
             إغلاق
           </button>

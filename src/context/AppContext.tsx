@@ -2,9 +2,24 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useCall
 import { Student, SheetName, AppFilterState, APPROVED_SHEETS } from '../types/student';
 import { FollowupRecord } from '../types/followup';
 import { AppNotification, OfflineMutation, AuthUser } from '../types/auth';
-import { normalizeArabicText, normalizeArabicInitial, getNearestFridayString } from '../utils/arabicUtils';
+import {
+  normalizeArabicText,
+  normalizeArabicInitial,
+  getNearestFridayString,
+  getLatestHeldFridayString,
+  getCairoDateParts,
+  computeMonthlyAttendanceSummary
+} from '../utils/arabicUtils';
 import { generateUUID } from '../utils/uuid';
-import { buildApiUrl, getAuthHeaders, getApiBaseUrl, safeGetLocalStorage } from '../services/apiConfig';
+import {
+  buildApiUrl,
+  getAuthHeaders,
+  getAppsScriptUrl,
+  getRelayKey,
+  hasConfiguredRemoteBackend,
+  isNativeCapacitorRuntime,
+  safeGetLocalStorage
+} from '../services/apiConfig';
 import {
   idbGetStudents,
   idbSaveStudents,
@@ -14,11 +29,16 @@ import {
   idbMarkMutationConflict,
   idbAtomicAddStudentWithMutation,
   idbAtomicUpdateStudentWithMutation,
+  idbAtomicRecordAttendanceWithMutation,
   idbAtomicDeleteStudentWithMutation,
   idbAtomicRecordFollowupWithMutation,
-  idbReconcileStudents
+  idbReconcileStudents,
+  idbPurgeMockRecords,
+  idbSaveRemoteFollowupRecords,
+  idbGetAttendanceHistory
 } from '../services/indexedDbService';
-import { seedInitialMockDataIfEmpty } from '../services/mockData';
+import { syncWeeklyNotificationSchedules } from '../services/weeklyNotificationService';
+import { fetchSheetStudentsViaGviz, fetchFollowupLogViaGviz } from '../services/googleSheetParser';
 import { useAuth } from './AuthContext';
 
 export const SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
@@ -44,6 +64,63 @@ export function computeLatestSyncTime(
   return pushTs >= pullTs ? lastSuccessfulPushTime : lastSuccessfulPullTime;
 }
 
+const ARABIC_SYNC_MONTHS = [
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+];
+
+export function formatLastSyncDateTime(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const day = d.getDate();
+  const month = ARABIC_SYNC_MONTHS[d.getMonth()];
+  let hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  const period = hours >= 12 ? 'م' : 'ص';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${day} ${month} • ${hours}:${minutes} ${period}`;
+}
+
+export function formatLastSyncCompact(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  let hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  const period = hours >= 12 ? 'م' : 'ص';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${day}/${month} ${hours}:${minutes} ${period}`;
+}
+
+/**
+ * Pure Single Active Edit guard:
+ * Guarantees only ONE student card can be open for editing at any moment.
+ */
+export function evaluateSingleActiveEditLock(
+  currentActiveId: string | null,
+  requestedStudentId: string,
+  isAddModalOpen: boolean = false
+): { allowed: boolean; reason?: string } {
+  if (isAddModalOpen) {
+    return {
+      allowed: false,
+      reason: 'يرجى إغلاق أو حفظ نافذة إضافة المخدوم الحالي قبل فتح كارت آخر للتعديل.'
+    };
+  }
+  if (currentActiveId && currentActiveId !== requestedStudentId) {
+    return {
+      allowed: false,
+      reason: 'يوجد كارت واحد مفتوح للتعديل حالياً. يرجى حفظ التعديلات أو إلغاؤها قبل تعديل كارت آخر.'
+    };
+  }
+  return { allowed: true };
+}
+
 interface AppContextType {
   students: Student[];
   filteredStudents: Student[];
@@ -58,10 +135,14 @@ interface AppContextType {
   lastSyncAttemptTime: string | null; // Full ISO timestamp
   lastSuccessfulPushTime: string | null; // Full ISO timestamp
   lastSuccessfulPullTime: string | null; // Full ISO timestamp
-  lastSuccessfulSyncTime: string | null; // Formatted display or latest ISO timestamp
+  lastSuccessfulSyncTime: string | null; // Formatted date & time display
+  lastSuccessfulSyncCompact: string | null; // Compact mobile date & time display
   pendingMutationsCount: number;
   activeEditingId: string | null;
+  hasUnsavedEditChanges: boolean;
   isSidebarOpen: boolean;
+  isSidebarCollapsed: boolean;
+  isInitialLoading: boolean;
   isAssistantOpen: boolean;
   isNotificationsOpen: boolean;
   isAreaModalOpen: boolean;
@@ -71,16 +152,20 @@ interface AppContextType {
   setFilters: React.Dispatch<React.SetStateAction<AppFilterState>>;
   setActiveView: (view: 'cards' | 'table' | 'charts' | 'followup') => void;
   setActiveEditingId: (id: string | null) => void;
+  setHasUnsavedEditChanges: (dirty: boolean) => void;
+  requestEditStudent: (studentId: string) => boolean;
+  cancelEditing: () => void;
   setIsSidebarOpen: (open: boolean) => void;
+  setIsSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   setIsAssistantOpen: (open: boolean) => void;
   setIsNotificationsOpen: (open: boolean) => void;
   setIsAreaModalOpen: (open: boolean) => void;
   setIsAboutModalOpen: (open: boolean) => void;
   setIsAddModalOpen: (open: boolean) => void;
   setIsSyncModalOpen: (open: boolean) => void;
-  syncData: () => Promise<boolean>;
-  markAttendance: (studentId: string, isPresent: boolean) => Promise<boolean>;
-  recordFollowup: (studentId: string, method: string) => Promise<boolean>;
+  syncData: (overrideSheet?: SheetName) => Promise<boolean>;
+  markAttendance: (studentId: string, isPresent: boolean, targetFridayDate?: string) => Promise<boolean>;
+  recordFollowup: (studentId: string, method: string, notes?: string) => Promise<boolean>;
   updateStudent: (studentId: string, updatedFields: Partial<Student>) => Promise<boolean>;
   addNewStudent: (studentData: Partial<Student>) => Promise<boolean>;
   deleteStudent: (studentId: string) => Promise<boolean>;
@@ -88,6 +173,8 @@ interface AppContextType {
   markAllNotificationsRead: () => void;
   addNotification: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void;
   processOfflineQueue: () => Promise<{ success: boolean; sentCount: number; remainingCount: number }>;
+  activeToast: AppNotification | null;
+  dismissToast: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -98,18 +185,19 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export async function executeProcessOfflineQueue(
   user: AuthUser | null,
-  isPreviewMode: boolean,
+  _isPreviewMode: boolean = false,
   onNotify?: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void,
   onRecordPushTime?: (pushIso: string) => void
 ): Promise<{ success: boolean; sentCount: number; remainingCount: number }> {
-  if (isPreviewMode || !user || !user.token || !user.token.trim()) {
-    onNotify?.('المصادقة مطلوبة', 'لا يمكن مزامنة العمليات في وضع المعاينة أو بدون تسجيل دخول موثق. جميع العمليات محفوظة محلياً.', 'warn');
+  if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
+    onNotify?.('وضع عدم الاتصال', 'لا يوجد اتصال بالإنترنت لإرسال العمليات المعلقة', 'warn');
     const pending = await idbGetPendingMutations();
     return { success: false, sentCount: 0, remainingCount: pending.length };
   }
 
-  if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
-    onNotify?.('وضع عدم الاتصال', 'لا يوجد اتصال بالإنترنت لإرسال العمليات المعلقة', 'warn');
+  const appsScriptUrl = getAppsScriptUrl();
+  if (!appsScriptUrl && !hasConfiguredRemoteBackend() && isNativeCapacitorRuntime()) {
+    onNotify?.('مطلوب رابط المزامنة', 'يرجى ضبط رابط Google Apps Script في تفاصيل المزامنة. العمليات محفوظة محلياً بأمان.', 'warn');
     const pending = await idbGetPendingMutations();
     return { success: false, sentCount: 0, remainingCount: pending.length };
   }
@@ -123,17 +211,33 @@ export async function executeProcessOfflineQueue(
 
   for (const mutation of pending) {
     try {
-      const mutateUrl = buildApiUrl('/api/sheets/mutate');
-      const headers = {
-        ...getAuthHeaders(user.token),
-        'X-Idempotency-Key': mutation.id // Retains stable UUID key on retry
-      };
+      let response: Response;
+      if (appsScriptUrl) {
+        const relayKey = getRelayKey();
+        response = await fetch(appsScriptUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify({
+            ...mutation,
+            idempotencyKey: mutation.id,
+            ...(relayKey ? { relayKey } : {})
+          })
+        });
+      } else {
+        const mutateUrl = buildApiUrl('/api/sheets/mutate');
+        const headers = {
+          ...getAuthHeaders(user?.token),
+          'X-Idempotency-Key': mutation.id
+        };
 
-      const response = await fetch(mutateUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(mutation)
-      });
+        response = await fetch(mutateUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(mutation)
+        });
+      }
 
       if (response.status === 409) {
         // Version Conflict: Zero data loss - mark conflict and STOP loop to preserve FIFO dependencies
@@ -146,6 +250,12 @@ export async function executeProcessOfflineQueue(
 
       if (response.ok) {
         const result = await response.json().catch(() => null);
+        if (result && result.status === 409) {
+          const conflictMsg = result?.error || 'تعارض في التعديل المتزامن (409)';
+          await idbMarkMutationConflict(mutation.id, conflictMsg);
+          onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة: ${conflictMsg}`, 'danger');
+          break;
+        }
         if (result && result.ok) {
           // ONLY remove from IndexedDB after verified server success confirmation
           await idbRemoveMutation(mutation.id);
@@ -190,28 +300,18 @@ export async function executeProcessOfflineQueue(
 export async function executeSyncData(
   targetSheet: SheetName,
   user: AuthUser | null,
-  isPreviewMode: boolean,
+  _isPreviewMode: boolean = false,
   syncInProgressRef: { current: boolean },
   onNotify?: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void,
   onUpdateStudents?: (students: Student[]) => void,
   onRecordTimes?: (pullIso: string) => void,
   onRecordPushTime?: (pushIso: string) => void,
-  onRecordError?: (errorMsg: string | null) => void
+  onRecordError?: (errorMsg: string | null) => void,
+  onUpdateFollowups?: (records: FollowupRecord[]) => void
 ): Promise<boolean> {
   // Prevent concurrent sync executions
   if (syncInProgressRef.current) {
     console.warn('Sync is already in progress, skipping concurrent call.');
-    return false;
-  }
-
-  // Prevent unauthorized sync requests from Frontend
-  if (isPreviewMode || !user || !user.token || !user.token.trim()) {
-    onNotify?.(
-      'المصادقة مطلوبة',
-      'يلزم تسجيل الدخول ببيانات اعتماد موثقة لسحب وتحديث البيانات من الخادم. المعروض حالياً هو البيانات المخزنة محلياً.',
-      'warn'
-    );
-    onRecordError?.('المصادقة مطلوبة: يلزم تسجيل الدخول لسحب بيانات الشيت');
     return false;
   }
 
@@ -222,53 +322,114 @@ export async function executeSyncData(
       throw new Error('لا يوجد اتصال بالإنترنت حالياً');
     }
 
-    // Strict Health Check: Stop sync unconditionally if backend is unreachable
-    const healthCheckUrl = buildApiUrl('/api/health');
-    let isBackendAlive = false;
-    try {
-      const healthRes = await fetch(healthCheckUrl, { method: 'GET' });
-      isBackendAlive = healthRes.ok;
-    } catch {
-      isBackendAlive = false;
-    }
+    const appsScriptUrl = getAppsScriptUrl();
+    const relayKey = getRelayKey();
+    const hasExpressCredentials = Boolean(user?.token || relayKey || buildApiUrl('/api/sheets/data').startsWith('https://'));
 
-    if (!isBackendAlive) {
-      onNotify?.(
-        'الخادم غير متصل',
-        'فشل الاتصال الفعلي بالخادم. تم إيقاف المزامنة والاحتفاظ بكافة العمليات المعلقة محلياً في IndexedDB.',
-        'warn'
-      );
-      onRecordError?.('الخادم غير متصل (Server unreachable)');
-      return false;
-    }
+    let data: any;
 
-    // Step 1: Flush pending mutations
-    const queueResult = await executeProcessOfflineQueue(user, isPreviewMode, onNotify, onRecordPushTime);
+    if (appsScriptUrl) {
+      // Path A: Direct Private Google Apps Script Relay (Reads + Writes + Private Sheet)
+      const queueResult = await executeProcessOfflineQueue(user, false, onNotify, onRecordPushTime);
+      if (!queueResult.success && queueResult.remainingCount > 0) {
+        onNotify?.(
+          'مزامنة غير مكتملة',
+          `لم يتم تأكيد إرسال جميع العمليات المعلقة (${queueResult.remainingCount} متبقية).`,
+          'warn'
+        );
+        onRecordError?.(`توجد عمليات معلقة لم يتم تأكيد إرسالها (${queueResult.remainingCount} متبقية)`);
+        return false;
+      }
 
-    // Additional Sync Safety: Do NOT declare sync successful if sending any mutation failed
-    if (!queueResult.success && queueResult.remainingCount > 0) {
-      onNotify?.(
-        'مزامنة غير مكتملة',
-        `لم يتم تأكيد إرسال جميع العمليات المعلقة (${queueResult.remainingCount} متبقية في الطابور). تم إيقاف سحب بيانات الشيت لتفادي التعارض.`,
-        'warn'
-      );
-      onRecordError?.(`توجد عمليات معلقة لم يتم تأكيد إرسالها (${queueResult.remainingCount} متبقية)`);
-      return false;
-    }
+      const separator = appsScriptUrl.includes('?') ? '&' : '?';
+      const relayQuery = `${appsScriptUrl}${separator}action=getStudents&sheet=${encodeURIComponent(targetSheet)}&t=${Date.now()}${relayKey ? `&relayKey=${encodeURIComponent(relayKey)}` : ''}`;
+      const res = await fetch(relayQuery, { method: 'GET' });
+      if (!res.ok) {
+        throw new Error(`استجاب وسيط Google Sheets بخطأ (HTTP ${res.status})`);
+      }
 
-    // Step 2: Fetch live server data
-    const dataUrl = buildApiUrl(`/api/sheets/data?sheet=${encodeURIComponent(targetSheet)}&t=${Date.now()}`);
-    const res = await fetch(dataUrl, {
-      headers: getAuthHeaders(user?.token)
-    });
+      data = await res.json();
+      if (!data || data.ok === false || !Array.isArray(data.students)) {
+        throw new Error(data?.error || 'تعذر تحميل البيانات من Google Sheets');
+      }
+      if (Array.isArray(data.followupRecords) && data.followupRecords.length > 0) {
+        const reconciledFu = await idbSaveRemoteFollowupRecords(data.followupRecords).catch(() => data.followupRecords);
+        onUpdateFollowups?.(reconciledFu);
+      }
+    } else if (!hasExpressCredentials && (isNativeCapacitorRuntime() || typeof window !== 'undefined')) {
+      // Path B: Direct Real Google Sheets Visualization Reader (gviz/tq) when Relay/Express Auth not configured
+      const existingList = await idbGetStudents().catch(() => []);
+      const existingMap = new Map(existingList.map((s) => [s.id, s]));
+      const gvizResult = await fetchSheetStudentsViaGviz(SPREADSHEET_ID, targetSheet, existingMap);
+      const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, gvizResult.students).catch(() => []);
+      if (remoteFollowups.length > 0) {
+        const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
+        onUpdateFollowups?.(reconciledFu);
+      }
+      data = {
+        ok: true,
+        targetSheet,
+        sheet: targetSheet,
+        isComplete: true,
+        confirmedComplete: true,
+        confirmedSheets: gvizResult.confirmedSheets,
+        confirmedEmptySheets: gvizResult.confirmedEmptySheets,
+        sheetsMeta: gvizResult.sheetsMeta,
+        students: gvizResult.students
+      };
+    } else {
+      if (!hasConfiguredRemoteBackend() && isNativeCapacitorRuntime()) {
+        const msg = 'يرجى ضبط رابط Google Apps Script الآمن في تفاصيل المزامنة للاتصال بملف Google Sheets.';
+        onNotify?.('مطلوب رابط المزامنة', msg, 'warn');
+        onRecordError?.(msg);
+        return false;
+      }
 
-    if (!res.ok) {
-      throw new Error(`استجاب السيرفر بخطأ (HTTP ${res.status})`);
-    }
+      // Path C: Hosted Express Backend Proxy
+      const healthCheckUrl = buildApiUrl('/api/health');
+      let isBackendAlive = false;
+      try {
+        const healthRes = await fetch(healthCheckUrl, { method: 'GET' });
+        isBackendAlive = healthRes.ok;
+      } catch {
+        isBackendAlive = false;
+      }
 
-    const data = await res.json();
-    if (!data || !Array.isArray(data.students)) {
-      throw new Error('بيانات الاستجابة من الشيت غير صالحة');
+      if (!isBackendAlive) {
+        onNotify?.(
+          'الخادم غير متصل',
+          'فشل الاتصال الفعلي بالوسيط. تم إيقاف المزامنة والاحتفاظ بكافة العمليات المعلقة محلياً في IndexedDB.',
+          'warn'
+        );
+        onRecordError?.('الخادم غير متصل (Server unreachable)');
+        return false;
+      }
+
+      const queueResult = await executeProcessOfflineQueue(user, false, onNotify, onRecordPushTime);
+
+      if (!queueResult.success && queueResult.remainingCount > 0) {
+        onNotify?.(
+          'مزامنة غير مكتملة',
+          `لم يتم تأكيد إرسال جميع العمليات المعلقة (${queueResult.remainingCount} متبقية في الطابور). تم إيقاف سحب بيانات الشيت لتفادي التعارض.`,
+          'warn'
+        );
+        onRecordError?.(`توجد عمليات معلقة لم يتم تأكيد إرسالها (${queueResult.remainingCount} متبقية)`);
+        return false;
+      }
+
+      const dataUrl = buildApiUrl(`/api/sheets/data?sheet=${encodeURIComponent(targetSheet)}&t=${Date.now()}`);
+      const res = await fetch(dataUrl, {
+        headers: getAuthHeaders(user?.token)
+      });
+
+      if (!res.ok) {
+        throw new Error(`استجاب السيرفر بخطأ (HTTP ${res.status})`);
+      }
+
+      data = await res.json();
+      if (!data || !Array.isArray(data.students)) {
+        throw new Error('بيانات الاستجابة من الشيت غير صالحة');
+      }
     }
 
     // Check remaining pending mutations after queue flush attempt
@@ -428,7 +589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     alphabetLetter: null
   });
 
-  const [activeView, setActiveView] = useState<'cards' | 'table' | 'charts' | 'followup'>('cards');
+  const [activeView, setActiveViewState] = useState<'cards' | 'table' | 'charts' | 'followup'>('cards');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const syncInProgressLock = useRef<boolean>(false);
 
@@ -441,19 +602,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return safeGetLocalStorage('stgorge_last_successful_pull_iso');
   });
 
-  // Display sync string: chooses mathematically latest timestamp between push and pull
-  const lastSuccessfulSyncTime = useMemo(() => {
-    const latestIso = computeLatestSyncTime(lastSuccessfulPullTime, lastSuccessfulPushTime);
-    if (!latestIso) return null;
-    try {
-      return new Date(latestIso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return latestIso;
-    }
+  // Display sync string: chooses mathematically latest timestamp between push and pull (Date + Time)
+  const latestSyncIso = useMemo(() => {
+    return computeLatestSyncTime(lastSuccessfulPullTime, lastSuccessfulPushTime);
   }, [lastSuccessfulPullTime, lastSuccessfulPushTime]);
+
+  const lastSuccessfulSyncTime = useMemo(() => {
+    return formatLastSyncDateTime(latestSyncIso);
+  }, [latestSyncIso]);
+
+  const lastSuccessfulSyncCompact = useMemo(() => {
+    return formatLastSyncCompact(latestSyncIso);
+  }, [latestSyncIso]);
 
   const [pendingMutationsCount, setPendingMutationsCount] = useState<number>(0);
   const [activeEditingId, setActiveEditingId] = useState<string | null>(null);
+  const [hasUnsavedEditChanges, setHasUnsavedEditChanges] = useState<boolean>(false);
+  const activeEditingIdRef = useRef<string | null>(null);
+  const hasUnsavedEditChangesRef = useRef<boolean>(false);
+  activeEditingIdRef.current = activeEditingId;
+  hasUnsavedEditChangesRef.current = hasUnsavedEditChanges;
+
+  const [activeToast, setActiveToast] = useState<AppNotification | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Online status detection
   const [isOnline, setIsOnline] = useState<boolean>(() => {
@@ -467,12 +638,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Modals & Drawers state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    return safeGetLocalStorage('stgorge_sidebar_collapsed') === '1';
+  });
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAreaModalOpen, setIsAreaModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpenState] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('stgorge_sidebar_collapsed', isSidebarCollapsed ? '1' : '0');
+      }
+    } catch {}
+  }, [isSidebarCollapsed]);
 
   // Computed Sync Status reflecting 6 real states
   const syncState = useMemo<'connected' | 'syncing' | 'synced' | 'failed' | 'offline' | 'pending'>(() => {
@@ -503,33 +686,125 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Load cached data from IndexedDB initially
+  // Keep Weekly Local Notifications synced cleanly with Africa/Cairo clock & DST (no past missed triggers)
   useEffect(() => {
-    async function loadCache() {
+    void syncWeeklyNotificationSchedules().catch(() => {});
+    if (typeof document === 'undefined') return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void syncWeeklyNotificationSchedules().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Load real cached IndexedDB data first, purge any legacy mock records, then sync real Google Sheets data
+  useEffect(() => {
+    let mounted = true;
+    async function loadCacheAndInitialSync() {
       try {
-        let cachedStudents = await idbGetStudents();
-        if (cachedStudents.length === 0) {
-          // If empty on first launch, seed realistic mock data without overwriting existing data
-          const didSeed = await seedInitialMockDataIfEmpty();
-          if (didSeed) {
-            cachedStudents = await idbGetStudents();
+        // Remove any leftover legacy mock records (`mock-*`) cleanly
+        await idbPurgeMockRecords().catch(() => 0);
+
+        const [cachedStudents, historyRecords] = await Promise.all([
+          idbGetStudents(),
+          idbGetAttendanceHistory().catch(() => [])
+        ]);
+
+        if (mounted && cachedStudents.length > 0) {
+          // Overlay any locally stored historical attendance records not yet merged
+          if (historyRecords.length > 0) {
+            const histByStudent = new Map<string, Record<string, boolean>>();
+            for (const h of historyRecords) {
+              if (!histByStudent.has(h.studentId)) histByStudent.set(h.studentId, {});
+              histByStudent.get(h.studentId)![h.fridayDate] = h.status;
+            }
+            const merged = cachedStudents.map((st) => {
+              const localHist = histByStudent.get(st.id);
+              if (!localHist) return st;
+              const nextAtt = { ...localHist, ...(st.att || {}) };
+              return {
+                ...st,
+                att: nextAtt,
+                attendanceMonth: computeMonthlyAttendanceSummary(nextAtt).presentCount
+              };
+            });
+            setStudents(merged);
+          } else {
+            setStudents(cachedStudents);
           }
         }
-
-        if (cachedStudents.length > 0) {
-          setStudents(cachedStudents);
-        }
         const cachedFollowup = await idbGetFollowupRecords();
-        if (cachedFollowup.length > 0) {
+        if (mounted && cachedFollowup.length > 0) {
           setFollowupRecords(cachedFollowup);
         }
         const pending = await idbGetPendingMutations();
-        setPendingMutationsCount(pending.length);
-      } catch (err) {
-        console.warn('Initial IndexedDB load warning:', err);
+        if (mounted) {
+          setPendingMutationsCount(pending.length);
+        }
+
+        // Pull authoritative real data from Google Sheets when online (never invent mock data on failure)
+        const onlineNow = typeof navigator === 'undefined' || navigator.onLine !== false;
+        if (mounted && onlineNow) {
+          setIsSyncing(true);
+          setLastSyncAttemptTime(new Date().toISOString());
+          const targetOnBoot: SheetName = cachedStudents.length === 0 ? '__ALL__' : 'نشط';
+          const ok = await executeSyncData(
+            targetOnBoot,
+            user,
+            false,
+            syncInProgressLock,
+            undefined,
+            (fresh) => {
+              if (mounted) setStudents(fresh);
+            },
+            (nowIso) => {
+              if (mounted) {
+                setLastSuccessfulPullTime(nowIso);
+                setLastSyncError(null);
+                try {
+                  localStorage.setItem('stgorge_last_successful_pull_iso', nowIso);
+                } catch {}
+              }
+            },
+            (pushIso) => {
+              if (mounted) setLastSuccessfulPushTime(pushIso);
+            },
+            (errorMsg) => {
+              if (mounted) setLastSyncError(errorMsg);
+            },
+            (freshFollowups) => {
+              if (mounted) setFollowupRecords(freshFollowups);
+            }
+          );
+          if (mounted) {
+            if (ok) setLastSyncError(null);
+            setIsSyncing(false);
+            const postPending = await idbGetPendingMutations().catch(() => []);
+            if (mounted) setPendingMutationsCount(postPending.length);
+          }
+        } else if (mounted && cachedStudents.length === 0) {
+          setLastSyncError('تعذر تحميل البيانات: لا يوجد اتصال بالإنترنت ولا توجد بيانات محفوظة محلياً.');
+        }
+      } catch (err: any) {
+        console.warn('Initial real data load warning:', err);
+        if (mounted) {
+          setLastSyncError(err?.message || 'تعذر تحميل البيانات من Google Sheets');
+          setIsSyncing(false);
+        }
+      } finally {
+        if (mounted) {
+          setIsInitialLoading(false);
+        }
       }
     }
-    loadCache();
+    loadCacheAndInitialSync();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Sync notifications to localStorage
@@ -540,6 +815,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch {}
   }, [notifications]);
+
+  const dismissToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setActiveToast(null);
+  }, []);
 
   const addNotification = useCallback(
     (title: string, desc?: string, type: 'info' | 'warn' | 'success' | 'danger' = 'info') => {
@@ -552,6 +835,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unread: true
       };
       setNotifications((prev) => [newNotif, ...prev.slice(0, 29)]);
+      setActiveToast(newNotif);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => {
+        setActiveToast(null);
+      }, 4500);
     },
     []
   );
@@ -563,6 +851,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const markAllNotificationsRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
   }, []);
+
+  // Single Active Edit Guard & Safe Add Modal Wrapper
+  const setIsAddModalOpen = useCallback(
+    (open: boolean) => {
+      if (open && activeEditingId) {
+        addNotification(
+          'يوجد كارت قيد التعديل',
+          'يرجى حفظ أو إلغاء تعديل الكارت المفتوح حالياً قبل إضافة مخدوم جديد.',
+          'warn'
+        );
+        return;
+      }
+      if (!open) {
+        setHasUnsavedEditChanges(false);
+      }
+      setIsAddModalOpenState(open);
+    },
+    [activeEditingId, addNotification]
+  );
+
+  const requestEditStudent = useCallback(
+    (studentId: string): boolean => {
+      const check = evaluateSingleActiveEditLock(activeEditingId, studentId, isAddModalOpen);
+      if (!check.allowed) {
+        const activeStudent = students.find((s) => s.id === activeEditingId);
+        const detail = activeStudent
+          ? `لديك كارت قيد التعديل حالياً (${activeStudent.name}). يرجى الحفظ أو الإلغاء أولاً.`
+          : check.reason || 'يوجد كارت آخر قيد التعديل.';
+        addNotification('كارت واحد فقط للتعديل', detail, 'warn');
+        return false;
+      }
+      setActiveEditingId(studentId);
+      setHasUnsavedEditChanges(false);
+      return true;
+    },
+    [activeEditingId, isAddModalOpen, students, addNotification]
+  );
+
+  const cancelEditing = useCallback(() => {
+    setActiveEditingId(null);
+    setHasUnsavedEditChanges(false);
+    setIsAddModalOpenState(false);
+  }, []);
+
+  const setActiveView = useCallback(
+    (nextView: 'cards' | 'table' | 'charts' | 'followup') => {
+      if ((activeEditingIdRef.current || isAddModalOpen) && hasUnsavedEditChangesRef.current) {
+        addNotification(
+          'يوجد تعديل غير محفوظ',
+          'يرجى حفظ التعديلات أو إلغاؤها أولاً قبل الانتقال لتبويب آخر حتى لا تفقد بياناتك.',
+          'warn'
+        );
+        return;
+      }
+      if (activeEditingIdRef.current || isAddModalOpen) {
+        setActiveEditingId(null);
+        setHasUnsavedEditChanges(false);
+        setIsAddModalOpenState(false);
+      }
+      setActiveViewState(nextView);
+    },
+    [isAddModalOpen, addNotification]
+  );
 
   // Filtered Students logic
   const filteredStudents = useMemo(() => {
@@ -618,19 +969,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return res;
   }, [user, isPreviewMode, addNotification]);
 
-  // 2. Sync Data: Delegates to production engine
-  const syncData = useCallback(async (): Promise<boolean> => {
+  // 2. Sync Data: Delegates to production engine + protects open edit session
+  const syncData = useCallback(async (overrideSheet?: SheetName): Promise<boolean> => {
+    if (activeEditingIdRef.current && hasUnsavedEditChangesRef.current) {
+      addNotification(
+        'تم تأجيل المزامنة مؤقتاً',
+        'لديك كارت به تعديلات غير محفوظة. احفظ التعديلات أو ألغها ثم أعد المزامنة.',
+        'warn'
+      );
+      return false;
+    }
+
     setIsSyncing(true);
     const attemptIso = new Date().toISOString();
     setLastSyncAttemptTime(attemptIso);
 
     const res = await executeSyncData(
-      filters.sheet,
+      overrideSheet || filters.sheet,
       user,
       isPreviewMode,
       syncInProgressLock,
       addNotification,
-      setStudents,
+      (fresh) => {
+        if (!hasUnsavedEditChangesRef.current) {
+          setStudents(fresh);
+        }
+      },
       (nowIso) => {
         setLastSuccessfulPullTime(nowIso);
         setLastSyncError(null);
@@ -643,7 +1007,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       (errorMsg) => {
         setLastSyncError(errorMsg);
-      }
+      },
+      setFollowupRecords
     );
 
     if (res) {
@@ -658,15 +1023,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return res;
   }, [filters.sheet, user, isPreviewMode, addNotification]);
 
-  // 3. Mark Attendance: Unique UUID per intentional action, Preview Mode rejection, atomic rollback
+  // 3. Mark Attendance: Unique UUID per intentional action, Africa/Cairo Friday dates, atomic history + deduplicated queue
   const markAttendance = useCallback(
-    async (studentId: string, isPresent: boolean): Promise<boolean> => {
-      // Preview Mode strictly forbids any writes
-      if (isPreviewMode) {
-        addNotification('وضع المعاينة للقراءة فقط', 'لا يمكن تسجيل الحضور في وضع المعاينة. يرجى تسجيل الدخول أولاً.', 'warn');
-        return false;
-      }
-
+    async (studentId: string, isPresent: boolean, targetFridayDate?: string): Promise<boolean> => {
       const student = students.find((s) => s.id === studentId);
       if (!student) return false;
 
@@ -677,21 +1036,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
 
-      const friday = getNearestFridayString();
-      const currentVal = student.att[friday];
-      if (currentVal === isPresent) return true; // Already recorded
+      const cairoTodayIso = getCairoDateParts().isoDate;
+      const friday = targetFridayDate || getLatestHeldFridayString();
+
+      // Strictly disallow marking attendance on future Fridays that have not been held yet
+      if (friday > cairoTodayIso) {
+        addNotification('جمعة مستقبلية', 'لا يمكن تسجيل حضور لجمعة لم تنعقد بعد.', 'warn');
+        return false;
+      }
+
+      const prevVal = student.att?.[friday];
+      if (prevVal === isPresent) return true; // Already recorded with exact same state
 
       // Each distinct intentional action gets a unique operation ID (RFC 4122 UUID)
       const opId = generateUUID();
-      const idempotencyKey = `ATT_${studentId}_${opId}`;
+      const idempotencyKey = `ATT_${studentId}_${friday}_${opId}`;
 
-      const attDelta = isPresent ? 1 : (currentVal ? -1 : 0);
+      const nextAtt: Record<string, boolean> = { ...(student.att || {}), [friday]: isPresent };
+      const monthlySummary = computeMonthlyAttendanceSummary(nextAtt);
+      const totalDelta = isPresent ? (prevVal === true ? 0 : 1) : (prevVal === true ? -1 : 0);
+
       const updatedStudent: Student = {
         ...student,
-        att: { ...student.att, [friday]: isPresent },
+        att: nextAtt,
         attendanceStatus: isPresent ? 'حاضر' : 'غائب',
-        attendanceTotal: Math.max(0, student.attendanceTotal + attDelta),
-        attendanceMonth: Math.max(0, student.attendanceMonth + attDelta),
+        attendanceTotal: Math.max(0, student.attendanceTotal + totalDelta),
+        attendanceMonth: monthlySummary.presentCount,
+        ...(isPresent && (!student.lastAttendance || friday >= student.lastAttendance)
+          ? { lastAttendance: friday }
+          : {}),
         version: (student.version || 1) + 1
       };
 
@@ -709,9 +1082,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'pending'
       };
 
+      const historyRecord = {
+        id: `${studentId}__${friday}`,
+        studentId,
+        studentCode: student.code,
+        fridayDate: friday,
+        status: isPresent,
+        recordedAt: Date.now(),
+        sourceSheet: student.sourceSheet
+      };
+
       const priorStudents = students;
       try {
-        await idbAtomicUpdateStudentWithMutation(updatedStudent, mutation);
+        await idbAtomicRecordAttendanceWithMutation(updatedStudent, historyRecord, mutation);
         setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
         const pending = await idbGetPendingMutations();
         setPendingMutationsCount(pending.length);
@@ -727,12 +1110,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // 4. Record Followup: Atomic multi-store transaction (Students + Followup + Mutations)
   const recordFollowup = useCallback(
-    async (studentId: string, method: string): Promise<boolean> => {
-      if (isPreviewMode) {
-        addNotification('وضع المعاينة للقراءة فقط', 'لا يمكن تسجيل الافتقاد في وضع المعاينة', 'warn');
-        return false;
-      }
-
+    async (studentId: string, method: string, notes?: string): Promise<boolean> => {
       const student = students.find((s) => s.id === studentId);
       if (!student) return false;
 
@@ -746,11 +1124,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const opId = generateUUID();
       const recordId = generateUUID();
       const idempotencyKey = `FU_${studentId}_${opId}`;
+      const cleanNotes = (notes || '').trim();
 
       const updatedStudent: Student = {
         ...student,
         followupStatus: method,
         fu: { ...student.fu, [friday]: method },
+        ...(cleanNotes ? { notes: cleanNotes } : {}),
         version: (student.version || 1) + 1
       };
 
@@ -763,7 +1143,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         studentName: student.name,
         servant: student.servant,
         type: method,
-        notes: `افتقاد عبر ${method}`
+        notes: cleanNotes || `افتقاد عبر ${method}`
       };
 
       const mutation: OfflineMutation = {
@@ -773,7 +1153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         studentCode: student.code,
         studentName: student.name,
         sourceSheet: student.sourceSheet,
-        payload: { friday, method, recordId },
+        payload: { friday, method, recordId, ...(cleanNotes ? { notes: cleanNotes } : {}) },
         expectedVersion: student.version,
         timestamp: Date.now(),
         retryCount: 0,
@@ -805,11 +1185,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // 5. Update Student: Single atomic transaction with UUID mutation
   const updateStudent = useCallback(
     async (studentId: string, updatedFields: Partial<Student>): Promise<boolean> => {
-      if (isPreviewMode) {
-        addNotification('وضع المعاينة للقراءة فقط', 'لا يمكن تعديل البيانات في وضع المعاينة', 'warn');
-        return false;
-      }
-
       const student = students.find((s) => s.id === studentId);
       if (!student) return false;
 
@@ -857,13 +1232,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [students, isPreviewMode, canPerformAction, addNotification]
   );
 
-  // 6. Add New Student: Admin only, UUID student ID & mutation ID
+  // 6. Add New Student: UUID student ID & mutation ID
   const addNewStudent = useCallback(
     async (studentData: Partial<Student>): Promise<boolean> => {
-      if (isPreviewMode) {
-        addNotification('وضع المعاينة للقراءة فقط', 'لا يمكن إضافة مخدوم في وضع المعاينة', 'warn');
-        return false;
-      }
 
       const permission = canPerformAction('add_student', studentData.servant);
       if (!permission.allowed) {
@@ -992,9 +1363,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastSuccessfulPushTime,
         lastSuccessfulPullTime,
         lastSuccessfulSyncTime,
+        lastSuccessfulSyncCompact,
         pendingMutationsCount,
         activeEditingId,
+        hasUnsavedEditChanges,
         isSidebarOpen,
+        isSidebarCollapsed,
+        isInitialLoading,
         isAssistantOpen,
         isNotificationsOpen,
         isAreaModalOpen,
@@ -1004,7 +1379,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFilters,
         setActiveView,
         setActiveEditingId,
+        setHasUnsavedEditChanges,
+        requestEditStudent,
+        cancelEditing,
         setIsSidebarOpen,
+        setIsSidebarCollapsed,
         setIsAssistantOpen,
         setIsNotificationsOpen,
         setIsAreaModalOpen,
@@ -1020,7 +1399,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationRead,
         markAllNotificationsRead,
         addNotification,
-        processOfflineQueue
+        processOfflineQueue,
+        activeToast,
+        dismissToast
       }}
     >
       {children}

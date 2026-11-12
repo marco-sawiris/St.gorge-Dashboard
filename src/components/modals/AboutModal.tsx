@@ -1,9 +1,13 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { Church, Heart, Star, X, Sparkles } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
+import { Church, Heart, X, Sparkles, CloudMoon } from 'lucide-react';
+import { ThemeSwitcher } from '../glass/ThemeSwitcher';
+import stGeorgeIcon from '../../assets/images/st_george_icon_1794405195493.jpg';
 
 export const AboutModal: React.FC = () => {
   const { isAboutModalOpen, setIsAboutModalOpen } = useApp();
+  const { theme, setTheme } = useTheme();
 
   if (!isAboutModalOpen) return null;
 
@@ -15,9 +19,9 @@ export const AboutModal: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#123fce]/30 to-[#20c7e8]/30 p-0.5 border border-[#20c7e8]/40 shadow-[0_0_15px_rgba(32,199,232,0.25)]">
               <img
-                src="https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png"
+                src={stGeorgeIcon}
                 alt="St.Gorge"
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover rounded-xl"
               />
             </div>
             <div>
@@ -33,7 +37,8 @@ export const AboutModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAboutModalOpen(false)}
-            className="w-8 h-8 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer transition-colors"
+            aria-label="إغلاق نافذة عن التطبيق"
+            className="glass-btn w-8 h-8 rounded-xl text-[var(--text-secondary)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -78,10 +83,6 @@ export const AboutModal: React.FC = () => {
                 <span>تسجيل الحضور والغياب مع المسار المزدوج وإحصائيات الشهر.</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#6548f5] shadow-[0_0_6px_#6548f5]" />
-                <span>مشغل صوتي Liquid Glass تفاعلي للألحان والقراءات الكنسية.</span>
-              </li>
-              <li className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#8ecfff] shadow-[0_0_6px_#8ecfff]" />
                 <span>العمل دون اتصال بالإنترنت (Offline Mode) مع طابور التزامن المحمي.</span>
               </li>
@@ -90,6 +91,25 @@ export const AboutModal: React.FC = () => {
                 <span>تبديل السمات ثلاثي الحالات: داكن، خافت، فاتح.</span>
               </li>
             </ul>
+          </div>
+
+          {/* Theme Appearance Control (Moved out of Sidebar for compact clutter-free nav) */}
+          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5">
+            <span className="text-xs font-extrabold text-[var(--text-primary)]">مظهر التطبيق</span>
+            <div className="flex items-center gap-2">
+              <ThemeSwitcher />
+              <button
+                type="button"
+                onClick={() => setTheme('dim')}
+                aria-pressed={theme === 'dim'}
+                className={`glass-btn px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 cursor-pointer ${
+                  theme === 'dim' ? 'glass-btn--active' : ''
+                }`}
+              >
+                <CloudMoon className="w-3.5 h-3.5 text-[#8ecfff]" />
+                <span>خافت</span>
+              </button>
+            </div>
           </div>
 
           {/* Mission Quote */}
@@ -110,7 +130,7 @@ export const AboutModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAboutModalOpen(false)}
-            className="btn--lens px-5 py-2 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-xs font-extrabold cursor-pointer hover:brightness-110 shadow-[0_4px_16px_rgba(38,122,255,0.4)] border border-[#20c7e8]/30"
+            className="glass-btn--primary btn--lens px-5 py-2 rounded-xl text-xs font-extrabold cursor-pointer"
           >
             إغلاق
           </button>

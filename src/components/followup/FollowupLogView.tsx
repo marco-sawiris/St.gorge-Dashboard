@@ -9,9 +9,12 @@ import {
   Phone,
   Calendar,
   User,
-  Share2
+  Share2,
+  Download,
+  Printer
 } from 'lucide-react';
 import { getNearestFridayString } from '../../utils/arabicUtils';
+import { downloadCsvReport, downloadPrintableHtmlReport } from '../../utils/exportUtils';
 
 export const FollowupLogView: React.FC = () => {
   const { followupRecords, students } = useApp();
@@ -48,13 +51,46 @@ export const FollowupLogView: React.FC = () => {
     });
   }, [followupRecords, selectedServant, selectedType, searchQuery]);
 
-  // WhatsApp Report Generator for selected servant
+  // WhatsApp Report Generator (Works for BOTH specific servant OR All Servants Summary)
   const generatedWhatsAppReport = useMemo(() => {
-    if (!selectedServant) return '';
+    if (!selectedServant) {
+      const grouped = new Map<string, { total: number; present: number; absent: number; calls: number; visits: number }>();
+      students.forEach((s) => {
+        const key = s.servant?.trim() || 'غير محدد';
+        if (!grouped.has(key)) grouped.set(key, { total: 0, present: 0, absent: 0, calls: 0, visits: 0 });
+        const row = grouped.get(key)!;
+        row.total++;
+        if (s.att && s.att[currentFriday]) row.present++;
+        else row.absent++;
+      });
+      followupRecords.forEach((r) => {
+        const key = r.servant?.trim() || 'غير محدد';
+        if (!grouped.has(key)) grouped.set(key, { total: 0, present: 0, absent: 0, calls: 0, visits: 0 });
+        const row = grouped.get(key)!;
+        if (r.type === 'تم تليفونياً') row.calls++;
+        if (r.type === 'تم بزيارة') row.visits++;
+      });
+
+      const distinctStudents = new Set(followupRecords.map((r) => r.studentId || r.studentCode || r.studentName)).size;
+      const totalCalls = followupRecords.filter((r) => r.type === 'تم تليفونياً').length;
+      const totalVisits = followupRecords.filter((r) => r.type === 'تم بزيارة').length;
+
+      let text = `✝️ *تقرير الافتقاد الشامل — كل الأشابين*\n`;
+      text += `📅 جمعة: ${currentFriday}\n`;
+      text += `• إجمالي المخدومين: ${students.length} | سجلات الافتقاد: ${followupRecords.length} (${distinctStudents} مخدوم)\n`;
+      text += `• اتصالات تليفونية: ${totalCalls} | زيارات منزلية: ${totalVisits}\n\n`;
+      text += `📋 *ملخص حسب الأشبين:*\n`;
+      Array.from(grouped.entries()).forEach(([srv, st], idx) => {
+        text += `${idx + 1}. أ/ ${srv}: حضور ${st.present}/${st.total} • غياب ${st.absent} • اتصال ${st.calls} • زيارة ${st.visits}\n`;
+      });
+      text += `\nصلواتكم للخدمة والخدام 🙏`;
+      return text;
+    }
 
     const servantStudents = students.filter((s) => s.servant === selectedServant);
     const attended = servantStudents.filter((s) => s.att && s.att[currentFriday]);
     const absent = servantStudents.filter((s) => !s.att || !s.att[currentFriday]);
+    const servantLogs = followupRecords.filter((r) => r.servant === selectedServant);
 
     let text = `✝️ *فصل الشهيد مارجرجس - كنيسة العذراء بالزيتون*\n`;
     text += `سلام ونعمة يا أ/ ${selectedServant}،\n`;
@@ -72,9 +108,16 @@ export const FollowupLogView: React.FC = () => {
       text += `${idx + 1}. ${s.name} (${s.code})\n   📞 ${phone} | ${s.followupStatus || 'لم يفتقد'}\n`;
     });
 
+    if (servantLogs.length > 0) {
+      text += `\n📝 *آخر عمليات الافتقاد المسجلة (${servantLogs.length}):*\n`;
+      servantLogs.slice(0, 6).forEach((r, idx) => {
+        text += `${idx + 1}. ${r.studentName} — ${r.type} (${r.date})${r.notes ? `: ${r.notes}` : ''}\n`;
+      });
+    }
+
     text += `\nصلواتكم للخدمة والخدام 🙏`;
     return text;
-  }, [selectedServant, students, currentFriday]);
+  }, [selectedServant, students, followupRecords, currentFriday]);
 
   const handleCopyReport = async () => {
     if (!generatedWhatsAppReport) return;
@@ -85,16 +128,49 @@ export const FollowupLogView: React.FC = () => {
     } catch {}
   };
 
-  const handleSendWhatsApp = () => {
-    if (!generatedWhatsAppReport) return;
-    const encoded = encodeURIComponent(generatedWhatsAppReport);
-    window.open(`https://wa.me/?text=${encoded}`, '_blank');
+  const handleExportFollowupCSV = () => {
+    if (filteredRecords.length === 0) return;
+    const headers = ['التاريخ', 'أسبوع الجمعة', 'الكود', 'الاسم', 'الأشبين', 'النوع', 'ملاحظات'];
+    const rows = filteredRecords.map((r) => [
+      r.date,
+      r.fridayDate,
+      r.studentCode,
+      r.studentName,
+      r.servant,
+      r.type,
+      r.notes || ''
+    ]);
+    downloadCsvReport(headers, rows, `سجل_الافتقاد_${currentFriday}.csv`);
+  };
+
+  const handleExportFollowupPDF = () => {
+    if (filteredRecords.length === 0) return;
+    const headers = ['التاريخ', 'أسبوع الجمعة', 'الكود', 'الاسم', 'الأشبين', 'الوسيلة', 'ملاحظات'];
+    const rows = filteredRecords.map((r) => [
+      r.date,
+      r.fridayDate,
+      r.studentCode,
+      r.studentName,
+      r.servant,
+      r.type,
+      r.notes || '-'
+    ]);
+    downloadPrintableHtmlReport(
+      'تقرير سجل الافتقاد الشامل',
+      `جمعة ${currentFriday} • الأشبين: ${selectedServant || 'الكل'} • السجلات: ${filteredRecords.length}`,
+      headers,
+      rows,
+      `تقرير_الافتقاد_PDF_${currentFriday}.html`
+    );
   };
 
   return (
-    <div className="space-y-6 select-none">
+    <div className="space-y-6 select-none word-in-scope">
       {/* WhatsApp Report Generator Tool for Servants with Liquid Glass */}
-      <div className="glass-strong p-5 rounded-3xl relative overflow-hidden text-[var(--text-primary)] shadow-[var(--shadow-lg)] border border-[var(--border-color)]">
+      <div
+        className="word-in glass-strong p-5 rounded-3xl relative overflow-hidden text-[var(--text-primary)] shadow-[var(--shadow-lg)] border border-[var(--border-color)]"
+        style={{ '--i': 0 } as React.CSSProperties}
+      >
         <div className="absolute top-0 right-0 w-80 h-32 bg-radial from-[var(--accent-secondary)]/15 via-transparent to-transparent pointer-events-none" />
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 relative z-10">
@@ -119,7 +195,7 @@ export const FollowupLogView: React.FC = () => {
               className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-bold focus:outline-none focus:border-[var(--border-focus)] focus:ring-1 focus:ring-[var(--border-focus)] cursor-pointer shadow-xs"
               aria-label="اختيار الخادم لتقرير واتساب"
             >
-              <option value="" className="bg-[var(--surface-primary)] text-[var(--text-primary)]">-- اختر الأشبين لتوليد التقرير --</option>
+              <option value="" className="bg-[var(--surface-primary)] text-[var(--text-primary)]">كل الأشابين والخدام (تقرير شامل)</option>
               {servantsList.map((name) => (
                 <option key={name} value={name} className="bg-[var(--surface-primary)] text-[var(--text-primary)]">
                   {name}
@@ -129,42 +205,69 @@ export const FollowupLogView: React.FC = () => {
           </div>
         </div>
 
-        {selectedServant ? (
-          <div className="bg-[var(--surface-primary)]/80 rounded-2xl p-3.5 space-y-3 border border-[var(--border-color)] relative z-10 shadow-xs">
-            <div className="max-h-40 overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed text-[var(--text-primary)] bg-[var(--surface-secondary)]/80 p-3 rounded-xl border border-[var(--border-color)] select-text">
-              {generatedWhatsAppReport}
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={handleCopyReport}
-                className="px-3.5 py-2 rounded-xl bg-[var(--surface-primary)] hover:bg-[var(--surface-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-xs"
-              >
-                {copiedSuccess ? <Check className="w-4 h-4 text-[var(--accent-secondary)]" /> : <Copy className="w-4 h-4 text-[var(--text-muted)]" />}
-                <span>{copiedSuccess ? 'تم النسخ!' : 'نسخ التقرير'}</span>
-              </button>
-
-              {/* Zero Green: Electric Blue & Cyan button for WhatsApp */}
-              <button
-                type="button"
-                onClick={handleSendWhatsApp}
-                className="btn--lens px-4 py-2 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--accent-secondary)] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs hover:brightness-110 active:scale-95 border border-[var(--accent-secondary)]/30"
-              >
-                <MessageSquare className="w-4 h-4 text-white" />
-                <span>إرسال عبر WhatsApp</span>
-              </button>
-            </div>
+        <div className="bg-[var(--surface-primary)]/80 rounded-2xl p-3.5 space-y-3 border border-[var(--border-color)] relative z-10 shadow-xs">
+          <div className="max-h-40 overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed text-[var(--text-primary)] bg-[var(--surface-secondary)]/80 p-3 rounded-xl border border-[var(--border-color)] select-text">
+            {generatedWhatsAppReport}
           </div>
-        ) : (
-          <p className="text-xs text-[var(--text-muted)] m-0 relative z-10">
-            اختر اسم الخادم من القائمة أعلاه لتوليد التقرير الفوري الجاهز للإرسال على WhatsApp.
-          </p>
-        )}
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleExportFollowupCSV}
+              disabled={filteredRecords.length === 0}
+              className="glass-btn px-3 py-2 rounded-xl text-[var(--text-primary)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-[var(--accent-secondary)]" />
+              <span>تصدير Excel (CSV)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportFollowupPDF}
+              disabled={filteredRecords.length === 0}
+              className="glass-btn px-3 py-2 rounded-xl text-[var(--text-primary)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5 text-[var(--primary)]" />
+              <span>طباعة / PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopyReport}
+              className="glass-btn px-3.5 py-2 rounded-xl text-[var(--text-primary)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              {copiedSuccess ? (
+                <span key="copied" className="badge-pop inline-flex items-center gap-1.5 text-[var(--accent-secondary)]">
+                  <Check className="w-4 h-4" />
+                  <span>تم النسخ!</span>
+                </span>
+              ) : (
+                <span key="copy" className="inline-flex items-center gap-1.5">
+                  <Copy className="w-4 h-4 text-[var(--text-muted)]" />
+                  <span>نسخ التقرير</span>
+                </span>
+              )}
+            </button>
+
+            {/* Zero Green: Electric Blue & Cyan button for WhatsApp */}
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(generatedWhatsAppReport)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 border border-[var(--accent-secondary)]/30"
+            >
+              <MessageSquare className="w-4 h-4 text-white" />
+              <span>إرسال عبر WhatsApp</span>
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* Filter & Search Bar for Followup Ledger */}
-      <div className="glass p-4 rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow)] grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div
+        className="word-in glass p-4 rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow)] grid grid-cols-1 sm:grid-cols-3 gap-3"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
         {/* Search */}
         <div className="relative">
           <Search className="w-4 h-4 text-[var(--accent-secondary)] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -228,12 +331,13 @@ export const FollowupLogView: React.FC = () => {
             </p>
           </div>
         ) : (
-          filteredRecords.map((r) => {
+          filteredRecords.map((r, idx) => {
             const studentMatch = students.find((s) => s.id === r.studentId);
             return (
               <div
                 key={r.id}
-                className="glass p-4 rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[var(--accent-secondary)]/50 transition-all duration-200"
+                style={{ '--i': Math.min(idx + 2, 10) } as React.CSSProperties}
+                className="word-in glass p-4 rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[var(--accent-secondary)]/50 transition-all duration-200"
               >
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
@@ -268,17 +372,16 @@ export const FollowupLogView: React.FC = () => {
                   <div className="flex items-center gap-2 shrink-0">
                     <a
                       href={`tel:${studentMatch.phoneStudent}`}
-                      className="px-3 py-1.5 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] hover:text-[var(--accent-secondary)] hover:border-[var(--accent-secondary)]/40 flex items-center gap-1.5 transition-colors shadow-xs"
+                      className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--text-primary)] hover:text-[var(--accent-secondary)] flex items-center gap-1.5"
                     >
                       <Phone className="w-3.5 h-3.5 text-[var(--accent-secondary)]" />
                       <span>اتصال</span>
                     </a>
-                    {/* ZERO GREEN: WhatsApp link in Cyan & Blue */}
                     <a
                       href={`https://wa.me/2${studentMatch.phoneStudent.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-1.5 rounded-xl bg-[var(--accent-secondary)]/15 border border-[var(--accent-secondary)]/30 text-xs font-bold text-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)] hover:text-white flex items-center gap-1.5 transition-all shadow-xs"
+                      className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--accent-secondary)] flex items-center gap-1.5"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>واتساب</span>

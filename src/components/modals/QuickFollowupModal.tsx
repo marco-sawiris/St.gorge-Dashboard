@@ -16,7 +16,7 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
   onClose
 }) => {
   const { recordFollowup } = useApp();
-  const { isPreviewMode, canPerformAction } = useAuth();
+  const { canPerformAction } = useAuth();
 
   const [method, setMethod] = useState<'تم تليفونياً' | 'تم بزيارة' | 'واتساب' | 'رسالة نصية' | 'اعتذار'>('تم تليفونياً');
   const [notes, setNotes] = useState('');
@@ -38,11 +38,6 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
     e.preventDefault();
     setErrorMsg('');
 
-    if (isPreviewMode) {
-      setErrorMsg('التطبيق في وضع المعاينة (Preview Mode). يلزم تسجيل الدخول لتسجيل الافتقاد.');
-      return;
-    }
-
     const permission = canPerformAction('followup', student.servant);
     if (!permission.allowed) {
       setErrorMsg(permission.reason || 'العملية تتطلب تسجيل دخول موثق');
@@ -51,8 +46,9 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const success = await recordFollowup(student.id, method);
+      const success = await recordFollowup(student.id, method, notes);
       if (success) {
+        setNotes('');
         onClose();
       } else {
         setErrorMsg('تعذر تسجيل الافتقاد محلياً في قاعدة البيانات.');
@@ -65,8 +61,8 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-wordIn select-none">
-      <div className="w-full max-w-md glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-fadeIn select-none">
+      <div className="w-full max-w-md glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col animate-wordIn">
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-white/[0.02]">
           <div className="flex items-center gap-2.5">
@@ -85,7 +81,8 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-colors"
+            aria-label="إغلاق النافذة"
+            className="glass-btn w-8 h-8 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -111,10 +108,9 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
                     key={m.id}
                     type="button"
                     onClick={() => setMethod(m.id)}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-[#123fce] to-[#267aff] text-white border-[#20c7e8]/50 shadow-[0_4px_16px_rgba(38,122,255,0.4)]'
-                        : 'bg-[var(--surface-primary)] border-[var(--border-color)] text-[var(--text-primary)] hover:border-[#20c7e8]/40'
+                    aria-pressed={isSelected}
+                    className={`glass-btn p-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 cursor-pointer ${
+                      isSelected ? 'glass-btn--active' : 'text-[var(--text-primary)]'
                     }`}
                   >
                     <IconComponent className={`w-4 h-4 ${isSelected ? 'text-white' : m.color}`} />
@@ -165,14 +161,14 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] font-bold text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors"
+              className="glass-btn px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer"
             >
               إلغاء
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="btn--lens px-5 py-2 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white font-bold text-xs flex items-center gap-2 hover:brightness-110 transition-all cursor-pointer shadow-[0_4px_16px_rgba(38,122,255,0.4)] active:scale-95 disabled:opacity-50 border border-[#20c7e8]/30"
+              className="glass-btn--primary btn--lens px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer"
             >
               <HeartHandshake className="w-4 h-4 text-[#20c7e8]" />
               <span>{isSubmitting ? 'جاري التسجيل...' : 'تسجيل الافتقاد الآن'}</span>

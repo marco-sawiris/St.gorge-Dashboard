@@ -6,3 +6,14 @@ coverage/
 *.log
 .env*
 !.env.example
+*.patch
+*.zip
+*.tar.gz
+public/download/
+android/local.properties
+android/keystore.properties
+android/.gradle/
+android/app/build/
+*.jks
+*.keystore
+

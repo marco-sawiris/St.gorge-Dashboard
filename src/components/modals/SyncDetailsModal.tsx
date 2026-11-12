@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Database
+  Database,
+  ShieldCheck
 } from 'lucide-react';
 
 export const SyncDetailsModal: React.FC = () => {
@@ -22,7 +23,6 @@ export const SyncDetailsModal: React.FC = () => {
     lastSyncError,
     lastSuccessfulPullTime,
     lastSuccessfulPushTime,
-    lastSuccessfulSyncTime,
     pendingMutationsCount,
     syncData,
     processOfflineQueue
@@ -41,37 +41,37 @@ export const SyncDetailsModal: React.FC = () => {
   const statusDescriptions = {
     connected: {
       title: 'متصل وجاهز للمزامنة',
-      desc: 'الاتصال بالإنترنت وبالخادم يعمل بصورة طبيعية، ولا توجد عمليات معلقة بانتظار الإرسال.',
+      desc: 'الاتصال بالإنترنت يعمل بصورة طبيعية، ولا توجد عمليات معلقة بانتظار الإرسال.',
       icon: Wifi,
       colorClass: 'text-[var(--accent-secondary)]'
     },
     syncing: {
       title: 'جاري تنفيذ المزامنة...',
-      desc: 'يتم حالياً فحص الخادم، إرسال العمليات المعلقة، وسحب البيانات المحدثة.',
+      desc: 'يتم حالياً إرسال العمليات المعلقة وسحب البيانات المحدثة من Google Sheets.',
       icon: RefreshCw,
       colorClass: 'text-[var(--primary)]'
     },
     synced: {
       title: 'تمت المزامنة بنجاح',
-      desc: 'تم تحديث البيانات المحلية والتأكد من مطابقتها مع الخادم دون تعارض.',
+      desc: 'تم تحديث البيانات المحلية والتأكد من مطابقتها مع Google Sheets دون تعارض.',
       icon: CheckCircle2,
       colorClass: 'text-[var(--accent-secondary)]'
     },
     failed: {
       title: 'فشلت المزامنة الأخيرة',
-      desc: 'حدث خطأ أثناء محاولة الاتصال بالخادم. تم الاحتفاظ بجميع بياناتك وعملياتك محلياً بأمان.',
+      desc: 'تعذر إتمام المزامنة الحالية. تم الاحتفاظ بجميع بياناتك وعملياتك محلياً في IndexedDB بأمان.',
       icon: AlertTriangle,
       colorClass: 'text-[var(--danger)]'
     },
     offline: {
       title: 'لا يوجد اتصال بالإنترنت (Offline Mode)',
-      desc: 'أنت تعمل حالياً بدون اتصال. يمكنك تسجيل الحضور والافتقاد وإضافة البيانات، وسيتم حفظ كل شيء في قاعدة البيانات المحلية (IndexedDB).',
+      desc: 'أنت تعمل حالياً بدون اتصال. يمكنك تسجيل الحضور والافتقاد وتعديل البيانات، وسيتم حفظ كل شيء محلياً ومزامنته عند عودة الإنترنت.',
       icon: WifiOff,
       colorClass: 'text-[var(--text-muted)]'
     },
     pending: {
-      title: 'توجد عمليات معلقة بانتظار الاتصال',
-      desc: `لديك ${pendingMutationsCount} عملية محفوظة محلياً في طابور العمليات، وستُرسل إلى الخادم بمجرد المزامنة.`,
+      title: 'توجد عمليات معلقة بانتظار المزامنة',
+      desc: `لديك ${pendingMutationsCount} عملية محفوظة محلياً في طابور العمليات، وستُرسل إلى Google Sheets عند المزامنة.`,
       icon: CloudUpload,
       colorClass: 'text-amber-500'
     }
@@ -80,7 +80,7 @@ export const SyncDetailsModal: React.FC = () => {
   const StatusIcon = statusDescriptions.icon;
 
   const formatDateDisplay = (iso: string | null) => {
-    if (!iso) return 'لم تتم بعد';
+    if (!iso) return 'لم تتم مزامنة بعد';
     try {
       const d = new Date(iso);
       return d.toLocaleString('ar-EG', {
@@ -106,7 +106,7 @@ export const SyncDetailsModal: React.FC = () => {
                 حالة وتفاصيل المزامنة
               </h3>
               <p className="text-xs text-[var(--text-muted)] m-0">
-                متابعة الاتصال بالخادم وقاعدة البيانات المحلية
+                المزامنة المباشرة مع Google Sheets وقاعدة البيانات المحلية
               </p>
             </div>
           </div>
@@ -114,13 +114,14 @@ export const SyncDetailsModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsSyncModalOpen(false)}
-            className="w-8 h-8 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-colors"
+            aria-label="إغلاق نافذة حالة المزامنة"
+            className="glass-btn w-8 h-8 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Modal Body */}
+        {/* Modal Body (Public Read-Only Sync Status & Trigger Actions Only — Zero Editable Endpoint/Secret Fields) */}
         <div className="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
           {/* Main Status Banner */}
           <div className="p-4 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] shadow-xs flex items-start gap-3">
@@ -140,7 +141,7 @@ export const SyncDetailsModal: React.FC = () => {
             <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 space-y-1">
               <div className="flex items-center gap-2 font-bold text-xs">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>سبب فشل المزامنة الأخير:</span>
+                <span>سبب تعذر المزامنة الأخيرة:</span>
               </div>
               <p className="text-xs m-0 font-mono pr-6">
                 {lastSyncError}
@@ -203,10 +204,13 @@ export const SyncDetailsModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Sync Guarantee Notice */}
-          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)]/50 border border-[var(--border-color)] text-xs text-[var(--text-secondary)] leading-relaxed">
-            <span className="font-bold text-[var(--text-primary)]">ضمان الأمان وعدم فقد البيانات: </span>
-            تعتمد المنظومة آلية التخزين المحلي أولاً (Offline-First) مع طابور العمليات التلقائي. لن يتم حذف أي بيانات محلية أو استبدالها إلا بعد التأكد من اكتمال استجابة السيرفر للفصل المحدد.
+          {/* Sync & Security Guarantee Notice */}
+          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)]/50 border border-[var(--border-color)] text-xs text-[var(--text-secondary)] leading-relaxed flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-[var(--accent-secondary)] shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-[var(--text-primary)]">حماية الاتصال وعدم فقد البيانات: </span>
+              إعدادات الربط مع Google Sheets محمية ومضبوطة داخلياً، وتعتمد المنظومة آلية التخزين المحلي أولاً (Offline-First) مع طابور العمليات التلقائي لضمان حفظ كافة السجلات.
+            </div>
           </div>
         </div>
 
@@ -218,7 +222,7 @@ export const SyncDetailsModal: React.FC = () => {
                 type="button"
                 onClick={handleFlushQueue}
                 disabled={isSyncing || !isOnline}
-                className="px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 hover:bg-amber-500/25 transition-all cursor-pointer disabled:opacity-50"
+                className="glass-btn px-3.5 py-2 rounded-xl border-amber-500/35 text-amber-400 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <CloudUpload className="w-3.5 h-3.5" />
                 <span>إرسال المعلق ({pendingMutationsCount})</span>
@@ -229,7 +233,7 @@ export const SyncDetailsModal: React.FC = () => {
               type="button"
               onClick={handleSyncNow}
               disabled={isSyncing}
-              className="btn--lens px-4 py-2 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--accent-secondary)] text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'جاري المزامنة...' : 'مزامنة فورية الآن'}</span>
@@ -239,7 +243,7 @@ export const SyncDetailsModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsSyncModalOpen(false)}
-            className="px-4 py-2 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] font-bold text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer transition-colors"
+            className="glass-btn px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer"
           >
             إغلاق
           </button>

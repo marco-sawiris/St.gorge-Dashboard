@@ -1,13 +1,38 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ARABIC_ALPHABET, normalizeArabicInitial } from '../../utils/arabicUtils';
-import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { ChevronDown, Sparkles } from 'lucide-react';
 
+/**
+ * Bottom Arabic Alphabet Quick Filter Dock (Alphabet-only per user spec)
+ * Auto-hides behind modals/active edits and respects Android Safe Area.
+ */
 export const BottomKeyboardDock: React.FC = () => {
-  const { students, filters, setFilters } = useApp();
+  const {
+    students,
+    filters,
+    setFilters,
+    isSidebarCollapsed,
+    isAddModalOpen,
+    activeEditingId,
+    isAssistantOpen,
+    isSyncModalOpen,
+    isAreaModalOpen,
+    isAboutModalOpen,
+    isNotificationsOpen
+  } = useApp();
+
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Count available students per letter under current other active filters
+  const hasModalBlockingDock =
+    isAddModalOpen ||
+    Boolean(activeEditingId) ||
+    isAssistantOpen ||
+    isSyncModalOpen ||
+    isAreaModalOpen ||
+    isAboutModalOpen ||
+    isNotificationsOpen;
+
   const letterCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
     students.forEach((s) => {
@@ -30,34 +55,55 @@ export const BottomKeyboardDock: React.FC = () => {
     }));
   };
 
-  const handleClear = () => {
+  const handleClearLetter = () => {
     setFilters((prev) => ({ ...prev, alphabetLetter: null }));
   };
 
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 z-30 glass-strong border-t border-[var(--border-color)] shadow-[var(--shadow)] px-2 sm:px-4 py-2 transition-all duration-300 select-none ${
-        isCollapsed ? 'translate-y-[calc(100%-34px)]' : 'translate-y-0'
+      role="region"
+      aria-label="شريط التصفية الأبجدية"
+      aria-hidden={hasModalBlockingDock}
+      className={`fixed bottom-0 left-0 right-0 ${
+        isSidebarCollapsed ? 'lg:right-[84px]' : 'lg:right-[272px]'
+      } z-30 glass-strong border-t border-[var(--border-color)] shadow-[var(--shadow)] px-2 sm:px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-[var(--ease-spring)] select-none overflow-hidden ${
+        hasModalBlockingDock
+          ? 'translate-y-full opacity-0 pointer-events-none'
+          : isCollapsed
+          ? 'translate-y-[calc(100%-38px)]'
+          : 'translate-y-0'
       }`}
     >
-      {/* Header bar */}
-      <div className="max-w-4xl mx-auto flex items-center justify-between h-7 px-1 mb-1.5">
+      {/* Subtle Ambient Glassmorphism Glow inside Dock */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-10 right-10 w-36 h-36 rounded-full bg-radial from-[#267AFF]/20 via-[#20C7E8]/10 to-transparent blur-2xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-10 left-12 w-40 h-40 rounded-full bg-radial from-[#6548F5]/20 via-[#20C7E8]/10 to-transparent blur-2xl"
+      />
+
+      {/* Dock Top Controls Header — Alphabet Filter Only */}
+      <div className="relative z-10 max-w-4xl mx-auto flex items-center justify-between gap-2 h-8 px-1 mb-1.5">
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-primary)] hover:text-[#20c7e8] cursor-pointer transition-colors"
+          className="glass-btn px-2.5 py-1 rounded-xl flex items-center gap-1 text-[11px] sm:text-xs font-extrabold cursor-pointer shrink-0"
+          aria-expanded={!isCollapsed}
+          title={isCollapsed ? 'إظهار شريط الأبجدية' : 'طي شريط الأبجدية'}
         >
-          {isCollapsed ? (
-            <ChevronUp className="w-4 h-4 text-[#20c7e8]" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-[#20c7e8]" />
-          )}
-          <span>تصفية بالحروف الأبجدية</span>
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-[#20c7e8] transition-transform duration-300 ease-[var(--ease-spring)] ${
+              isCollapsed ? 'rotate-180' : 'rotate-0'
+            }`}
+          />
+          <span className="truncate">تصفية بالحروف الأبجدية</span>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {filters.alphabetLetter && (
-            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#20c7e8]/15 text-[#20c7e8] border border-[#20c7e8]/30 shadow-[0_0_10px_rgba(32,199,232,0.25)] flex items-center gap-1">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#20c7e8]/15 text-[#20c7e8] border border-[#20c7e8]/30 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-[#20c7e8]" />
               <span>حرف {filters.alphabetLetter} ({letterCounts[filters.alphabetLetter] || 0})</span>
             </span>
@@ -65,11 +111,10 @@ export const BottomKeyboardDock: React.FC = () => {
 
           <button
             type="button"
-            onClick={handleClear}
-            className={`text-xs font-bold px-3 py-0.5 rounded-xl border transition-all cursor-pointer ${
-              filters.alphabetLetter === null
-                ? 'btn--lens bg-gradient-to-r from-[#123fce] to-[#267aff] text-white border-[#20c7e8]/50 shadow-[0_2px_10px_rgba(38,122,255,0.4)]'
-                : 'bg-[var(--surface-primary)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
+            onClick={handleClearLetter}
+            aria-pressed={filters.alphabetLetter === null}
+            className={`glass-btn text-xs font-bold px-3 py-1 rounded-xl cursor-pointer ${
+              filters.alphabetLetter === null ? 'glass-btn--active' : ''
             }`}
           >
             الكل
@@ -77,8 +122,8 @@ export const BottomKeyboardDock: React.FC = () => {
         </div>
       </div>
 
-      {/* Letters Grid - 2 rows of 14 letters with Claymorphism & Liquid Glass keys */}
-      <div className="max-w-4xl mx-auto flex flex-col gap-1.5 pb-1">
+      {/* Arabic Alphabet Quick Filter (28 Letters) */}
+      <div className="relative z-10 max-w-4xl mx-auto flex flex-col gap-1.5 pb-0.5">
         <div className="grid grid-cols-14 gap-1 sm:gap-1.5 w-full">
           {ARABIC_ALPHABET.slice(0, 14).map((letter) => {
             const count = letterCounts[letter] || 0;
@@ -89,12 +134,12 @@ export const BottomKeyboardDock: React.FC = () => {
                 type="button"
                 onClick={() => handleSelectLetter(letter)}
                 disabled={count === 0 && !isSelected}
-                className={`h-8 sm:h-9 min-w-0 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
+                className={`glass-keyboard-key min-w-0 text-xs sm:text-sm font-bold flex items-center justify-center cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-gradient-to-br from-[#267aff] to-[#20c7e8] text-[#030711] font-black shadow-[0_0_15px_rgba(32,199,232,0.6)] scale-105 border border-white/40'
+                    ? '!bg-gradient-to-br !from-[#267aff] !to-[#20c7e8] !text-[#030711] font-black shadow-[0_0_15px_rgba(32,199,232,0.55)] scale-105 border-white/45'
                     : count > 0
-                    ? 'bg-[var(--surface-primary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:border-[#20c7e8]/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
-                    : 'bg-white/[0.02] border border-[var(--border-color)]/30 text-[var(--text-muted)] opacity-30 cursor-not-allowed'
+                    ? ''
+                    : 'opacity-30 cursor-not-allowed'
                 }`}
                 title={`حرف ${letter} (${count} مخدوم)`}
               >
@@ -114,12 +159,12 @@ export const BottomKeyboardDock: React.FC = () => {
                 type="button"
                 onClick={() => handleSelectLetter(letter)}
                 disabled={count === 0 && !isSelected}
-                className={`h-8 sm:h-9 min-w-0 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
+                className={`glass-keyboard-key min-w-0 text-xs sm:text-sm font-bold flex items-center justify-center cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-gradient-to-br from-[#267aff] to-[#20c7e8] text-[#030711] font-black shadow-[0_0_15px_rgba(32,199,232,0.6)] scale-105 border border-white/40'
+                    ? '!bg-gradient-to-br !from-[#267aff] !to-[#20c7e8] !text-[#030711] font-black shadow-[0_0_15px_rgba(32,199,232,0.55)] scale-105 border-white/45'
                     : count > 0
-                    ? 'bg-[var(--surface-primary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:border-[#20c7e8]/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
-                    : 'bg-white/[0.02] border border-[var(--border-color)]/30 text-[var(--text-muted)] opacity-30 cursor-not-allowed'
+                    ? ''
+                    : 'opacity-30 cursor-not-allowed'
                 }`}
                 title={`حرف ${letter} (${count} مخدوم)`}
               >

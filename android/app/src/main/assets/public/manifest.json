@@ -1,0 +1,27 @@
+{
+  "name": "St.Gorge Church Dashboard",
+  "short_name": "مارجرجس",
+  "description": "لوحة متابعة وإدارة خدمة فصل الشهيد مارجرجس بكنيسة السيدة العذراء بالزيتون",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1e2c",
+  "theme_color": "#12344d",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/marco-sawiris/St.gorge-Dashboard/main/Aset/Icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
