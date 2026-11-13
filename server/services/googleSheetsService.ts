@@ -199,6 +199,37 @@ export class GoogleSheetsService {
       throw new Error(`Google Sheets tab "${student.sourceSheet}" has no header row`);
     }
 
+    const headerColumnName = (index: number): string => {
+      let n = index + 1;
+      let label = '';
+      while (n > 0) {
+        const remainder = (n - 1) % 26;
+        label = String.fromCharCode(65 + remainder) + label;
+        n = Math.floor((n - 1) / 26);
+      }
+      return label;
+    };
+    let versionColumnIndex = headers.findIndex((header) =>
+      header.toLowerCase() === 'version' || header === 'الإصدار'
+    );
+    if (versionColumnIndex < 0) {
+      versionColumnIndex = headers.length;
+      const versionColumn = headerColumnName(versionColumnIndex);
+      const versionHeaderRange = encodeURIComponent(`'${student.sourceSheet}'!${versionColumn}1`);
+      const versionHeaderResponse = await fetch(`${sheetPrefix}/${versionHeaderRange}?valueInputOption=RAW`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: [['version']] })
+      });
+      if (!versionHeaderResponse.ok) {
+        throw new Error(`Could not create required Google Sheets version column (${versionHeaderResponse.status})`);
+      }
+      headers.push('version');
+    }
+
     const matchingRows = rows
       .map((row, index) => ({ code: String(row?.[0] ?? '').trim(), rowNumber: index + 1 }))
       .filter((row) => row.rowNumber > 1 && row.code === String(student.code).trim());
