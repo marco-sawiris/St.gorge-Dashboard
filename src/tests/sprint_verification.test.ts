@@ -54,7 +54,8 @@ import {
   computeMonthlyAttendanceSummary,
   getMonthFridays,
   getCairoDateParts,
-  getLatestHeldFridayString
+  getLatestHeldFridayString,
+  getNearestFridayString
 } from '../utils/arabicUtils';
 import {
   DEFAULT_WEEKLY_REMINDERS,
@@ -1549,11 +1550,36 @@ async function runSprintTests() {
   assert(unknownAttendance.text.includes('لم يُسجل') || unknownAttendance.text.includes('لم يتم تسجيل'), 'Test 37g: Missing attendance is distinguished from explicitly recorded absence');
   console.log('✅ Test 37 Passed: Smart assistant queries, date ranges, safe commands & ambiguity guards verified\\n');
 
+  // --------------------------------------------------------------------------
+  // TEST 38: Follow-up Batch Commands, Weekly Gaps & Weak Attendance
+  // --------------------------------------------------------------------------
+  const followupFriday = getNearestFridayString();
+  const marten = makeStudent({ id: 'assistant_fu_1', name: 'مارتن فايز', servant: 'ماركو', fu: {} });
+  const michael = makeStudent({ id: 'assistant_fu_2', name: 'مايكل سمير', servant: 'ماركو', fu: {} });
+  const mina = makeStudent({ id: 'assistant_fu_3', name: 'مينا عادل', servant: 'آخر', fu: {} });
+  const batchCall = processAssistantQuery('النهارده أنا كلمت مثلاً مارتن فايز، مايكل سمير', [marten, michael, mina]);
+  assert(batchCall.command?.type === 'recordFollowupBatch' && batchCall.command.method === 'تم تليفونياً' && batchCall.command.students.length === 2, 'Test 38a: Assistant resolves multiple named students for phone follow-up');
+  const batchWhatsapp = processAssistantQuery('بعت واتساب لـ مارتن فايز و مايكل سمير', [marten, michael, mina]);
+  assert(batchWhatsapp.command?.type === 'recordFollowupBatch' && batchWhatsapp.command.method === 'واتساب' && batchWhatsapp.command.students.length === 2, 'Test 38b: Assistant resolves multiple WhatsApp follow-ups');
+  const batchVisit = processAssistantQuery('زرت مينا عادل', [marten, michael, mina]);
+  assert(batchVisit.command?.type === 'recordFollowupBatch' && batchVisit.command.method === 'تم بزيارة', 'Test 38c: Assistant resolves home visit follow-up');
+  const ambiguousBatch = processAssistantQuery('كلمت مارتن', [marten, makeStudent({ id: 'assistant_fu_4', name: 'مارتن جرجس', servant: 'ماركو' })]);
+  assert(!ambiguousBatch.command && ambiguousBatch.text.includes('تحتاج توضيحًا'), 'Test 38d: Ambiguous follow-up names never write any record');
+  const weeklyMissing = processAssistantQuery('مين نسيت افتقدهم الأسبوع ده؟', [marten, michael, mina], { referenceDate: new Date(), servantName: 'ماركو' });
+  assert(weeklyMissing.text.includes('الأشبن: ماركو') && weeklyMissing.text.includes('مارتن فايز') && !weeklyMissing.text.includes('مينا عادل'), 'Test 38e: Weekly missing-follow-up report is scoped to the assigned servant');
+  const alreadyFollowed = makeStudent({ id: 'assistant_fu_done', name: 'بيشوي سمير', servant: 'ماركو', fu: { [followupFriday]: 'واتساب' } });
+  const weeklyDone = processAssistantQuery('مين نسيت افتقدهم الأسبوع ده؟', [alreadyFollowed], { referenceDate: new Date(), servantName: 'ماركو' });
+  assert(weeklyDone.text.includes('كل المخدومين') && weeklyDone.text.includes('لديهم افتقاد مسجل'), 'Test 38f: Current-week follow-up records are excluded from the missing list');
+  const weakAttendance = processAssistantQuery('اديني عدد الأولاد اللي حضورهم مش قوي عشان أفتقدهم', [makeStudent({ id: 'weak_1', name: 'مينا', attendanceMonth: 1, attendanceTotal: 6 }), makeStudent({ id: 'weak_2', name: 'مارك', attendanceMonth: 4, attendanceTotal: 10 })]);
+  assert(weakAttendance.text.includes('مينا') && !weakAttendance.text.includes('مارك'), 'Test 38g: Weak attendance report uses current-month attendance, not lifetime total');
+  console.log('✅ Test 38 Passed: Batch follow-up, method detection, weekly gaps, servant scope & weak attendance verified\\n');
+
+
   (globalThis as any).fetch = originalFetch;
   await idbSaveStudents([], 'نشط', true).catch(() => {});
 
   console.log('======================================================');
-  console.log('🎉 ALL 37 SPRINT VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  console.log('🎉 ALL 38 SPRINT VERIFICATION TESTS PASSED SUCCESSFULLY!');
   console.log('======================================================');
 }
 
