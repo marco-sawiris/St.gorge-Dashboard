@@ -51,6 +51,11 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const isThisCardEditing = activeEditingId === student.id;
   const isAnotherCardEditing = Boolean(activeEditingId && activeEditingId !== student.id);
 
+  // Any card that was showing its reverse/details face returns to the front as soon as editing starts.
+  useEffect(() => {
+    if (activeEditingId) setIsFlipped(false);
+  }, [activeEditingId]);
+
   // Inline Card Edit Form State (keeps ALL cards visible in the grid)
   const [editName, setEditName] = useState(student.name || '');
   const [editCode, setEditCode] = useState(student.code || '');
@@ -282,7 +287,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
       <form
         onSubmit={handleInlineSave}
         aria-label={`تعديل بيانات ${student.name}`}
-        className="w-full p-4 rounded-3xl glass-strong ring-2 ring-[#20C7E8] border-[#20C7E8] shadow-[0_0_28px_rgba(32,199,232,0.35)] flex flex-col gap-2.5 select-none animate-wordIn"
+        className="w-full min-w-0 max-w-full p-4 rounded-3xl glass-strong ring-2 ring-[#20C7E8] border-[#20C7E8] shadow-[0_0_28px_rgba(32,199,232,0.35)] flex flex-col gap-2.5 select-none animate-wordIn"
       >
         <div className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2 min-w-0">
@@ -464,10 +469,10 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   }
 
   return (
-    <div className="perspective-1000 w-full select-none">
+    <div className="perspective-1000 w-full min-w-0 max-w-full select-none">
       {/* CSS Grid Stacking ensures ZERO clipping and ZERO internal scrollbar across any viewport */}
       <div
-        className={`grid w-full duration-500 ease-[var(--ease-spring)] transform-style-preserve-3d transition-transform ${
+        className={`grid w-full min-w-0 max-w-full duration-500 ease-[var(--ease-spring)] transform-style-preserve-3d transition-transform ${
           isFlipped ? 'rotate-y-180' : ''
         }`}
       >
@@ -763,7 +768,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                aria-disabled={isAnotherCardEditing}
+                disabled={isAnotherCardEditing}
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenEdit(student);
@@ -777,6 +782,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
 
               <button
                 type="button"
+                disabled={isAnotherCardEditing}
                 onClick={() => setIsFlipped(true)}
                 className="glass-btn--primary btn--lens px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"
               >
