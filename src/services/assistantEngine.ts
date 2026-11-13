@@ -437,7 +437,7 @@ export function parseAssistantCommand(
   const q = normalizeArabicText(query);
   if (!q) return null;
 
-  const followupMatch = query.match(/(?:كلمت|اتصلت(?:\s+ب)?|بعت(?:\s+رساله)?\s+واتساب\s+ل|بعت\s+واتساب\s+ل|زرت|عملت\s+زياره\s+منزليه\s+ل)\s*(.+)$/i);
+  const followupMatch = query.match(/(?:كلمت|اتصلت(?:\s+ب)?|بعت(?:\s+رساله)?\s+واتساب\s+لـ?|بعت\s+واتساب\s+لـ?|زرت|عملت\s+زياره\s+منزليه\s+لـ?)\s*(.+)$/i);
   if (followupMatch) {
     const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').replace(/^(?:مثلاً|مثلا|أنا|انا|النهارده|النهاردة)\s+/i, '').trim();
     const method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة' = /واتساب/i.test(query) ? 'واتساب' : /زرت|زياره\s+منزليه/i.test(query) ? 'تم بزيارة' : 'تم تليفونياً';
