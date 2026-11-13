@@ -303,7 +303,7 @@ export function detectAssistantIntent(query: string): AssistantIntent {
   if (q.includes('غائب') || q.includes('غايب') || q.includes('لم يحضر') || q.includes('محتاجين افتقاد')) {
     return 'absent';
   }
-  if (q.includes('ضعيف') || q.includes('اقل حضور') || q.includes('منقطع') || q.includes('مقصر') || q.includes('حضورهم مش قوي') || q.includes('حضورهم ضعيف')) {
+  if (q.includes('ضعيف') || q.includes('اقل حضور') || q.includes('منقطع') || q.includes('مقصر') || q.includes('حضورهم مش قوي') || q.includes('حضورهم ضعيف') || (q.includes('حضور') && q.includes('مش قوي'))) {
     return 'lowAttendance';
   }
   if (q.includes('افضل') || q.includes('اعلي حضور') || q.includes('منتظم') || q.includes('اكثر حضور')) {
@@ -436,7 +436,7 @@ export function parseAssistantCommand(
 
   const followupMatch = query.match(/(?:كلمت|اتصلت(?:\s+ب)?|بعت(?:\s+رساله)?\s+واتساب\s+ل|بعت\s+واتساب\s+ل|زرت|عملت\s+زياره\s+منزليه\s+ل)\s*(.+)$/i);
   if (followupMatch) {
-    const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').trim();
+    const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').replace(/^(?:مثلاً|مثلا|أنا|انا|النهارده|النهاردة)\\s+/i, '').trim();
     const method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة' = /واتساب/i.test(query) ? 'واتساب' : /زرت|زياره\s+منزليه/i.test(query) ? 'تم بزيارة' : 'تم تليفونياً';
     const targets = rawTail.split(/،|,|\s+و\s+/).map((name) => name.trim()).filter(Boolean);
     const resolved: Student[] = [];
@@ -513,7 +513,7 @@ export function parseAssistantCommand(
 export function processAssistantQuery(
   query: string,
   students: Student[],
-  options?: { referenceDate?: Date; lastSyncLabel?: string | null }
+  options?: { referenceDate?: Date; lastSyncLabel?: string | null; servantName?: string | null }
 ): AssistantResponse {
   const trimmed = String(query || '').trim();
   const intent = detectAssistantIntent(trimmed);
