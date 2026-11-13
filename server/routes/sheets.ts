@@ -95,6 +95,9 @@ router.post(
     if (!action || !studentId) {
       return res.status(400).json({ error: 'بيانات العملية غير مكتملة (action و studentId مطلوبان)' });
     }
+    if (action !== 'add' && (!Number.isInteger(expectedVersion) || expectedVersion < 1)) {
+      return res.status(400).json({ error: 'expectedVersion إلزامي ويجب أن يكون رقم إصدار صحيحاً لكل تعديل على سجل موجود.' });
+    }
 
     // 2. Zero Delete Student Policy Enforcement
     if (action === 'delete') {
@@ -157,8 +160,8 @@ router.post(
     }
 
     // 5. Optimistic Concurrency Control (OCC) Version Conflict Check
-    if (currentStudent && typeof expectedVersion === 'number') {
-      if (currentStudent.version > expectedVersion) {
+    if (currentStudent && action !== 'add') {
+      if (currentStudent.version !== expectedVersion) {
         await dbManager.logAudit({
           timestamp: new Date(),
           userId: user.userId,
@@ -170,7 +173,7 @@ router.post(
         });
 
         return res.status(409).json({
-          error: `تعارض في التعديل المتزامن (HTTP 409): تم تعديل بيانات المخدوم على الخادم بنسخة أحدث (Version ${currentStudent.version}) من نسختك (Version ${expectedVersion})`,
+          error: `تعارض في التعديل المتزامن (HTTP 409): إصدار الخادم (${currentStudent.version}) لا يطابق الإصدار المرسل (${expectedVersion}).`,
           latestServerRecord: currentStudent
         });
       }
