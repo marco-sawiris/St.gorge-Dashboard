@@ -366,6 +366,7 @@ class DatabaseManager {
           };
         }
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres query error, falling back to memory store:', err);
       }
     }
@@ -422,6 +423,7 @@ class DatabaseManager {
             createdAt: new Date(row.created_at)
           };
         }
+        if (ENV.NODE_ENV === 'production') return null;
       } catch (err) {
         if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres getSession error:', err);
@@ -459,6 +461,7 @@ class DatabaseManager {
             createdAt: new Date(row.created_at)
           };
         }
+        if (ENV.NODE_ENV === 'production') return null;
       } catch (err) {
         if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres idempotency query error:', err);
