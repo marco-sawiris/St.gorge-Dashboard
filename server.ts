@@ -2,21 +2,37 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { ENV } from './server/config/env';
 import { requestLogger } from './server/middleware/logger';
 import authRouter from './server/routes/auth';
 import healthRouter from './server/routes/health';
 import sheetsRouter from './server/routes/sheets';
+import { dbManager } from './server/db';
 
 import fs from 'fs';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const defaultAllowedOrigins = ['capacitor://localhost', 'http://localhost', 'https://localhost', 'http://localhost:5173', 'http://127.0.0.1:5173'];
+const allowedOrigins = new Set(
+  (ENV.CORS_ORIGINS ? ENV.CORS_ORIGINS.split(',') : defaultAllowedOrigins)
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+
 async function startServer() {
+  // Production must never start with volatile in-memory auth/session storage.
+  await dbManager.ensureProductionReady();
   const app = express();
 
   // Basic Middlewares
   app.use(cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Native Capacitor requests and same-origin/server requests may omit Origin.
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      return callback(new Error('Origin is not allowed by CORS'));
+    },
     credentials: true
   }));
   app.use(cookieParser());

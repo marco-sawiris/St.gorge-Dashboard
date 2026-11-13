@@ -822,7 +822,7 @@ async function runPhase2Tests() {
 
     assert(renderedOutput.includes('Rendered'), 'Component tree rendered inside providers');
     assert(receivedAuthContext !== null, 'AuthContext received actual runtime object');
-    assert(receivedAuthContext.isAuthenticated === true, 'AuthContext opens directly without servant login');
+    assert(receivedAuthContext.isAuthenticated === false, 'Local direct-service mode must not claim authenticated identity');
     assert(receivedAuthContext.isPreviewMode === false, 'Direct service mode is never locked in Preview Mode');
     assert(receivedAuthContext.login === undefined && receivedAuthContext.logout === undefined, 'Servant login/logout completely removed');
     assert(typeof receivedAuthContext.canPerformAction === 'function', 'AuthContext provides real canPerformAction function');

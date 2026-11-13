@@ -105,7 +105,13 @@ export const DEFAULT_WEEKLY_REMINDERS: WeeklyReminderRule[] = [
   }
 ];
 
-export const WEEKLY_NOTIFICATION_IDS = DEFAULT_WEEKLY_REMINDERS.map((r) => r.id);
+// Keep several weeks queued on-device so reminders continue even if the app is
+// not opened after a notification fires. Android's pending alarm budget is ample
+// for this small rolling window (5 rules × 8 weeks = at most 40 alarms).
+export const WEEKLY_NOTIFICATION_HORIZON = 8;
+export const WEEKLY_NOTIFICATION_IDS = DEFAULT_WEEKLY_REMINDERS.flatMap((rule) =>
+  Array.from({ length: WEEKLY_NOTIFICATION_HORIZON }, (_, weekIndex) => rule.id + weekIndex * 10000)
+);
 
 export function getDefaultNotificationSettings(): WeeklyNotificationSettings {
   const enabledRules: Record<string, boolean> = {};
@@ -257,29 +263,38 @@ export function buildCapacitorNotificationsPayload(
 ) {
   if (!settings.masterEnabled) return [];
 
-  return DEFAULT_WEEKLY_REMINDERS.filter((r) => settings.enabledRules[r.key] !== false)
-    .map((rule) => {
-      const nextAt = computeNextCairoOccurrence(rule, refDate);
-      if (nextAt.getTime() <= refDate.getTime()) return null;
-      return {
-        id: rule.id,
-        title: rule.title,
-        body: rule.body,
-        channelId: WEEKLY_NOTIFICATION_CHANNEL_ID,
-        schedule: {
-          at: nextAt,
-          allowWhileIdle: true
-        },
-        extra: {
-          ruleKey: rule.key,
-          timezone: CAIRO_TIMEZONE,
-          weekdayCairo: rule.weekdayCairo,
-          hour: rule.hour,
-          minute: rule.minute
-        }
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
+  return DEFAULT_WEEKLY_REMINDERS
+    .filter((rule) => settings.enabledRules[rule.key] !== false)
+    .flatMap((rule) => {
+      const occurrences = [];
+      let cursor = refDate;
+      for (let weekIndex = 0; weekIndex < WEEKLY_NOTIFICATION_HORIZON; weekIndex++) {
+        const nextAt = computeNextCairoOccurrence(rule, cursor);
+        if (nextAt.getTime() <= cursor.getTime()) continue;
+        occurrences.push({
+          id: rule.id + weekIndex * 10000,
+          title: rule.title,
+          body: rule.body,
+          channelId: WEEKLY_NOTIFICATION_CHANNEL_ID,
+          schedule: {
+            at: nextAt,
+            allowWhileIdle: true,
+            isExactNotification: true,
+            isExactMandatory: true
+          },
+          extra: {
+            ruleKey: rule.key,
+            timezone: CAIRO_TIMEZONE,
+            weekdayCairo: rule.weekdayCairo,
+            hour: rule.hour,
+            minute: rule.minute,
+            weekIndex
+          }
+        });
+        cursor = new Date(nextAt.getTime() + 1000);
+      }
+      return occurrences;
+    });
 }
 
 export async function getNotificationPermissionStatus(): Promise<NotificationPermissionState> {
@@ -344,18 +359,20 @@ export async function syncWeeklyNotificationSchedules(
 ): Promise<SyncNotificationsResult> {
   const settings = settingsOverride || loadWeeklyNotificationSettings();
   const payload = buildCapacitorNotificationsPayload(settings, refDate);
-  const nextTriggers = payload.map((item) => ({
-    ruleKey: String(item.extra.ruleKey),
-    triggerIso: item.schedule.at.toISOString(),
-    preview: formatCairoTriggerPreview(item.schedule.at)
-  }));
+  const nextTriggers = payload
+    .filter((item) => item.extra.weekIndex === 0)
+    .map((item) => ({
+      ruleKey: String(item.extra.ruleKey),
+      triggerIso: item.schedule.at.toISOString(),
+      preview: formatCairoTriggerPreview(item.schedule.at)
+    }));
 
   if (!isNativeCapacitorRuntime()) {
     const perm = await getNotificationPermissionStatus();
     if (!settings.masterEnabled || payload.length === 0) {
       return { scheduledCount: 0, permission: perm, nextTriggers: [], reason: 'disabled' };
     }
-    return { scheduledCount: payload.length, permission: perm, nextTriggers, reason: 'web_preview' };
+    return { scheduledCount: nextTriggers.length, permission: perm, nextTriggers, reason: 'web_preview' };
   }
 
   try {
@@ -365,20 +382,16 @@ export async function syncWeeklyNotificationSchedules(
       return { scheduledCount: 0, permission: perm, nextTriggers, reason: 'plugin_missing' };
     }
 
-    // Always cancel stale/existing weekly IDs before rescheduling to eliminate duplicates across restarts/reboots
-    const pending = await ln.getPending().catch(() => ({ notifications: [] }));
     const knownIds = new Set<number>(WEEKLY_NOTIFICATION_IDS);
-    for (const p of pending.notifications || []) {
-      if (typeof p.id === 'number' && knownIds.has(p.id)) {
-        knownIds.add(p.id);
-      }
-    }
-    await ln.cancel({
-      notifications: Array.from(knownIds).map((id) => ({ id }))
-    }).catch(() => {});
 
+    // When reminders are disabled, explicitly cancel every ID owned by this service.
+    // Do not cancel active reminders before permission checks or before replacement
+    // schedules are ready; a failed schedule must not silently erase existing alarms.
     if (!settings.masterEnabled || payload.length === 0) {
       const perm = await getNotificationPermissionStatus();
+      await ln.cancel({
+        notifications: Array.from(knownIds).map((id) => ({ id }))
+      });
       return { scheduledCount: 0, permission: perm, nextTriggers: [], reason: 'disabled' };
     }
 
@@ -396,22 +409,37 @@ export async function syncWeeklyNotificationSchedules(
       vibration: true
     }).catch(() => {});
 
+    // Cancel only reminders that are no longer enabled. Keep active IDs intact until
+    // the replacement schedule is submitted successfully; this preserves the last
+    // working reminders if the native scheduler rejects the new request.
+    const activeIds = new Set<number>(payload.map((item) => item.id));
+    const staleIds = Array.from(knownIds).filter((id) => !activeIds.has(id));
+    if (staleIds.length > 0) {
+      await ln.cancel({
+        notifications: staleIds.map((id) => ({ id }))
+      });
+    }
+
     await ln.schedule({
       notifications: payload
     });
 
     return {
-      scheduledCount: payload.length,
+      scheduledCount: nextTriggers.length,
       permission: perm,
       nextTriggers
     };
   } catch (err: any) {
     const perm = await getNotificationPermissionStatus().catch(() => 'prompt' as const);
+    const errorMessage = String(err?.message || err || '');
+    const reason = /exact.?alarm|alarm.?permission|OS-PLUG-LNOT-0018/i.test(errorMessage)
+      ? 'exact_alarm_permission_required'
+      : errorMessage || 'schedule_failed';
     return {
       scheduledCount: 0,
       permission: perm,
       nextTriggers,
-      reason: err?.message || 'schedule_failed'
+      reason
     };
   }
 }

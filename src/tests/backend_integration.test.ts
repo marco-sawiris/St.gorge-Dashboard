@@ -345,6 +345,7 @@ async function runBackendTests() {
         body: JSON.stringify({
           action: 'attendance',
           studentId: otherServantStudent.id,
+          expectedVersion: otherServantStudent.version,
           payload: { friday: '2026-11-13', isPresent: true }
         })
       });

@@ -4,12 +4,12 @@
  * Deployed as a Web App under the Google Sheet owner's account:
  * - Execute as: Me (Owner) -> Keeps Google Sheet 100% PRIVATE (no public sharing!)
  * - Direct service mode (NO servant username/password screen required),
- *   protected by optional RELAY_KEY stored strictly in Google ScriptProperties
+ *   protected by mandatory RELAY_KEY stored in Google ScriptProperties
  *   + APPROVED_SHEETS allowlist + LockService + Idempotency + OCC 409 + Zero Delete (403).
  *
  * Script Properties (Project Settings -> Script Properties):
  *   SPREADSHEET_ID = "15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0"
- *   RELAY_KEY      = Optional shared relay secret configured by owner
+ *   RELAY_KEY      = Required high-entropy relay secret configured by owner
  */
 
 var APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط'];
@@ -28,14 +28,23 @@ function getSpreadsheet() {
   return SpreadsheetApp.openById(sheetId);
 }
 
+function constantTimeStringEquals(left, right) {
+  if (left.length !== right.length) return false;
+  var difference = 0;
+  for (var i = 0; i < left.length; i++) {
+    difference |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+  return difference === 0;
+}
+
 function verifyRelayKey(providedKey) {
   var props = PropertiesService.getScriptProperties();
   var expectedKey = props.getProperty('RELAY_KEY');
-  if (!expectedKey) {
-    // Owner chose to rely on private Apps Script Web App URL only
-    return { valid: true };
+  if (!expectedKey || String(expectedKey).trim().length < 32) {
+    // Fail closed: an unconfigured/weak relay key must never expose sheet data.
+    return { valid: false, error: 'Relay unavailable: configure a strong RELAY_KEY in Script Properties' };
   }
-  if (!providedKey || String(providedKey).trim() !== String(expectedKey).trim()) {
+  if (!constantTimeStringEquals(String(providedKey || '').trim(), String(expectedKey).trim())) {
     return { valid: false, error: 'Unauthorized: invalid or missing RELAY_KEY' };
   }
   return { valid: true };
@@ -126,9 +135,13 @@ function doPost(e) {
     }
 
     var mutation = body.mutation || body;
-    var idempotencyKey = mutation.id || body.idempotencyKey;
-    if (!idempotencyKey) {
-      return jsonResponse({ ok: false, status: 400, error: 'X-Idempotency-Key required' });
+    var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete'];
+    if (!mutation || allowedActions.indexOf(mutation.action) === -1) {
+      return jsonResponse({ ok: false, status: 400, error: 'نوع العملية غير مسموح به' });
+    }
+    var idempotencyKey = String(mutation.id || body.idempotencyKey || '').trim();
+    if (!idempotencyKey || idempotencyKey.length > 128) {
+      return jsonResponse({ ok: false, status: 400, error: 'مفتاح عدم التكرار مطلوب وبحد أقصى 128 حرفاً' });
     }
 
     var cache = CacheService.getScriptCache();
@@ -137,6 +150,15 @@ function doPost(e) {
       var prev = JSON.parse(cached);
       prev.deduplicated = true;
       return jsonResponse(prev);
+    }
+
+    // CacheService expires entries after a short TTL. Keep a durable ledger in a
+    // hidden spreadsheet tab so retries remain idempotent after cache expiry/restart.
+    var durablePrevious = findDurableIdempotencyResult(getSpreadsheet(), idempotencyKey);
+    if (durablePrevious) {
+      durablePrevious.deduplicated = true;
+      cache.put('IDEMP_' + idempotencyKey, JSON.stringify(durablePrevious), 21600);
+      return jsonResponse(durablePrevious);
     }
 
     if (mutation.action === 'delete') {
@@ -156,21 +178,37 @@ function doPost(e) {
 
     var values = sheet.getDataRange().getValues();
     var headers = values[0].map(function (h) { return formatHeaderCell(h); });
-    var idCol = findColIndex(headers, ['id', 'ID', 'كود', 'الكود', 'code']);
+    var idCol = findColIndex(headers, ['id', 'ID']);
+    var codeCol = findColIndex(headers, ['كود', 'الكود', 'code']);
     var nameLookupCol = findColIndex(headers, ['الاسم', 'name', 'Name']);
     var versionCol = findColIndex(headers, ['version', 'الإصدار']);
+    if (versionCol < 0) {
+      versionCol = headers.length;
+      sheet.getRange(1, versionCol + 1).setValue('version');
+      headers.push('version');
+      values[0].push('version');
+    }
 
-    var rowIndex = -1;
+    var matchingRowIndexes = [];
     for (var r = 1; r < values.length; r++) {
-      var cellVal = idCol >= 0 ? String(values[r][idCol] || '').trim() : '';
+      var idValue = idCol >= 0 ? String(values[r][idCol] || '').trim() : '';
+      var codeValue = codeCol >= 0 ? String(values[r][codeCol] || '').trim() : '';
       var rowNameVal = nameLookupCol >= 0 ? String(values[r][nameLookupCol] || '').trim() : '';
       if (
-        (cellVal && (cellVal === String(mutation.studentId || '').trim() || cellVal === String(mutation.studentCode || '').trim())) ||
+        (idValue && idValue === String(mutation.studentId || '').trim()) ||
+        (codeValue && mutation.studentCode && codeValue === String(mutation.studentCode).trim()) ||
         (rowNameVal && mutation.studentName && rowNameVal === String(mutation.studentName).trim())
       ) {
-        rowIndex = r;
-        break;
+        matchingRowIndexes.push(r);
       }
+    }
+    if (matchingRowIndexes.length > 1) {
+      return jsonResponse({ ok: false, status: 409, error: 'تم العثور على أكثر من مخدوم مطابق؛ أوقفنا التعديل لتجنب تغيير سجل خاطئ' });
+    }
+    var rowIndex = matchingRowIndexes.length === 1 ? matchingRowIndexes[0] : -1;
+
+    if (mutation.action === 'add' && rowIndex !== -1) {
+      return jsonResponse({ ok: false, status: 409, error: 'المخدوم موجود بالفعل في الشيت؛ أوقفنا الإضافة المكررة' });
     }
 
     if (mutation.action !== 'add' && rowIndex === -1) {
@@ -178,11 +216,18 @@ function doPost(e) {
     }
 
     var currentVersion = (rowIndex !== -1 && versionCol >= 0) ? (parseInt(values[rowIndex][versionCol], 10) || 1) : 1;
-    if (rowIndex !== -1 && typeof mutation.expectedVersion === 'number' && currentVersion > mutation.expectedVersion) {
+    if (mutation.action !== 'add' &&
+        (typeof mutation.expectedVersion !== 'number' ||
+         !isFinite(mutation.expectedVersion) ||
+         Math.floor(mutation.expectedVersion) !== mutation.expectedVersion ||
+         mutation.expectedVersion < 1)) {
+      return jsonResponse({ ok: false, status: 400, error: 'expectedVersion إلزامي ويجب أن يكون رقم إصدار صحيحاً' });
+    }
+    if (rowIndex !== -1 && mutation.action !== 'add' && currentVersion !== mutation.expectedVersion) {
       return jsonResponse({
         ok: false,
         status: 409,
-        error: 'تعارض في التعديل المتزامن (409): نسخة السيرفر (' + currentVersion + ') أحدث من نسختك (' + mutation.expectedVersion + ')'
+        error: 'تعارض في التعديل المتزامن (409): إصدار الشيت (' + currentVersion + ') لا يطابق الإصدار المرسل (' + mutation.expectedVersion + ')'
       });
     }
 
@@ -209,33 +254,70 @@ function doPost(e) {
       sheet.appendRow(newRow);
     } else if (rowIndex !== -1) {
       var rowNum = rowIndex + 1;
-      if (versionCol >= 0) {
-        sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion);
-      }
       if (mutation.action === 'attendance') {
         var friday = String(payload.friday || payload.date || '');
-        var isPresent = Boolean(payload.isPresent);
-        if (friday) {
-          var fridayCol = findExactHeaderIndex(headers, friday);
-          if (fridayCol >= 0) {
-            sheet.getRange(rowNum, fridayCol + 1).setValue(isPresent ? '1' : '0');
-          }
-          if (isPresent) {
-            setIfFound(sheet, rowNum, headers, ['آخر حضور', 'اخر حضور'], friday);
-          }
+        var normalizedAttendance = String(payload.isPresent).trim().toLowerCase();
+        var isPresent = payload.isPresent === true || ['1', 'true', 'present', 'حاضر'].indexOf(normalizedAttendance) !== -1;
+        if (!friday) {
+          return jsonResponse({ ok: false, status: 400, error: 'تاريخ الجمعة مطلوب لتسجيل الحضور' });
         }
+
+        var fridayCol = findExactHeaderIndex(headers, friday);
+        if (fridayCol < 0) {
+          return jsonResponse({ ok: false, status: 400, error: 'عمود تاريخ الجمعة غير موجود في الشيت: ' + friday });
+        }
+
+        // Calculate the delta from the previously stored value. Replaying the same
+        // attendance mutation must not increment/decrement totals a second time.
+        var previousAttendance = String(values[rowIndex][fridayCol] || '').trim().toLowerCase();
+        var wasPresent = ['1', 'true', 'present', 'حاضر'].indexOf(previousAttendance) !== -1;
+        var attendanceDelta = (isPresent ? 1 : 0) - (wasPresent ? 1 : 0);
+
+        sheet.getRange(rowNum, fridayCol + 1).setValue(isPresent ? '1' : '0');
+        if (isPresent) {
+          setIfFound(sheet, rowNum, headers, ['آخر حضور', 'اخر حضور'], friday);
+        }
+
         var totalCol = findColIndex(headers, ['إجمالي الحضور', 'اجمالي الحضور', 'attendanceTotal']);
         var monthCol = findColIndex(headers, ['حضور الشهر', 'attendanceMonth']);
         var statusCol = findColIndex(headers, ['الحالة', 'attendanceStatus']);
         if (statusCol >= 0) sheet.getRange(rowNum, statusCol + 1).setValue(isPresent ? 'حاضر' : 'غائب');
-        if (totalCol >= 0) {
+        if (attendanceDelta !== 0 && totalCol >= 0) {
           var prevTotal = parseInt(values[rowIndex][totalCol] || '0', 10) || 0;
-          sheet.getRange(rowNum, totalCol + 1).setValue(Math.max(0, prevTotal + (isPresent ? 1 : -1)));
+          sheet.getRange(rowNum, totalCol + 1).setValue(Math.max(0, prevTotal + attendanceDelta));
         }
+        var currentCairoMonth = Utilities.formatDate(new Date(), 'Africa/Cairo', 'yyyy-MM');
         if (monthCol >= 0) {
-          var prevMonth = parseInt(values[rowIndex][monthCol] || '0', 10) || 0;
-          sheet.getRange(rowNum, monthCol + 1).setValue(Math.max(0, prevMonth + (isPresent ? 1 : -1)));
+          var currentMonthPresentCount = 0;
+          for (var monthAttendanceCol = 0; monthAttendanceCol < headers.length; monthAttendanceCol++) {
+            var monthHeader = String(headers[monthAttendanceCol] || '').trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(monthHeader) && monthHeader.substring(0, 7) === currentCairoMonth) {
+              var monthAttendanceValue = monthAttendanceCol === fridayCol
+                ? (isPresent ? '1' : '0')
+                : String(values[rowIndex][monthAttendanceCol] || '').trim().toLowerCase();
+              if (monthAttendanceValue === '1' || monthAttendanceValue === 'true' || monthAttendanceValue === 'حاضر') {
+                currentMonthPresentCount++;
+              }
+            }
+          }
+          sheet.getRange(rowNum, monthCol + 1).setValue(currentMonthPresentCount);
         }
+
+        // Recalculate lastAttendance when a previously-present Friday is changed
+        // to absent; otherwise the summary field can point to a stale date.
+        var latestPresentFriday = '';
+        for (var attendanceCol = 0; attendanceCol < headers.length; attendanceCol++) {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(String(headers[attendanceCol] || '').trim())) {
+            var attendanceValue = attendanceCol === fridayCol
+              ? (isPresent ? '1' : '0')
+              : String(values[rowIndex][attendanceCol] || '').trim();
+            if (attendanceValue === '1' || attendanceValue.toLowerCase() === 'true' || attendanceValue === 'حاضر') {
+              var attendanceDate = String(headers[attendanceCol]).trim();
+              if (attendanceDate > latestPresentFriday) latestPresentFriday = attendanceDate;
+            }
+          }
+        }
+        setIfFound(sheet, rowNum, headers, ['آخر حضور', 'اخر حضور'], latestPresentFriday);
       } else if (mutation.action === 'followup') {
         var fuDate = String(payload.friday || payload.date || '');
         var fuMethod = payload.method || 'تم تليفونياً';
@@ -247,7 +329,7 @@ function doPost(e) {
           setIfFound(sheet, rowNum, headers, ['آخر افتقاد', 'اخر افتقاد'], fuDate);
         }
         setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'ملاحظات الافتقاد', 'followupStatus'], fuMethod);
-        appendFollowupLogRow(ss, targetSheetName, headers, values[rowIndex], fuDate, fuMethod, payload.notes || '');
+        appendFollowupLogRow(ss, targetSheetName, headers, values[rowIndex], fuDate, fuMethod, payload.notes || '', idempotencyKey);
       } else if (mutation.action === 'update') {
         setIfFound(sheet, rowNum, headers, ['الاسم', 'name'], payload.name);
         setIfFound(sheet, rowNum, headers, ['كود', 'الكود', 'code'], payload.code);
@@ -260,6 +342,9 @@ function doPost(e) {
         setIfFound(sheet, rowNum, headers, ['العنوان'], payload.address);
         setIfFound(sheet, rowNum, headers, ['ملاحظات الافتقاد', 'ملاحظات'], payload.notes);
       }
+      if (versionCol >= 0) {
+        sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion);
+      }
     }
 
     var successPayload = {
@@ -271,6 +356,7 @@ function doPost(e) {
       action: mutation.action
     };
 
+    saveDurableIdempotencyResult(ss, idempotencyKey, successPayload);
     cache.put('IDEMP_' + idempotencyKey, JSON.stringify(successPayload), 21600);
     return jsonResponse(successPayload);
   } catch (err) {
@@ -278,6 +364,40 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function getDurableIdempotencySheet(ss) {
+  var sheetName = '_mutation_idempotency';
+  var ledger = ss.getSheetByName(sheetName);
+  if (!ledger) {
+    ledger = ss.insertSheet(sheetName);
+    ledger.appendRow(['idempotency_key', 'response_json', 'created_at']);
+    ledger.hideSheet();
+  }
+  return ledger;
+}
+
+function findDurableIdempotencyResult(ss, key) {
+  var ledger = getDurableIdempotencySheet(ss);
+  var lastRow = ledger.getLastRow();
+  if (lastRow < 2) return null;
+  var match = ledger.getRange(2, 1, lastRow - 1, 1)
+    .createTextFinder(String(key))
+    .matchEntireCell(true)
+    .findNext();
+  if (!match) return null;
+  var raw = ledger.getRange(match.getRow(), 2).getValue();
+  if (!raw) return null;
+  try {
+    return JSON.parse(String(raw));
+  } catch (err) {
+    throw new Error('تعذر قراءة سجل عدم التكرار الدائم؛ أوقفنا العملية لحماية البيانات');
+  }
+}
+
+function saveDurableIdempotencyResult(ss, key, response) {
+  var ledger = getDurableIdempotencySheet(ss);
+  ledger.appendRow([String(key), JSON.stringify(response), new Date()]);
 }
 
 function setIfFound(sheet, rowNum, headers, colNames, value) {
@@ -359,14 +479,34 @@ function readFollowupLogRows(ss) {
   return records;
 }
 
-function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayDate, method, notes) {
+function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayDate, method, notes, mutationId) {
   var logSheet = ss.getSheetByName('سجل الافتقاد');
   if (!logSheet) return;
   var codeCol = findColIndex(studentHeaders, ['كود', 'الكود', 'code']);
   var nameCol = findColIndex(studentHeaders, ['الاسم', 'name']);
   var servantCol = findColIndex(studentHeaders, ['الاشبين', 'الأشبين', 'الخادم', 'servant']);
+  var logLastColumn = Math.max(logSheet.getLastColumn(), 8);
+  var logHeaders = logSheet.getRange(1, 1, 1, logLastColumn).getValues()[0]
+    .map(function (h) { return formatHeaderCell(h); });
+  var mutationIdCol = findColIndex(logHeaders, ['mutation_id']);
+  if (mutationIdCol < 0) {
+    mutationIdCol = logLastColumn;
+    logSheet.getRange(1, mutationIdCol + 1).setValue('mutation_id');
+  }
+
+  // A durable per-row mutation marker prevents duplicate follow-up log entries
+  // if the spreadsheet mutation succeeds but the global idempotency ledger write fails.
+  var logLastRow = logSheet.getLastRow();
+  if (mutationId && logLastRow > 1) {
+    var existingMutation = logSheet.getRange(2, mutationIdCol + 1, logLastRow - 1, 1)
+      .createTextFinder(String(mutationId))
+      .matchEntireCell(true)
+      .findNext();
+    if (existingMutation) return;
+  }
+
   var todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Africa/Cairo', 'yyyy-MM-dd');
-  logSheet.appendRow([
+  var newRow = [
     todayStr,
     fridayDate || todayStr,
     sheetName,
@@ -375,7 +515,10 @@ function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayD
     servantCol >= 0 ? formatCellValue(studentRow[servantCol]) : '',
     method || 'تم تليفونياً',
     notes || ''
-  ]);
+  ];
+  while (newRow.length <= mutationIdCol) newRow.push('');
+  newRow[mutationIdCol] = mutationId || '';
+  logSheet.appendRow(newRow);
 }
 
 function mapRowToStudent(headers, row, sheetName, rowNumber) {

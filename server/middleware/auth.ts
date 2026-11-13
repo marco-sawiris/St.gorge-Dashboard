@@ -6,18 +6,6 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  const configuredRelayKey = (process.env.RELAY_KEY || '').trim();
-  const providedRelayKey = String(req.headers['x-relay-key'] || '').trim();
-  if (configuredRelayKey && providedRelayKey && providedRelayKey === configuredRelayKey) {
-    req.user = {
-      userId: 'relay_service',
-      username: 'relay_service',
-      displayName: 'خدمة فصل الشهيد مارجرجس',
-      role: 'admin'
-    };
-    return next();
-  }
-
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
