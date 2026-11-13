@@ -273,7 +273,7 @@ export default function App() {
                           </p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 word-in-scope min-w-0>
+                        <div className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 word-in-scope min-w-0">
                           {filteredStudents.map((student, idx) => (
                             <div
                               key={student.id}
