@@ -278,7 +278,9 @@ export function buildCapacitorNotificationsPayload(
           channelId: WEEKLY_NOTIFICATION_CHANNEL_ID,
           schedule: {
             at: nextAt,
-            allowWhileIdle: true
+            allowWhileIdle: true,
+            isExactNotification: true,
+            isExactMandatory: true
           },
           extra: {
             ruleKey: rule.key,
