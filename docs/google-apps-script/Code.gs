@@ -169,7 +169,8 @@ function doPost(e) {
 
     var values = sheet.getDataRange().getValues();
     var headers = values[0].map(function (h) { return formatHeaderCell(h); });
-    var idCol = findColIndex(headers, ['id', 'ID', 'كود', 'الكود', 'code']);
+    var idCol = findColIndex(headers, ['id', 'ID']);
+    var codeCol = findColIndex(headers, ['كود', 'الكود', 'code']);
     var nameLookupCol = findColIndex(headers, ['الاسم', 'name', 'Name']);
     var versionCol = findColIndex(headers, ['version', 'الإصدار']);
     if (versionCol < 0) {
@@ -181,10 +182,12 @@ function doPost(e) {
 
     var matchingRowIndexes = [];
     for (var r = 1; r < values.length; r++) {
-      var cellVal = idCol >= 0 ? String(values[r][idCol] || '').trim() : '';
+      var idValue = idCol >= 0 ? String(values[r][idCol] || '').trim() : '';
+      var codeValue = codeCol >= 0 ? String(values[r][codeCol] || '').trim() : '';
       var rowNameVal = nameLookupCol >= 0 ? String(values[r][nameLookupCol] || '').trim() : '';
       if (
-        (cellVal && (cellVal === String(mutation.studentId || '').trim() || cellVal === String(mutation.studentCode || '').trim())) ||
+        (idValue && idValue === String(mutation.studentId || '').trim()) ||
+        (codeValue && mutation.studentCode && codeValue === String(mutation.studentCode).trim()) ||
         (rowNameVal && mutation.studentName && rowNameVal === String(mutation.studentName).trim())
       ) {
         matchingRowIndexes.push(r);
