@@ -261,10 +261,20 @@ function doPost(e) {
           sheet.getRange(rowNum, totalCol + 1).setValue(Math.max(0, prevTotal + attendanceDelta));
         }
         var currentCairoMonth = Utilities.formatDate(new Date(), 'Africa/Cairo', 'yyyy-MM');
-        var attendanceBelongsToCurrentMonth = friday.substring(0, 7) === currentCairoMonth;
-        if (attendanceDelta !== 0 && monthCol >= 0 && attendanceBelongsToCurrentMonth) {
-          var prevMonth = parseInt(values[rowIndex][monthCol] || '0', 10) || 0;
-          sheet.getRange(rowNum, monthCol + 1).setValue(Math.max(0, prevMonth + attendanceDelta));
+        if (monthCol >= 0) {
+          var currentMonthPresentCount = 0;
+          for (var monthAttendanceCol = 0; monthAttendanceCol < headers.length; monthAttendanceCol++) {
+            var monthHeader = String(headers[monthAttendanceCol] || '').trim();
+            if (/^\\d{4}-\\d{2}-\\d{2}$/.test(monthHeader) && monthHeader.substring(0, 7) === currentCairoMonth) {
+              var monthAttendanceValue = monthAttendanceCol === fridayCol
+                ? (isPresent ? '1' : '0')
+                : String(values[rowIndex][monthAttendanceCol] || '').trim().toLowerCase();
+              if (monthAttendanceValue === '1' || monthAttendanceValue === 'true' || monthAttendanceValue === 'حاضر') {
+                currentMonthPresentCount++;
+              }
+            }
+          }
+          sheet.getRange(rowNum, monthCol + 1).setValue(currentMonthPresentCount);
         }
 
         // Recalculate lastAttendance when a previously-present Friday is changed
