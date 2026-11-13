@@ -699,11 +699,16 @@ export function processAssistantQuery(
     }
 
     case 'missingFollowup': {
-      const servantName = options?.servantName?.trim();
+      const explicitServant = trimmed.match(/(?:للأشبين|للأشبن|بالنسبة للأشبين|بالنسبة للأشبن)\\s+(.+)$/);
+      const servantName = options?.servantName?.trim() || explicitServant?.[1]?.trim();
+      const allServantsRequested = normalizeArabicText(trimmed).includes('كل الاشابين');
+      if (!servantName && !allServantsRequested) {
+        return { text: 'علشان أطلع لك الأسماء اللي تخصك بدقة، اختار اسمك من فلتر «أشابين وخدام الفصل» في القائمة الجانبية، وبعدها اسألني تاني. أو قل «كل الأشابين» لعرض تقرير شامل.' };
+      }
       const weekFridayDate = getNearestFridayString(referenceDate);
-      const assigned = students.filter((s) => !servantName || s.servant?.trim() === servantName);
+      const assigned = students.filter((s) => allServantsRequested || s.servant?.trim() === servantName);
       const missing = assigned.filter((s) => !s.fu?.[weekFridayDate]);
-      const scope = servantName ? 'الأشبن: ' + servantName : 'كل الأشابين (لم يتم تحديد أشبين بعينه)';
+      const scope = allServantsRequested ? 'كل الأشابين' : 'الأشبن: ' + servantName;
       const lines = missing.slice(0, 30).map((s, i) => (i + 1) + '. ' + s.name + ' (' + s.code + ') — ' + (s.servant || 'غير مسند') + ' — آخر افتقاد: ' + (s.lastFollowup || 'غير مسجل'));
       return {
         text: missing.length
@@ -713,7 +718,7 @@ export function processAssistantQuery(
     }
     case 'lowAttendance': {
       const lowList = [...students]
-        .filter((s) => Number(s.attendanceMonth) <= 1)
+        .filter((s) => (!options?.servantName || s.servant?.trim() === options.servantName.trim()) && Number(s.attendanceMonth) <= 1)
         .sort((a, b) => Number(a.attendanceMonth) - Number(b.attendanceMonth) || Number(a.attendanceTotal) - Number(b.attendanceTotal));
 
       if (lowList.length === 0) {
