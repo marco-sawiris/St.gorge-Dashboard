@@ -441,7 +441,7 @@ export function parseAssistantCommand(
   if (followupMatch) {
     const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').replace(/^(?:مثلاً|مثلا|أنا|انا|النهارده|النهاردة)\s+/i, '').trim();
     const method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة' = /واتساب/i.test(query) ? 'واتساب' : /زرت|زياره\s+منزليه/i.test(query) ? 'تم بزيارة' : 'تم تليفونياً';
-    const targets = rawTail.split(/،|,|\s+و\s+/).map((name) => name.trim()).filter(Boolean);
+    const targets = rawTail.split(/،|,|\s+و\s*/).map((name) => name.trim()).filter(Boolean);
     const resolved: Student[] = [];
     const problems: string[] = [];
     for (const targetName of targets) {
