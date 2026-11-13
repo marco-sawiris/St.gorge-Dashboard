@@ -302,7 +302,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                   )}
                   {(s.phoneStudent || s.phoneParent1) && (
                     <a
-                      href={`https://wa.me/2${(s.phoneStudent || s.phoneParent1)?.replace(/\\D/g, '')}`}
+                      href={`https://wa.me/2${(s.phoneStudent || s.phoneParent1)?.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noreferrer"
                       className="glass-btn p-2 rounded-lg"
