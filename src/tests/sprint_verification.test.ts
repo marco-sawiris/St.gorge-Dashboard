@@ -1301,9 +1301,9 @@ async function runSprintTests() {
     'Test 31h: AndroidManifest declares POST_NOTIFICATIONS & RECEIVE_BOOT_COMPLETED'
   );
   const appsScriptSrc = fs.readFileSync(path.resolve(process.cwd(), 'docs/google-apps-script/Code.gs'), 'utf-8');
+  const validAttendanceDateRegexCount = (appsScriptSrc.match(/\/\^\\d\{4\}-\\d\{2\}-\\d\{2}\$\/\.test/g) || []).length;
   assert(
-    appsScriptSrc.includes('if (/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/.test(monthHeader)') &&
-      appsScriptSrc.includes('if (/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/.test(String(headers[attendanceCol])'),
+    validAttendanceDateRegexCount === 2,
     'Test 31i: Apps Script monthly and latest attendance calculations use valid single-escaped ISO date regexes'
   );
   assert(
