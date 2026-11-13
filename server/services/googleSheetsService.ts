@@ -121,6 +121,14 @@ export class GoogleSheetsService {
   }
 
   public async getStudents(targetSheet: string): Promise<Student[]> {
+    if (this.testFixtureMode) {
+      const fixtures = Array.from(this.students.values());
+      return (targetSheet === ALL_SHEETS_SENTINEL
+        ? fixtures
+        : fixtures.filter((student) => student.sourceSheet === targetSheet)
+      ).map((student) => ({ ...student, att: { ...(student.att || {}) }, fu: { ...(student.fu || {}) } }));
+    }
+
     const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
     const shouldRefresh = this.students.size === 0 || Date.now() - this.lastSheetSyncAt > this.CACHE_TTL_MS;
 
