@@ -1273,15 +1273,15 @@ async function runSprintTests() {
   const loadedSettings = loadWeeklyNotificationSettings();
   const partialPayload = buildCapacitorNotificationsPayload(loadedSettings, wedPastRef);
   assert(
-    partialPayload.length === 3 &&
-      new Set(partialPayload.map((n) => n.id)).size === 3 &&
+    partialPayload.length === 3 * WEEKLY_NOTIFICATION_HORIZON &&
+      new Set(partialPayload.map((n) => n.id)).size === partialPayload.length &&
       partialPayload.every((n) => n.schedule.at.getTime() > wedPastRef.getTime()),
     'Test 31e: Per-rule toggles filter payload cleanly with deterministic unique IDs and future-only triggers'
   );
   const resetSettings = resetDefaultNotificationSettings();
   assert(
     resetSettings.masterEnabled === true &&
-      buildCapacitorNotificationsPayload(resetSettings, wedPastRef).length === 5,
+      buildCapacitorNotificationsPayload(resetSettings, wedPastRef).length === 5 * WEEKLY_NOTIFICATION_HORIZON,
     'Test 31f: Reset restores all 5 weekly defaults cleanly'
   );
 
