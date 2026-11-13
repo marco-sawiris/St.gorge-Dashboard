@@ -126,6 +126,10 @@ function doPost(e) {
     }
 
     var mutation = body.mutation || body;
+    var allowedActions = ['add', 'update', 'attendance', 'followup'];
+    if (!mutation || allowedActions.indexOf(mutation.action) === -1) {
+      return jsonResponse({ ok: false, status: 400, error: 'نوع العملية غير مسموح به' });
+    }
     var idempotencyKey = mutation.id || body.idempotencyKey;
     if (!idempotencyKey) {
       return jsonResponse({ ok: false, status: 400, error: 'X-Idempotency-Key required' });
@@ -160,7 +164,7 @@ function doPost(e) {
     var nameLookupCol = findColIndex(headers, ['الاسم', 'name', 'Name']);
     var versionCol = findColIndex(headers, ['version', 'الإصدار']);
 
-    var rowIndex = -1;
+    var matchingRowIndexes = [];
     for (var r = 1; r < values.length; r++) {
       var cellVal = idCol >= 0 ? String(values[r][idCol] || '').trim() : '';
       var rowNameVal = nameLookupCol >= 0 ? String(values[r][nameLookupCol] || '').trim() : '';
@@ -168,10 +172,13 @@ function doPost(e) {
         (cellVal && (cellVal === String(mutation.studentId || '').trim() || cellVal === String(mutation.studentCode || '').trim())) ||
         (rowNameVal && mutation.studentName && rowNameVal === String(mutation.studentName).trim())
       ) {
-        rowIndex = r;
-        break;
+        matchingRowIndexes.push(r);
       }
     }
+    if (matchingRowIndexes.length > 1) {
+      return jsonResponse({ ok: false, status: 409, error: 'تم العثور على أكثر من مخدوم مطابق؛ أوقفنا التعديل لتجنب تغيير سجل خاطئ' });
+    }
+    var rowIndex = matchingRowIndexes.length === 1 ? matchingRowIndexes[0] : -1;
 
     if (mutation.action !== 'add' && rowIndex === -1) {
       return jsonResponse({ ok: false, status: 404, error: 'المخدوم غير موجود في الشيت' });
