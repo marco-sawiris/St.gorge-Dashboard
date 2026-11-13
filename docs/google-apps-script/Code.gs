@@ -172,6 +172,12 @@ function doPost(e) {
     var idCol = findColIndex(headers, ['id', 'ID', 'كود', 'الكود', 'code']);
     var nameLookupCol = findColIndex(headers, ['الاسم', 'name', 'Name']);
     var versionCol = findColIndex(headers, ['version', 'الإصدار']);
+    if (versionCol < 0) {
+      versionCol = headers.length;
+      sheet.getRange(1, versionCol + 1).setValue('version');
+      headers.push('version');
+      values[0].push('version');
+    }
 
     var matchingRowIndexes = [];
     for (var r = 1; r < values.length; r++) {
