@@ -699,7 +699,7 @@ export function processAssistantQuery(
     }
 
     case 'missingFollowup': {
-      const explicitServant = trimmed.match(/(?:للأشبين|للأشبن|بالنسبة للأشبين|بالنسبة للأشبن)\\s+(.+)$/);
+      const explicitServant = trimmed.match(/(?:للأشبين|للأشبن|بالنسبة للأشبين|بالنسبة للأشبن)\s+(.+)$/);
       const servantName = options?.servantName?.trim() || explicitServant?.[1]?.trim();
       const allServantsRequested = normalizeArabicText(trimmed).includes('كل الاشابين');
       if (!servantName && !allServantsRequested) {
