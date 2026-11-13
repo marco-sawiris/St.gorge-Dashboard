@@ -200,11 +200,18 @@ function doPost(e) {
     }
 
     var currentVersion = (rowIndex !== -1 && versionCol >= 0) ? (parseInt(values[rowIndex][versionCol], 10) || 1) : 1;
-    if (rowIndex !== -1 && typeof mutation.expectedVersion === 'number' && currentVersion > mutation.expectedVersion) {
+    if (mutation.action !== 'add' &&
+        (typeof mutation.expectedVersion !== 'number' ||
+         !isFinite(mutation.expectedVersion) ||
+         Math.floor(mutation.expectedVersion) !== mutation.expectedVersion ||
+         mutation.expectedVersion < 1)) {
+      return jsonResponse({ ok: false, status: 400, error: 'expectedVersion إلزامي ويجب أن يكون رقم إصدار صحيحاً' });
+    }
+    if (rowIndex !== -1 && mutation.action !== 'add' && currentVersion !== mutation.expectedVersion) {
       return jsonResponse({
         ok: false,
         status: 409,
-        error: 'تعارض في التعديل المتزامن (409): نسخة السيرفر (' + currentVersion + ') أحدث من نسختك (' + mutation.expectedVersion + ')'
+        error: 'تعارض في التعديل المتزامن (409): إصدار الشيت (' + currentVersion + ') لا يطابق الإصدار المرسل (' + mutation.expectedVersion + ')'
       });
     }
 
