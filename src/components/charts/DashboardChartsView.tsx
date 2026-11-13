@@ -121,10 +121,10 @@ export const DashboardChartsView: React.FC = () => {
   return (
     <div className="space-y-6 select-none word-in-scope">
       {/* KPI Cards Grid (Liquid Glass - 6 Key Metrics) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-3 gap-3 min-w-0">
         {/* Total Students */}
         <div
-          className="word-in p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 0 } as React.CSSProperties}
         >
           <div className="w-12 h-12 rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(38,122,255,0.25)]">
@@ -138,7 +138,7 @@ export const DashboardChartsView: React.FC = () => {
 
         {/* Friday Attendance (Cyan Accent, Zero Green) */}
         <div
-          className="word-in p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 1 } as React.CSSProperties}
         >
           <div className="w-12 h-12 rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(32,199,232,0.3)]">
@@ -155,7 +155,7 @@ export const DashboardChartsView: React.FC = () => {
 
         {/* Followup Coverage (Violet Accent) */}
         <div
-          className="word-in p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 2 } as React.CSSProperties}
         >
           <div className="w-12 h-12 rounded-2xl bg-[var(--violet)]/15 text-[var(--violet)] border border-[var(--violet)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(101,72,245,0.25)]">
@@ -172,7 +172,7 @@ export const DashboardChartsView: React.FC = () => {
 
         {/* Servants Capacity (Royal Blue Accent) */}
         <div
-          className="word-in p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 3 } as React.CSSProperties}
         >
           <div className="w-12 h-12 rounded-2xl bg-[var(--royal)]/25 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(18,63,206,0.3)]">
@@ -189,7 +189,7 @@ export const DashboardChartsView: React.FC = () => {
 
         {/* Regular Attendees (3+ times this month) */}
         <div
-          className="word-in p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 4 } as React.CSSProperties}
         >
           <div className="w-12 h-12 rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(32,199,232,0.25)]">
@@ -203,7 +203,7 @@ export const DashboardChartsView: React.FC = () => {
 
         {/* Absent All Month (0 this month) */}
         <div
-          className="word-in p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 5 } as React.CSSProperties}
         >
           <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.25)]">
@@ -236,10 +236,10 @@ export const DashboardChartsView: React.FC = () => {
             لم تُسجّل أعمدة تواريخ جمعات بعد في السجلات المحملة.
           </p>
         ) : (
-          <div className="w-full overflow-x-auto">
+          <div className="w-full min-w-0 overflow-hidden">
             <svg
               viewBox="0 0 640 190"
-              className="w-full min-w-[360px] h-44"
+              className="block w-full min-w-0 h-44"
               role="img"
               aria-label="تطور نسب الحضور الأسبوعية"
             >
