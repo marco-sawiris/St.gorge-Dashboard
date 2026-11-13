@@ -1302,8 +1302,8 @@ async function runSprintTests() {
   );
   const appsScriptSrc = fs.readFileSync(path.resolve(process.cwd(), 'docs/google-apps-script/Code.gs'), 'utf-8');
   assert(
-    appsScriptSrc.includes(String.raw`if (/^\\d{4}-\\d{2}-\\d{2}$/.test(monthHeader)`) &&
-      appsScriptSrc.includes(String.raw`if (/^\\d{4}-\\d{2}-\\d{2}$/.test(String(headers[attendanceCol])`),
+    appsScriptSrc.includes('if (/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/.test(monthHeader)') &&
+      appsScriptSrc.includes('if (/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/.test(String(headers[attendanceCol])'),
     'Test 31i: Apps Script monthly and latest attendance calculations use valid single-escaped ISO date regexes'
   );
   assert(
