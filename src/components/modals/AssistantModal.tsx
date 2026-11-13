@@ -120,7 +120,7 @@ export const AssistantModal: React.FC = () => {
       aria-modal="true"
       aria-label="المساعد الذكي"
     >
-      <div className="w-full max-w-2xl h-[86vh] max-h-[720px] glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col animate-wordIn">
+      <div className="w-full max-w-2xl h-[min(90dvh,760px)] max-h-[90dvh] min-w-0 glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col animate-wordIn">
         {/* Header */}
         <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--surface-primary)]/50 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -265,7 +265,7 @@ export const AssistantModal: React.FC = () => {
         </div>
 
         {/* Quick Prompts Strip */}
-        <div className="px-3.5 py-2 border-t border-[var(--border-color)] bg-[var(--surface-primary)]/40 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+        <div className="px-3.5 py-2 border-t border-[var(--border-color)] bg-[var(--surface-primary)]/40 flex flex-wrap justify-center items-center gap-1.5 shrink-0">
           {QUICK_PROMPTS.map((qp) => (
             <button
               key={qp.label}
@@ -291,7 +291,7 @@ export const AssistantModal: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="اسأل عن أعياد الميلاد، الغائبين، الإحصائيات، أو اكتب اسم مخدوم..."
-            className="flex-1 h-10 px-3.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs sm:text-sm font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#20c7e8]"
+            className="flex-1 min-w-0 h-10 px-3.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs sm:text-sm font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#20c7e8]"
             dir="rtl"
           />
           <button
