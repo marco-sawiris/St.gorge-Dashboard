@@ -2,7 +2,7 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { Menu, Bell } from 'lucide-react';
 import { SyncStatusIndicator } from '../glass/SyncStatusIndicator';
-import stGeorgeIcon from '../../assets/images/st_george_icon_1794405195493.jpg';
+const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
 
 export const TopBar: React.FC = () => {
   const {

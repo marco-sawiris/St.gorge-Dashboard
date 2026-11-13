@@ -73,6 +73,8 @@ import { LiquidToggle, computeLiquidToggleFraction } from '../components/glass/L
 import { SplashScreen } from '../components/layout/SplashScreen';
 import { BottomKeyboardDock } from '../components/layout/BottomKeyboardDock';
 import { Sidebar } from '../components/layout/Sidebar';
+import { NavigationTabs } from '../components/layout/NavigationTabs';
+import App from '../App';
 import { AuthUser } from '../types/auth';
 import { Student } from '../types/student';
 import { generateUUID } from '../utils/uuid';
@@ -1349,11 +1351,146 @@ async function runSprintTests() {
   );
   console.log('✅ Test 33 Passed: Original Dashboard Sidebar animations, stagger & touch swipe verified\n');
 
+  // --------------------------------------------------------------------------
+  // TEST 34: Reference Animation Code File Audit & Keyframes (Ainmation_code_8feeba97.html)
+  // --------------------------------------------------------------------------
+  const animHtmlPath = path.resolve(process.cwd(), 'public/assets/aistudio/Ainmation_code_8feeba97.html');
+  assert(fs.existsSync(animHtmlPath), 'Test 34a: Ainmation_code_8feeba97.html reference file exists');
+  const animHtml = fs.readFileSync(animHtmlPath, 'utf-8');
+  assert(
+    animHtml.includes('@keyframes wordIn') &&
+      animHtml.includes('translateY(45px)') &&
+      animHtml.includes('rotateX(-65deg)') &&
+      animHtml.includes('scale(0.8)') &&
+      animHtml.includes('filter: blur(8px)'),
+    'Test 34b: Reference HTML contains exact 3D wordIn transform and blur'
+  );
+  assert(
+    indexCssSrc.includes('@keyframes wordIn') &&
+      indexCssSrc.includes('translateY(45px) rotateX(-65deg) scale(0.8)') &&
+      indexCssSrc.includes('filter: blur(8px)') &&
+      indexCssSrc.includes('translateY(0) rotateX(0) scale(1)') &&
+      indexCssSrc.includes('filter: blur(0)') &&
+      indexCssSrc.includes('perspective: 800px') &&
+      indexCssSrc.includes('--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1)') &&
+      indexCssSrc.includes('.word-in-text span'),
+    'Test 34c: index.css implements exact wordIn transform, spring easing, 800px perspective and per-word stagger'
+  );
+  assert(
+    indexCssSrc.includes('@keyframes fadeIn') &&
+      indexCssSrc.includes('@keyframes badgePop') &&
+      indexCssSrc.includes('@keyframes chartBarGrow') &&
+      indexCssSrc.includes('@keyframes svgLineDraw') &&
+      indexCssSrc.includes(':focus-visible'),
+    'Test 34d: index.css contains fadeIn, badgePop, chartBarGrow, svgLineDraw, and :focus-visible rules'
+  );
+  console.log('✅ Test 34 Passed: Reference Animation audit & exact keyframes verified\n');
+
+  // --------------------------------------------------------------------------
+  // TEST 35: Animated Navigation Controls & Gliding Indicator (NavigationTabs.tsx)
+  // --------------------------------------------------------------------------
+  const navTabsSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/layout/NavigationTabs.tsx'), 'utf-8');
+  assert(
+    navTabsSrc.includes('role="tablist"') &&
+      navTabsSrc.includes('role="tab"') &&
+      navTabsSrc.includes('layoutId="navActiveIndicator"') &&
+      navTabsSrc.includes('whileTap={{ scale: 0.96 }}') &&
+      navTabsSrc.includes('ArrowLeft') &&
+      navTabsSrc.includes('ArrowRight'),
+    'Test 35a: NavigationTabs implements accessible tabs, gliding layoutId pill, and RTL keyboard navigation'
+  );
+
+  const navTabsHtml = renderToString(
+    React.createElement(
+      ThemeProvider,
+      null,
+      React.createElement(
+        AuthProvider,
+        null,
+        React.createElement(AppProvider, null, React.createElement(NavigationTabs))
+      )
+    )
+  );
+  assert(
+    navTabsHtml.includes('role="tablist"') &&
+      navTabsHtml.includes('جدول الحضور') &&
+      navTabsHtml.includes('سجل الافتقاد'),
+    'Test 35b: NavigationTabs SSR renders without errors'
+  );
+  console.log('✅ Test 35 Passed: Animated Navigation Tabs with gliding indicator verified\n');
+
+  // --------------------------------------------------------------------------
+  // TEST 36: Full App Choreography, Spring View Transitions & Component Animations
+  // --------------------------------------------------------------------------
+  assert(
+    appSrcLatest.includes('<MotionConfig reducedMotion="user">') &&
+      appSrcLatest.includes('<AnimatePresence mode="wait" initial={false}>') &&
+      appSrcLatest.includes('SPRING_EASE') &&
+      appSrcLatest.includes('key="cards"') &&
+      appSrcLatest.includes('key="table"') &&
+      appSrcLatest.includes('key="charts"') &&
+      appSrcLatest.includes('key="followup"') &&
+      appSrcLatest.includes('activeToast'),
+    'Test 36a: App.tsx wraps application with MotionConfig, AnimatePresence view transitions & animated toasts'
+  );
+
+  const studentCardSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/cards/StudentCard.tsx'), 'utf-8');
+  assert(
+    studentCardSrc.includes('ease-[var(--ease-spring)]') &&
+      studentCardSrc.includes('layoutId={`cardTrackPill_${student.id}`}') &&
+      studentCardSrc.includes('word-in'),
+    'Test 36b: StudentCard implements 3D spring flip, gliding track pill, and word-in animation'
+  );
+
+  const studentsTableSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/table/StudentsTableView.tsx'), 'utf-8');
+  assert(
+    studentsTableSrc.includes('word-in') &&
+      studentsTableSrc.includes('badge-pop') &&
+      studentsTableSrc.includes('glass-btn'),
+    'Test 36c: StudentsTableView implements word-in stagger, badge-pop attendance toggle, and glass buttons'
+  );
+
+  const followupLogSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/followup/FollowupLogView.tsx'), 'utf-8');
+  assert(
+    followupLogSrc.includes('word-in') &&
+      followupLogSrc.includes('badge-pop') &&
+      followupLogSrc.includes('glass-btn'),
+    'Test 36d: FollowupLogView implements word-in stagger, badge-pop copy indicator, and glass buttons'
+  );
+
+  const chartsSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/charts/DashboardChartsView.tsx'), 'utf-8');
+  assert(
+    chartsSrc.includes('word-in') &&
+      chartsSrc.includes('svg-line-draw') &&
+      chartsSrc.includes('chart-bar-grow'),
+    'Test 36e: DashboardChartsView implements word-in, svgLineDraw, and chartBarGrow animations'
+  );
+
+  // SSR Render full App to verify zero React / motion/react hydration or SSR crashes
+  const fullAppHtml = renderToString(
+    React.createElement(
+      ThemeProvider,
+      null,
+      React.createElement(
+        AuthProvider,
+        null,
+        React.createElement(AppProvider, null, React.createElement(App))
+      )
+    )
+  );
+  assert(
+    fullAppHtml.includes('St. George Dashboard') &&
+      fullAppHtml.includes('جدول الحضور') &&
+      fullAppHtml.includes('سجل الافتقاد'),
+    'Test 36f: Full App SSR renders cleanly with all motion components'
+  );
+  console.log('✅ Test 36 Passed: Full App choreography, view transitions & component animations verified\n');
+
   (globalThis as any).fetch = originalFetch;
   await idbSaveStudents([], 'نشط', true).catch(() => {});
 
   console.log('======================================================');
-  console.log('🎉 ALL 33 SPRINT VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  console.log('🎉 ALL 36 SPRINT VERIFICATION TESTS PASSED SUCCESSFULLY!');
   console.log('======================================================');
 }
 

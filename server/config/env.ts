@@ -3,7 +3,7 @@ dotenv.config();
 
 export const ENV = {
   NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: parseInt(process.env.PORT || '3000', 10),
+  PORT: 3000,
   JWT_SECRET: process.env.JWT_SECRET || 'st_george_jwt_secret_production_key_2026_secured',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'st_george_jwt_refresh_secret_production_key_2026_secured',
   JWT_EXPIRES_IN: '15m',

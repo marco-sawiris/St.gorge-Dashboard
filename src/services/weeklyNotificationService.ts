@@ -1,6 +1,21 @@
-import { LocalNotifications } from '@capacitor/local-notifications';
 import { isNativeCapacitorRuntime } from './apiConfig';
 import { CAIRO_TIMEZONE, getCairoDateParts } from '../utils/arabicUtils';
+
+async function getLocalNotificationsPlugin(): Promise<any | null> {
+  if (typeof window !== 'undefined') {
+    const plugins = (window as any).Capacitor?.Plugins;
+    if (plugins?.LocalNotifications) {
+      return plugins.LocalNotifications;
+    }
+    try {
+      const mod = await import('@capacitor/local-notifications');
+      return mod.LocalNotifications || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 export interface WeeklyReminderRule {
   id: number;
@@ -270,11 +285,14 @@ export function buildCapacitorNotificationsPayload(
 export async function getNotificationPermissionStatus(): Promise<NotificationPermissionState> {
   if (isNativeCapacitorRuntime()) {
     try {
-      const res = await LocalNotifications.checkPermissions();
-      const display = String(res?.display || '').toLowerCase();
-      if (display === 'granted') return 'granted';
-      if (display === 'denied') return 'denied';
-      return 'prompt';
+      const ln = await getLocalNotificationsPlugin();
+      if (ln) {
+        const res = await ln.checkPermissions();
+        const display = String(res?.display || '').toLowerCase();
+        if (display === 'granted') return 'granted';
+        if (display === 'denied') return 'denied';
+        return 'prompt';
+      }
     } catch {
       return 'prompt';
     }
@@ -293,11 +311,14 @@ export async function getNotificationPermissionStatus(): Promise<NotificationPer
 export async function requestNotificationPermission(): Promise<NotificationPermissionState> {
   if (isNativeCapacitorRuntime()) {
     try {
-      const res = await LocalNotifications.requestPermissions();
-      const display = String(res?.display || '').toLowerCase();
-      if (display === 'granted') return 'granted';
-      if (display === 'denied') return 'denied';
-      return 'prompt';
+      const ln = await getLocalNotificationsPlugin();
+      if (ln) {
+        const res = await ln.requestPermissions();
+        const display = String(res?.display || '').toLowerCase();
+        if (display === 'granted') return 'granted';
+        if (display === 'denied') return 'denied';
+        return 'prompt';
+      }
     } catch {
       return 'denied';
     }
@@ -338,15 +359,21 @@ export async function syncWeeklyNotificationSchedules(
   }
 
   try {
+    const ln = await getLocalNotificationsPlugin();
+    if (!ln) {
+      const perm = await getNotificationPermissionStatus();
+      return { scheduledCount: 0, permission: perm, nextTriggers, reason: 'plugin_missing' };
+    }
+
     // Always cancel stale/existing weekly IDs before rescheduling to eliminate duplicates across restarts/reboots
-    const pending = await LocalNotifications.getPending().catch(() => ({ notifications: [] }));
+    const pending = await ln.getPending().catch(() => ({ notifications: [] }));
     const knownIds = new Set<number>(WEEKLY_NOTIFICATION_IDS);
     for (const p of pending.notifications || []) {
       if (typeof p.id === 'number' && knownIds.has(p.id)) {
         knownIds.add(p.id);
       }
     }
-    await LocalNotifications.cancel({
+    await ln.cancel({
       notifications: Array.from(knownIds).map((id) => ({ id }))
     }).catch(() => {});
 
@@ -360,7 +387,7 @@ export async function syncWeeklyNotificationSchedules(
       return { scheduledCount: 0, permission: perm, nextTriggers, reason: 'permission_required' };
     }
 
-    await LocalNotifications.createChannel({
+    await ln.createChannel({
       id: WEEKLY_NOTIFICATION_CHANNEL_ID,
       name: 'تذكيرات خدمة مارجرجس الأسبوعية',
       description: 'تذكيرات التحضير والافتقاد والحضور بتوقيت القاهرة',
@@ -369,7 +396,7 @@ export async function syncWeeklyNotificationSchedules(
       vibration: true
     }).catch(() => {});
 
-    await LocalNotifications.schedule({
+    await ln.schedule({
       notifications: payload
     });
 

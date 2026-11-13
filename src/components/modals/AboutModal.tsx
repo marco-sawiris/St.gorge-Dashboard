@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Church, Heart, X, Sparkles, CloudMoon } from 'lucide-react';
 import { ThemeSwitcher } from '../glass/ThemeSwitcher';
-import stGeorgeIcon from '../../assets/images/st_george_icon_1794405195493.jpg';
+const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
 
 export const AboutModal: React.FC = () => {
   const { isAboutModalOpen, setIsAboutModalOpen } = useApp();
