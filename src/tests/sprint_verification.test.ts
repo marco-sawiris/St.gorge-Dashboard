@@ -1312,6 +1312,11 @@ async function runSprintTests() {
         appsScriptSrc.indexOf("if (!friday)"),
     'Test 31j: Apps Script explicitly rejects delete and commits the row version only after attendance validation'
   );
+  assert(
+    appsScriptSrc.includes("var mutationIdCol = findColIndex(logHeaders, ['mutation_id']);") &&
+      appsScriptSrc.includes(".createTextFinder(String(mutationId))"),
+    'Test 31k: Follow-up log appends are deduplicated using a durable mutation ID'
+  );
   console.log('✅ Test 31 Passed: Weekly Cairo DST notifications, Apps Script attendance guards, deduplication, no-past guard & Settings UI verified');
 
   // --------------------------------------------------------------------------
