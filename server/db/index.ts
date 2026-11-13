@@ -57,6 +57,10 @@ class InMemoryDatabase {
   }
 
   async seedDefaults() {
+    // Demo credentials are permitted only in development/test environments.
+    // Production must provision real users through an explicit administrative process.
+    if (ENV.NODE_ENV === 'production') return;
+
     const adminPass = await hashPassword('Admin@123456');
     const servantPass = await hashPassword('Servant@123456');
     const viewerPass = await hashPassword('Viewer@123456');
@@ -258,9 +262,10 @@ class DatabaseManager {
           );
         `);
 
-        // Seed initial default users in Postgres if table is empty
+        // Seed demo users only outside production. Never create known default
+        // usernames/passwords in a production database.
         const countRes = await client.query('SELECT COUNT(*)::int AS total FROM users');
-        if ((countRes.rows[0]?.total ?? 0) === 0) {
+        if (ENV.NODE_ENV !== 'production' && (countRes.rows[0]?.total ?? 0) === 0) {
           await this.inMemory.initPromise;
           for (const u of this.inMemory.users.values()) {
             await client.query(
