@@ -46,7 +46,14 @@ export const AssistantModal: React.FC = () => {
     students,
     lastSuccessfulSyncTime,
     syncData,
-    isSyncing
+    isSyncing,
+    isOnline,
+    markAttendance,
+    processOfflineQueue,
+    requestEditStudent,
+    setFilters,
+    setActiveView,
+    addNotification
   } = useApp();
 
   const [messages, setMessages] = useState<AssistantMessage[]>([INITIAL_BOT_MESSAGE]);
@@ -81,21 +88,83 @@ export const AssistantModal: React.FC = () => {
     setIsTyping(true);
 
     setTimeout(() => {
-      const response = processAssistantQuery(clean, students, {
-        lastSyncLabel: lastSuccessfulSyncTime
-      });
-      const botMsg: AssistantMessage = {
-        id: generateUUID(),
-        role: 'bot',
-        text: response.text,
-        copyText: response.copyText,
-        whatsappText: response.whatsappText,
-        whatsappPhone: response.whatsappPhone,
-        actions: response.actions,
-        timestamp: Date.now()
-      };
-      setMessages((prev) => [...prev, botMsg]);
-      setIsTyping(false);
+      void (async () => {
+        let response = processAssistantQuery(clean, students, {
+          lastSyncLabel: lastSuccessfulSyncTime
+        });
+
+        // Explicit, uniquely matched attendance commands write through the same
+        // IndexedDB + offline mutation queue used by the student card controls.
+        if (response.command?.type === 'markAttendance') {
+          const command = response.command;
+          const currentStudent = students.find((s) => s.id === command.studentId);
+          const existing = currentStudent?.att?.[command.targetFridayDate];
+          if (existing === command.isPresent) {
+            response = {
+              text: `\u2139\ufe0f ${command.studentName} مسجل بالفعل كـ${command.isPresent ? 'حاضر' : 'غائب'} عن ${command.targetFridayDate}. لم أضف سجلًا مكررًا.`
+            };
+          } else {
+            const saved = await markAttendance(command.studentId, command.isPresent, command.targetFridayDate);
+            if (!saved) {
+              response = {
+                text: `تعذر تسجيل ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName}. راجع تنبيه التطبيق وحالة المزامنة، ولم أعتبر العملية ناجحة.`
+              };
+            } else if (isOnline) {
+              try {
+                const syncResult = await processOfflineQueue();
+                response = {
+                  text: syncResult.success && syncResult.remainingCount === 0
+                    ? `\u2705 تم تسجيل ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} عن ${command.targetFridayDate}، وتم إرسال العملية بنجاح إلى المزامنة.\n\nعدد العمليات المعلقة الآن: 0.`
+                    : `\u2705 تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}. لكن المزامنة لم تكتمل بعد؛ العمليات المعلقة: ${syncResult.remainingCount}. لن أفترض أن Google Sheets تم تحديثه.`
+                };
+              } catch (error) {
+                console.error('Assistant attendance sync failed:', error);
+                response = {
+                  text: `\u2705 تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}، لكن تعذر تأكيد المزامنة. البيانات محفوظة في طابور الإرسال للمحاولة لاحقًا.`
+                };
+              }
+            } else {
+              response = {
+                text: `\u2705 تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}. الجهاز غير متصل، وسيتم إرسال العملية عند عودة الإنترنت.`
+              };
+            }
+          }
+        } else if (response.command?.type === 'openEdit') {
+          const command = response.command;
+          setActiveView('cards');
+          setFilters((prev) => ({
+            ...prev,
+            searchQuery: command.studentName,
+            sheet: '__ALL__',
+            servant: '',
+            area: '',
+            alphabetLetter: null
+          }));
+          const opened = requestEditStudent(command.studentId);
+          if (opened) {
+            addNotification('تم فتح كارت المخدوم', `كارت ${command.studentName} جاهز للتعديل. احفظ التغييرات من الكارت.`, 'success');
+            setIsAssistantOpen(false);
+          } else {
+            response = {
+              text: `لم أفتح كارت ${command.studentName} لأن هناك كارتًا آخر قيد التعديل أو تغييرات غير محفوظة. احفظ التعديل الحالي أو ألغِه أولاً.`
+            };
+          }
+        }
+
+        const botMsg: AssistantMessage = {
+          id: generateUUID(),
+          role: 'bot',
+          text: response.text,
+          copyText: response.copyText,
+          whatsappText: response.whatsappText,
+          whatsappPhone: response.whatsappPhone,
+          actions: response.actions,
+          command: response.command,
+          timestamp: Date.now()
+        };
+        setMessages((prev) => [...prev, botMsg]);
+        setIsTyping(false);
+      })();
     }, 140);
   };
 
