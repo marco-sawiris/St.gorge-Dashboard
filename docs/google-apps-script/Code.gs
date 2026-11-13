@@ -28,6 +28,15 @@ function getSpreadsheet() {
   return SpreadsheetApp.openById(sheetId);
 }
 
+function constantTimeStringEquals(left, right) {
+  if (left.length !== right.length) return false;
+  var difference = 0;
+  for (var i = 0; i < left.length; i++) {
+    difference |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+  return difference === 0;
+}
+
 function verifyRelayKey(providedKey) {
   var props = PropertiesService.getScriptProperties();
   var expectedKey = props.getProperty('RELAY_KEY');
@@ -35,7 +44,7 @@ function verifyRelayKey(providedKey) {
     // Fail closed: an unconfigured/weak relay key must never expose sheet data.
     return { valid: false, error: 'Relay unavailable: configure a strong RELAY_KEY in Script Properties' };
   }
-  if (!providedKey || String(providedKey).trim() !== String(expectedKey).trim()) {
+  if (!constantTimeStringEquals(String(providedKey || '').trim(), String(expectedKey).trim())) {
     return { valid: false, error: 'Unauthorized: invalid or missing RELAY_KEY' };
   }
   return { valid: true };
