@@ -957,7 +957,7 @@ async function runSprintTests() {
   console.log('✅ Test 22 Passed: Blurry Loading SplashScreen real progress & non-blocking UX verified');
 
   // --------------------------------------------------------------------------
-  // TEST 23: Alphabet-Only Bottom Dock (Keyboard Icon & Soft Keyboard Removed)
+  // TEST 23: Centered Alphabet Dock Handle (Keyboard Label + All Filter Preserved)
   // --------------------------------------------------------------------------
   const dockHtml = renderToString(
     React.createElement(
@@ -978,20 +978,23 @@ async function runSprintTests() {
     !dockHtml.includes('AR / EN') &&
       !dockHtml.includes('العربية') &&
       !dockHtml.includes('English') &&
-      dockHtml.includes('تصفية بالحروف الأبجدية') &&
+      dockHtml.includes('الكيبورد') &&
+      dockHtml.includes('الكل') &&
       dockHtml.includes('safe-area-inset-bottom') &&
       !dockHtml.includes('تبديل إلى الكيبورد'),
-    'Test 23a: BottomKeyboardDock renders ONLY Arabic alphabet filter dock without language or soft-keyboard labels'
+    'Test 23a: BottomKeyboardDock shows the centered keyboard handle and preserves the All filter without language controls'
   );
   const dockSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/layout/BottomKeyboardDock.tsx'), 'utf-8');
   assert(
     dockSrc.includes('hasModalBlockingDock') &&
+      dockSrc.includes('ChevronUp') &&
+      dockSrc.includes('ChevronDown') &&
       !dockSrc.includes('<Keyboard') &&
       !dockSrc.includes('dockMode') &&
       !dockSrc.includes('applyKeyboardActionToText'),
-    'Test 23b: Keyboard icon and soft-keyboard mode are completely deleted from BottomKeyboardDock'
+    'Test 23b: Bottom dock uses a directional handle without introducing a soft keyboard mode'
   );
-  console.log('✅ Test 23 Passed: Alphabet-only Bottom Dock (keyboard icon removed) verified');
+  console.log('✅ Test 23 Passed: Centered keyboard dock handle and All filter verified');
 
   // --------------------------------------------------------------------------
   // TEST 24: SearchFilterBar Removes 'فصل نشط فقط' Toggle Under Sync
