@@ -24,13 +24,15 @@ const QUICK_PROMPTS = [
   { label: '🌟 رسالة تشجيع', query: 'رسالة تشجيع' },
   { label: '📊 إحصائيات', query: 'إحصائيات' },
   { label: '⚠️ الغائبون', query: 'الغائبون' },
+  { label: '✅ الحضور اليوم', query: 'مين حضر النهارده؟' },
+  { label: '🎂 الشهر القادم', query: 'أعياد الميلاد الشهر القادم' },
   { label: '❓ مساعدة', query: 'مساعدة' }
 ];
 
 const INITIAL_BOT_MESSAGE: AssistantMessage = {
   id: 'welcome-msg',
   role: 'bot',
-  text: 'سلام ونعمة ✝️ أنا المساعد الذكي لفصل الشهيد مارجرجس.\nأعمل محلياً داخل التطبيق مباشرة من بياناتك الحقيقية (أعياد الميلاد، الغياب، الإحصائيات، البحث، ورسائل الافتقاد الجاهزة) دون إرسال بياناتك لأي خدمة خارجية.',
+  text: 'سلام ونعمة ✝️ أنا المساعد الذكي لفصل الشهيد مارجرجس.\nأفهم بيانات المخدومين والحضور والغياب وأعياد الميلاد والافتقاد، وأقدر أنفذ أوامر واضحة مثل تسجيل حضور مخدوم أو فتح كارت للتعديل، مع استخدام قاعدة البيانات المحلية وطابور المزامنة دون إرسال بياناتك لخدمة خارجية.',
   actions: [
     { label: '📊 عرض الإحصائيات', type: 'prompt', payload: 'إحصائيات' },
     { label: '🎂 أعياد الميلاد', type: 'prompt', payload: 'أعياد الميلاد' },
@@ -359,7 +361,7 @@ export const AssistantModal: React.FC = () => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="اسأل عن أعياد الميلاد، الغائبين، الإحصائيات، أو اكتب اسم مخدوم..."
+            placeholder="اسأل عن الحضور والغياب وأعياد الميلاد، أو قل: سجل حضور + اسم المخدوم..."
             className="flex-1 min-w-0 h-10 px-3.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs sm:text-sm font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#20c7e8]"
             dir="rtl"
           />
