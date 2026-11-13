@@ -277,7 +277,7 @@ export default function App() {
                           {filteredStudents.map((student, idx) => (
                             <div
                               key={student.id}
-                              className="word-in min-w-0 w-full"
+                              className="word-in min-w-0 w-[90%] max-w-[90%] mx-auto"
                               style={{ '--i': Math.min(idx, 8) } as React.CSSProperties}
                             >
                               <StudentCard
