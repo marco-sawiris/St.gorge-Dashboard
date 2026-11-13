@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useApp } from '../../context/AppContext';
 import { ARABIC_ALPHABET, normalizeArabicInitial } from '../../utils/arabicUtils';
 import { ChevronDown, Sparkles } from 'lucide-react';
@@ -23,6 +24,7 @@ export const BottomKeyboardDock: React.FC = () => {
   } = useApp();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   const hasModalBlockingDock =
     isAddModalOpen ||
@@ -129,11 +131,17 @@ export const BottomKeyboardDock: React.FC = () => {
             const count = letterCounts[letter] || 0;
             const isSelected = filters.alphabetLetter === letter;
             return (
-              <button
+              <motion.button
                 key={letter}
                 type="button"
                 onClick={() => handleSelectLetter(letter)}
                 disabled={count === 0 && !isSelected}
+                aria-pressed={isSelected}
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                whileHover={shouldReduceMotion || count === 0 ? undefined : { y: -2, scale: 1.04 }}
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 480, damping: 30, delay: shouldReduceMotion ? 0 : (ARABIC_ALPHABET.indexOf(letter) * 0.012) }}
                 className={`glass-keyboard-key min-w-0 text-xs sm:text-sm font-bold flex items-center justify-center cursor-pointer select-none ${
                   isSelected
                     ? '!bg-gradient-to-br !from-[#267aff] !to-[#20c7e8] !text-[#030711] font-black shadow-[0_0_15px_rgba(32,199,232,0.55)] scale-105 border-white/45'
@@ -144,7 +152,7 @@ export const BottomKeyboardDock: React.FC = () => {
                 title={`حرف ${letter} (${count} مخدوم)`}
               >
                 {letter}
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -154,11 +162,17 @@ export const BottomKeyboardDock: React.FC = () => {
             const count = letterCounts[letter] || 0;
             const isSelected = filters.alphabetLetter === letter;
             return (
-              <button
+              <motion.button
                 key={letter}
                 type="button"
                 onClick={() => handleSelectLetter(letter)}
                 disabled={count === 0 && !isSelected}
+                aria-pressed={isSelected}
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                whileHover={shouldReduceMotion || count === 0 ? undefined : { y: -2, scale: 1.04 }}
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 480, damping: 30, delay: shouldReduceMotion ? 0 : (ARABIC_ALPHABET.indexOf(letter) * 0.012) }}
                 className={`glass-keyboard-key min-w-0 text-xs sm:text-sm font-bold flex items-center justify-center cursor-pointer select-none ${
                   isSelected
                     ? '!bg-gradient-to-br !from-[#267aff] !to-[#20c7e8] !text-[#030711] font-black shadow-[0_0_15px_rgba(32,199,232,0.55)] scale-105 border-white/45'
@@ -169,7 +183,7 @@ export const BottomKeyboardDock: React.FC = () => {
                 title={`حرف ${letter} (${count} مخدوم)`}
               >
                 {letter}
-              </button>
+              </motion.button>
             );
           })}
         </div>
