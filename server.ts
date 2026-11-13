@@ -9,6 +9,7 @@ import { requestLogger } from './server/middleware/logger';
 import authRouter from './server/routes/auth';
 import healthRouter from './server/routes/health';
 import sheetsRouter from './server/routes/sheets';
+import { dbManager } from './server/db';
 
 import fs from 'fs';
 
@@ -21,6 +22,8 @@ const allowedOrigins = new Set(
 );
 
 async function startServer() {
+  // Production must never start with volatile in-memory auth/session storage.
+  await dbManager.ensureProductionReady();
   const app = express();
 
   // Basic Middlewares
