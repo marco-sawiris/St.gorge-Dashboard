@@ -22,6 +22,7 @@ interface GoogleTokenCache {
  */
 export class GoogleSheetsService {
   private students = new Map<string, Student>();
+  private testFixtureMode = false;
   private tokenCache: GoogleTokenCache | null = null;
   private lastSheetSyncAt: number = 0;
   private readonly CACHE_TTL_MS = 15_000;
@@ -40,6 +41,7 @@ export class GoogleSheetsService {
    * Never invoked by application runtime or server startup.
    */
   public seedTestFixtureStudentsOnly(fixtures: Student[]): void {
+    this.testFixtureMode = true;
     for (const s of fixtures) {
       this.students.set(s.id, { ...s, version: s.version || 1 });
     }
@@ -157,7 +159,7 @@ export class GoogleSheetsService {
   }
 
   public async upsertStudent(student: Student): Promise<Student> {
-    if (!this.isGoogleConfigured()) {
+    if (!this.isGoogleConfigured() && !this.testFixtureMode) {
       throw new Error('Google Sheets write is unavailable: configure server-side Service Account credentials before accepting mutations.');
     }
     const existing = this.students.get(student.id);
@@ -170,6 +172,8 @@ export class GoogleSheetsService {
     // publish the new in-memory version until Google Sheets confirms the write.
     if (this.isGoogleConfigured()) {
       await this.syncStudentUpdateToGoogle(saved, !existing);
+    } else if (!this.testFixtureMode) {
+      throw new Error('Google Sheets write was not attempted; refusing an in-memory-only success response.');
     }
 
     this.students.set(saved.id, saved);
