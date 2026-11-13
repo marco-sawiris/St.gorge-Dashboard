@@ -163,49 +163,86 @@ export class GoogleSheetsService {
       ...student,
       version: nextVersion
     };
-    this.students.set(saved.id, saved);
-
-    // Optional live write-through to Google Sheets when Service Account configured
+    // When server-side Google credentials are configured, do not report success or
+    // publish the new in-memory version until Google Sheets confirms the write.
     if (this.isGoogleConfigured()) {
-      this.syncStudentUpdateToGoogle(saved, !existing).catch((err) => {
-        console.warn('[GoogleSheetsService] Write-through warning:', err?.message || err);
-      });
+      await this.syncStudentUpdateToGoogle(saved, !existing);
     }
 
+    this.students.set(saved.id, saved);
     return { ...saved };
   }
 
   private async syncStudentUpdateToGoogle(student: Student, isNew: boolean): Promise<void> {
     const accessToken = await this.getGoogleAccessToken();
-    if (!isNew) return;
-
     const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
-    const range = encodeURIComponent(`'${student.sourceSheet}'!A:L`);
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:append?valueInputOption=USER_ENTERED`;
+    const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
+    const rowValues = [[
+      student.code,
+      student.name,
+      student.servant,
+      student.phoneStudent || '',
+      student.phoneParent1 || '',
+      student.phoneParent2 || '',
+      student.birthDate || '',
+      student.area || '',
+      student.address || '',
+      student.notes || '',
+      student.lastAttendance || '',
+      student.lastFollowup || ''
+    ]];
 
-    await fetch(url, {
+    // Resolve the physical row by the stable student code in column A. Never
+    // assume that an in-memory student ID is also a Google Sheets row number.
+    const lookupRange = encodeURIComponent(`'${student.sourceSheet}'!A:A`);
+    const lookupResponse = await fetch(`${sheetPrefix}/${lookupRange}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!lookupResponse.ok) {
+      throw new Error(`Google Sheets row lookup failed (${lookupResponse.status})`);
+    }
+
+    const lookupData = (await lookupResponse.json()) as { values?: string[][] };
+    const rows = lookupData.values || [];
+    const matchingRows = rows
+      .map((row, index) => ({ code: String(row?.[0] ?? '').trim(), rowNumber: index + 1 }))
+      .filter((row) => row.rowNumber > 1 && row.code === String(student.code).trim());
+
+    if (matchingRows.length > 1) {
+      throw new Error(`Duplicate student code "${student.code}" found in Google Sheets; refusing ambiguous write`);
+    }
+
+    const existingRow = matchingRows[0]?.rowNumber;
+    if (existingRow) {
+      const updateRange = encodeURIComponent(`'${student.sourceSheet}'!A${existingRow}:L${existingRow}`);
+      const response = await fetch(`${sheetPrefix}/${updateRange}?valueInputOption=USER_ENTERED`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: rowValues })
+      });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        throw new Error(`Google Sheets update failed (${response.status}): ${detail}`);
+      }
+      return;
+    }
+
+    const appendRange = encodeURIComponent(`'${student.sourceSheet}'!A:L`);
+    const appendResponse = await fetch(`${sheetPrefix}/${appendRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        values: [[
-          student.code,
-          student.name,
-          student.servant,
-          student.phoneStudent || '',
-          student.phoneParent1 || '',
-          student.phoneParent2 || '',
-          student.birthDate || '',
-          student.area || '',
-          student.address || '',
-          student.notes || '',
-          student.lastAttendance || '',
-          student.lastFollowup || ''
-        ]]
-      })
+      body: JSON.stringify({ values: rowValues })
     });
+    if (!appendResponse.ok) {
+      const detail = await appendResponse.text().catch(() => '');
+      throw new Error(`Google Sheets append failed (${appendResponse.status}): ${detail}`);
+    }
   }
 }
 
