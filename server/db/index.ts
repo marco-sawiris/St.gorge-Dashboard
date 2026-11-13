@@ -56,6 +56,12 @@ class InMemoryDatabase {
     this.initPromise = this.seedDefaults();
   }
 
+  private assertFallbackAllowed(): void {
+    if (ENV.NODE_ENV === 'production') {
+      throw new Error('Production database unavailable: in-memory fallback is disabled. Configure and restore PostgreSQL.');
+    }
+  }
+
   async seedDefaults() {
     // Demo credentials are permitted only in development/test environments.
     // Production must provision real users through an explicit administrative process.
@@ -122,11 +128,13 @@ class InMemoryDatabase {
   }
 
   async getUserByUsername(username: string): Promise<UserRecord | null> {
+    this.assertFallbackAllowed();
     await this.initPromise;
     return this.users.get(username.trim().toLowerCase()) || null;
   }
 
   async getUserById(id: string): Promise<UserRecord | null> {
+    this.assertFallbackAllowed();
     await this.initPromise;
     for (const u of this.users.values()) {
       if (u.id === id) return u;
@@ -135,19 +143,23 @@ class InMemoryDatabase {
   }
 
   async updateUser(user: UserRecord): Promise<void> {
+    this.assertFallbackAllowed();
     user.updatedAt = new Date();
     this.users.set(user.username.toLowerCase(), user);
   }
 
   async saveSession(session: RefreshSessionRecord): Promise<void> {
+    this.assertFallbackAllowed();
     this.sessions.set(session.id, session);
   }
 
   async getSession(id: string): Promise<RefreshSessionRecord | null> {
+    this.assertFallbackAllowed();
     return this.sessions.get(id) || null;
   }
 
   async revokeSession(id: string): Promise<void> {
+    this.assertFallbackAllowed();
     const s = this.sessions.get(id);
     if (s) {
       s.revoked = true;
@@ -155,18 +167,22 @@ class InMemoryDatabase {
   }
 
   async getIdempotencyRecord(key: string): Promise<IdempotencyRecord | null> {
+    this.assertFallbackAllowed();
     return this.idempotency.get(key) || null;
   }
 
   async saveIdempotencyRecord(record: IdempotencyRecord): Promise<void> {
+    this.assertFallbackAllowed();
     this.idempotency.set(record.key, record);
   }
 
   async logAudit(log: AuditLogRecord): Promise<void> {
+    this.assertFallbackAllowed();
     this.auditLogs.push(log);
   }
 
   async getAuditLogs(limit = 100): Promise<AuditLogRecord[]> {
+    this.assertFallbackAllowed();
     return this.auditLogs.slice(-limit);
   }
 }
@@ -175,10 +191,22 @@ class InMemoryDatabase {
 class DatabaseManager {
   private pool: Pool | null = null;
   private inMemory: InMemoryDatabase = new InMemoryDatabase();
+  private bootstrapPromise: Promise<void> = Promise.resolve();
   public isPostgresConnected = false;
 
   constructor() {
     this.initPool();
+  }
+
+  async ensureProductionReady(): Promise<void> {
+    if (ENV.NODE_ENV !== 'production') return;
+    if (!this.pool) {
+      throw new Error('Production startup blocked: DATABASE_URL or complete PostgreSQL connection settings are required.');
+    }
+    await this.bootstrapPromise;
+    if (!this.isPostgresConnected) {
+      throw new Error('Production startup blocked: PostgreSQL connection/schema bootstrap failed. In-memory fallback is disabled.');
+    }
   }
 
   private initPool() {
@@ -205,8 +233,9 @@ class DatabaseManager {
           console.warn('Postgres pool idle client warning:', err.message);
         });
 
-        // Initialize schema in background
-        this.bootstrapPostgres();
+        // Keep the bootstrap promise so production startup can fail closed
+        // instead of accepting requests while the database is unavailable.
+        this.bootstrapPromise = this.bootstrapPostgres();
       } catch (err: any) {
         console.warn('Postgres initialization deferred to in-memory store:', err.message);
       }
