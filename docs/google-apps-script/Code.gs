@@ -195,6 +195,10 @@ function doPost(e) {
     }
     var rowIndex = matchingRowIndexes.length === 1 ? matchingRowIndexes[0] : -1;
 
+    if (mutation.action === 'add' && rowIndex !== -1) {
+      return jsonResponse({ ok: false, status: 409, error: 'المخدوم موجود بالفعل في الشيت؛ أوقفنا الإضافة المكررة' });
+    }
+
     if (mutation.action !== 'add' && rowIndex === -1) {
       return jsonResponse({ ok: false, status: 404, error: 'المخدوم غير موجود في الشيت' });
     }
