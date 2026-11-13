@@ -103,7 +103,8 @@ export function evaluateUserPermission(
   return { allowed: true };
 }
 
-// Direct service session without servant login screen (Zero secrets / zero hardcoded passwords)
+// Local service-mode identity for offline UI permissions only. This is NOT an
+// authenticated user and must never be treated as a server-side security boundary.
 const DIRECT_SERVICE_USER: AuthUser = {
   userId: 'service_direct',
   username: 'stgeorge_service',
@@ -126,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user: DIRECT_SERVICE_USER,
-        isAuthenticated: true,
+        isAuthenticated: false,
         isPreviewMode: false,
         canPerformAction
       }}
