@@ -56,12 +56,6 @@ class InMemoryDatabase {
     this.initPromise = this.seedDefaults();
   }
 
-  private assertFallbackAllowed(): void {
-    if (ENV.NODE_ENV === 'production') {
-      throw new Error('Production database unavailable: in-memory fallback is disabled. Configure and restore PostgreSQL.');
-    }
-  }
-
   async seedDefaults() {
     // Demo credentials are permitted only in development/test environments.
     // Production must provision real users through an explicit administrative process.
@@ -128,13 +122,11 @@ class InMemoryDatabase {
   }
 
   async getUserByUsername(username: string): Promise<UserRecord | null> {
-    this.assertFallbackAllowed();
     await this.initPromise;
     return this.users.get(username.trim().toLowerCase()) || null;
   }
 
   async getUserById(id: string): Promise<UserRecord | null> {
-    this.assertFallbackAllowed();
     await this.initPromise;
     for (const u of this.users.values()) {
       if (u.id === id) return u;
@@ -143,23 +135,19 @@ class InMemoryDatabase {
   }
 
   async updateUser(user: UserRecord): Promise<void> {
-    this.assertFallbackAllowed();
     user.updatedAt = new Date();
     this.users.set(user.username.toLowerCase(), user);
   }
 
   async saveSession(session: RefreshSessionRecord): Promise<void> {
-    this.assertFallbackAllowed();
     this.sessions.set(session.id, session);
   }
 
   async getSession(id: string): Promise<RefreshSessionRecord | null> {
-    this.assertFallbackAllowed();
     return this.sessions.get(id) || null;
   }
 
   async revokeSession(id: string): Promise<void> {
-    this.assertFallbackAllowed();
     const s = this.sessions.get(id);
     if (s) {
       s.revoked = true;
@@ -167,22 +155,18 @@ class InMemoryDatabase {
   }
 
   async getIdempotencyRecord(key: string): Promise<IdempotencyRecord | null> {
-    this.assertFallbackAllowed();
     return this.idempotency.get(key) || null;
   }
 
   async saveIdempotencyRecord(record: IdempotencyRecord): Promise<void> {
-    this.assertFallbackAllowed();
     this.idempotency.set(record.key, record);
   }
 
   async logAudit(log: AuditLogRecord): Promise<void> {
-    this.assertFallbackAllowed();
     this.auditLogs.push(log);
   }
 
   async getAuditLogs(limit = 100): Promise<AuditLogRecord[]> {
-    this.assertFallbackAllowed();
     return this.auditLogs.slice(-limit);
   }
 }
@@ -196,6 +180,12 @@ class DatabaseManager {
 
   constructor() {
     this.initPool();
+  }
+
+  private assertDatabaseReady(): void {
+    if (ENV.NODE_ENV === 'production' && (!this.pool || !this.isPostgresConnected)) {
+      throw new Error('Production database unavailable: PostgreSQL is not connected; in-memory fallback is disabled.');
+    }
   }
 
   async ensureProductionReady(): Promise<void> {
@@ -328,6 +318,7 @@ class DatabaseManager {
   }
 
   async getUserByUsername(username: string): Promise<UserRecord | null> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
@@ -347,6 +338,7 @@ class DatabaseManager {
           };
         }
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres query error, falling back to memory store:', err);
       }
     }
@@ -354,6 +346,7 @@ class DatabaseManager {
   }
 
   async getUserById(id: string): Promise<UserRecord | null> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM users WHERE id = $1', [id]);
@@ -380,6 +373,7 @@ class DatabaseManager {
   }
 
   async updateUser(user: UserRecord): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query(
@@ -387,6 +381,7 @@ class DatabaseManager {
           [user.failedAttempts, user.lockoutUntil, user.id]
         );
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres updateUser error:', err);
       }
     }
@@ -394,6 +389,7 @@ class DatabaseManager {
   }
 
   async saveSession(session: RefreshSessionRecord): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query(
@@ -403,6 +399,7 @@ class DatabaseManager {
           [session.id, session.userId, session.tokenHash, session.expiresAt, session.revoked, session.createdAt]
         );
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres saveSession error:', err);
       }
     }
@@ -410,6 +407,7 @@ class DatabaseManager {
   }
 
   async getSession(id: string): Promise<RefreshSessionRecord | null> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM refresh_sessions WHERE id = $1', [id]);
@@ -425,6 +423,7 @@ class DatabaseManager {
           };
         }
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres getSession error:', err);
       }
     }
@@ -432,10 +431,12 @@ class DatabaseManager {
   }
 
   async revokeSession(id: string): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query('UPDATE refresh_sessions SET revoked = TRUE WHERE id = $1', [id]);
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres revokeSession error:', err);
       }
     }
@@ -443,6 +444,7 @@ class DatabaseManager {
   }
 
   async getIdempotencyRecord(key: string): Promise<IdempotencyRecord | null> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM idempotency_keys WHERE key = $1', [key]);
@@ -458,6 +460,7 @@ class DatabaseManager {
           };
         }
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres idempotency query error:', err);
       }
     }
@@ -465,6 +468,7 @@ class DatabaseManager {
   }
 
   async saveIdempotencyRecord(record: IdempotencyRecord): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query(
@@ -474,6 +478,7 @@ class DatabaseManager {
           [record.key, record.action, record.studentId, record.status, JSON.stringify(record.responseBody), record.createdAt]
         );
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres idempotency save error:', err);
       }
     }
@@ -481,6 +486,7 @@ class DatabaseManager {
   }
 
   async logAudit(log: AuditLogRecord): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query(
@@ -489,6 +495,7 @@ class DatabaseManager {
           [log.timestamp, log.userId, log.username, log.action, log.status, log.ipAddress, JSON.stringify(log.details || {})]
         );
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres audit log error:', err);
       }
     }
@@ -496,6 +503,7 @@ class DatabaseManager {
   }
 
   async getAuditLogs(limit = 100): Promise<AuditLogRecord[]> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query(
@@ -513,6 +521,7 @@ class DatabaseManager {
           details: row.details
         }));
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres audit query error:', err);
       }
     }
