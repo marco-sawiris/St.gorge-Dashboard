@@ -57,6 +57,7 @@ import {
 } from '../utils/arabicUtils';
 import {
   DEFAULT_WEEKLY_REMINDERS,
+  WEEKLY_NOTIFICATION_HORIZON,
   buildCapacitorNotificationsPayload,
   computeNextCairoOccurrence,
   loadWeeklyNotificationSettings,
