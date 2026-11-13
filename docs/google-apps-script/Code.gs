@@ -130,9 +130,9 @@ function doPost(e) {
     if (!mutation || allowedActions.indexOf(mutation.action) === -1) {
       return jsonResponse({ ok: false, status: 400, error: 'نوع العملية غير مسموح به' });
     }
-    var idempotencyKey = mutation.id || body.idempotencyKey;
-    if (!idempotencyKey) {
-      return jsonResponse({ ok: false, status: 400, error: 'X-Idempotency-Key required' });
+    var idempotencyKey = String(mutation.id || body.idempotencyKey || '').trim();
+    if (!idempotencyKey || idempotencyKey.length > 128) {
+      return jsonResponse({ ok: false, status: 400, error: 'مفتاح عدم التكرار مطلوب وبحد أقصى 128 حرفاً' });
     }
 
     var cache = CacheService.getScriptCache();
@@ -141,6 +141,15 @@ function doPost(e) {
       var prev = JSON.parse(cached);
       prev.deduplicated = true;
       return jsonResponse(prev);
+    }
+
+    // CacheService expires entries after a short TTL. Keep a durable ledger in a
+    // hidden spreadsheet tab so retries remain idempotent after cache expiry/restart.
+    var durablePrevious = findDurableIdempotencyResult(getSpreadsheet(), idempotencyKey);
+    if (durablePrevious) {
+      durablePrevious.deduplicated = true;
+      cache.put('IDEMP_' + idempotencyKey, JSON.stringify(durablePrevious), 21600);
+      return jsonResponse(durablePrevious);
     }
 
     if (mutation.action === 'delete') {
@@ -251,10 +260,28 @@ function doPost(e) {
           var prevTotal = parseInt(values[rowIndex][totalCol] || '0', 10) || 0;
           sheet.getRange(rowNum, totalCol + 1).setValue(Math.max(0, prevTotal + attendanceDelta));
         }
-        if (attendanceDelta !== 0 && monthCol >= 0) {
+        var currentCairoMonth = Utilities.formatDate(new Date(), 'Africa/Cairo', 'yyyy-MM');
+        var attendanceBelongsToCurrentMonth = friday.substring(0, 7) === currentCairoMonth;
+        if (attendanceDelta !== 0 && monthCol >= 0 && attendanceBelongsToCurrentMonth) {
           var prevMonth = parseInt(values[rowIndex][monthCol] || '0', 10) || 0;
           sheet.getRange(rowNum, monthCol + 1).setValue(Math.max(0, prevMonth + attendanceDelta));
         }
+
+        // Recalculate lastAttendance when a previously-present Friday is changed
+        // to absent; otherwise the summary field can point to a stale date.
+        var latestPresentFriday = '';
+        for (var attendanceCol = 0; attendanceCol < headers.length; attendanceCol++) {
+          if (/^\\d{4}-\\d{2}-\\d{2}$/.test(String(headers[attendanceCol] || '').trim())) {
+            var attendanceValue = attendanceCol === fridayCol
+              ? (isPresent ? '1' : '0')
+              : String(values[rowIndex][attendanceCol] || '').trim();
+            if (attendanceValue === '1' || attendanceValue.toLowerCase() === 'true' || attendanceValue === 'حاضر') {
+              var attendanceDate = String(headers[attendanceCol]).trim();
+              if (attendanceDate > latestPresentFriday) latestPresentFriday = attendanceDate;
+            }
+          }
+        }
+        setIfFound(sheet, rowNum, headers, ['آخر حضور', 'اخر حضور'], latestPresentFriday);
       } else if (mutation.action === 'followup') {
         var fuDate = String(payload.friday || payload.date || '');
         var fuMethod = payload.method || 'تم تليفونياً';
@@ -290,6 +317,7 @@ function doPost(e) {
       action: mutation.action
     };
 
+    saveDurableIdempotencyResult(ss, idempotencyKey, successPayload);
     cache.put('IDEMP_' + idempotencyKey, JSON.stringify(successPayload), 21600);
     return jsonResponse(successPayload);
   } catch (err) {
@@ -297,6 +325,40 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function getDurableIdempotencySheet(ss) {
+  var sheetName = '_mutation_idempotency';
+  var ledger = ss.getSheetByName(sheetName);
+  if (!ledger) {
+    ledger = ss.insertSheet(sheetName);
+    ledger.appendRow(['idempotency_key', 'response_json', 'created_at']);
+    ledger.hideSheet();
+  }
+  return ledger;
+}
+
+function findDurableIdempotencyResult(ss, key) {
+  var ledger = getDurableIdempotencySheet(ss);
+  var lastRow = ledger.getLastRow();
+  if (lastRow < 2) return null;
+  var match = ledger.getRange(2, 1, lastRow - 1, 1)
+    .createTextFinder(String(key))
+    .matchEntireCell(true)
+    .findNext();
+  if (!match) return null;
+  var raw = ledger.getRange(match.getRow(), 2).getValue();
+  if (!raw) return null;
+  try {
+    return JSON.parse(String(raw));
+  } catch (err) {
+    throw new Error('تعذر قراءة سجل عدم التكرار الدائم؛ أوقفنا العملية لحماية البيانات');
+  }
+}
+
+function saveDurableIdempotencyResult(ss, key, response) {
+  var ledger = getDurableIdempotencySheet(ss);
+  ledger.appendRow([String(key), JSON.stringify(response), new Date()]);
 }
 
 function setIfFound(sheet, rowNum, headers, colNames, value) {
