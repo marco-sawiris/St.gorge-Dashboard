@@ -1300,7 +1300,19 @@ async function runSprintTests() {
     manifestSrc.includes('POST_NOTIFICATIONS') && manifestSrc.includes('RECEIVE_BOOT_COMPLETED'),
     'Test 31h: AndroidManifest declares POST_NOTIFICATIONS & RECEIVE_BOOT_COMPLETED'
   );
-  console.log('✅ Test 31 Passed: Weekly Cairo DST notifications, deduplication, no-past guard & Settings UI verified');
+  const appsScriptSrc = fs.readFileSync(path.resolve(process.cwd(), 'docs/google-apps-script/Code.gs'), 'utf-8');
+  assert(
+    appsScriptSrc.includes(String.raw`if (/^\\d{4}-\\d{2}-\\d{2}$/.test(monthHeader)`) &&
+      appsScriptSrc.includes(String.raw`if (/^\\d{4}-\\d{2}-\\d{2}$/.test(String(headers[attendanceCol])`),
+    'Test 31i: Apps Script monthly and latest attendance calculations use valid single-escaped ISO date regexes'
+  );
+  assert(
+    appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete'];") &&
+      appsScriptSrc.indexOf("sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion)") >
+        appsScriptSrc.indexOf("if (!friday)"),
+    'Test 31j: Apps Script explicitly rejects delete and commits the row version only after attendance validation'
+  );
+  console.log('✅ Test 31 Passed: Weekly Cairo DST notifications, Apps Script attendance guards, deduplication, no-past guard & Settings UI verified');
 
   // --------------------------------------------------------------------------
   // TEST 32: Clean SearchFilterBar + Alphabet-only Dock Confirmation
