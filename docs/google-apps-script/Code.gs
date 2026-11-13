@@ -291,7 +291,7 @@ function doPost(e) {
           var currentMonthPresentCount = 0;
           for (var monthAttendanceCol = 0; monthAttendanceCol < headers.length; monthAttendanceCol++) {
             var monthHeader = String(headers[monthAttendanceCol] || '').trim();
-            if (/^\\d{4}-\\d{2}-\\d{2}$/.test(monthHeader) && monthHeader.substring(0, 7) === currentCairoMonth) {
+            if (/^\d{4}-\d{2}-\d{2}$/.test(monthHeader) && monthHeader.substring(0, 7) === currentCairoMonth) {
               var monthAttendanceValue = monthAttendanceCol === fridayCol
                 ? (isPresent ? '1' : '0')
                 : String(values[rowIndex][monthAttendanceCol] || '').trim().toLowerCase();
@@ -307,7 +307,7 @@ function doPost(e) {
         // to absent; otherwise the summary field can point to a stale date.
         var latestPresentFriday = '';
         for (var attendanceCol = 0; attendanceCol < headers.length; attendanceCol++) {
-          if (/^\\d{4}-\\d{2}-\\d{2}$/.test(String(headers[attendanceCol] || '').trim())) {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(String(headers[attendanceCol] || '').trim())) {
             var attendanceValue = attendanceCol === fridayCol
               ? (isPresent ? '1' : '0')
               : String(values[rowIndex][attendanceCol] || '').trim();
