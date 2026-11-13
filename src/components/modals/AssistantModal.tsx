@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   AssistantMessage,
   processAssistantQuery
@@ -46,17 +47,20 @@ export const AssistantModal: React.FC = () => {
     isAssistantOpen,
     setIsAssistantOpen,
     students,
+    filters,
     lastSuccessfulSyncTime,
     syncData,
     isSyncing,
     isOnline,
     markAttendance,
+    recordFollowup,
     processOfflineQueue,
     requestEditStudent,
     setFilters,
     setActiveView,
     addNotification
   } = useApp();
+  const { user } = useAuth();
 
   const [messages, setMessages] = useState<AssistantMessage[]>([INITIAL_BOT_MESSAGE]);
   const [input, setInput] = useState('');
@@ -92,7 +96,8 @@ export const AssistantModal: React.FC = () => {
     setTimeout(() => {
       void (async () => {
         let response = processAssistantQuery(clean, students, {
-          lastSyncLabel: lastSuccessfulSyncTime
+          lastSyncLabel: lastSuccessfulSyncTime,
+          servantName: filters.servant || user?.assignedServantName || undefined
         });
 
         // Explicit, uniquely matched attendance commands write through the same
@@ -131,6 +136,43 @@ export const AssistantModal: React.FC = () => {
               };
             }
           }
+        } else if (response.command?.type === 'recordFollowupBatch') {
+          const command = response.command;
+          const savedNames: string[] = [];
+          const failedNames: string[] = [];
+          for (const target of command.students) {
+            const currentStudent = students.find((s) => s.id === target.id);
+            if (!currentStudent) { failedNames.push(target.name + ' (غير موجود)'); continue; }
+            if (currentStudent.fu?.[command.weekFridayDate]) {
+              failedNames.push(target.name + ' (مسجل بالفعل هذا الأسبوع)');
+              continue;
+            }
+            try {
+              const saved = await recordFollowup(target.id, command.method, 'تم التسجيل بواسطة المساعد الذكي — ' + command.weekFridayDate);
+              if (saved) savedNames.push(target.name); else failedNames.push(target.name);
+            } catch (error) {
+              console.error('Assistant follow-up save failed for ' + target.name, error);
+              failedNames.push(target.name);
+            }
+          }
+          let syncSummary = '';
+          if (savedNames.length && isOnline) {
+            try {
+              const syncResult = await processOfflineQueue();
+              syncSummary = syncResult.success && syncResult.remainingCount === 0
+                ? '\nتمت مزامنة كل العمليات بنجاح.'
+                : '\nتم الحفظ محليًا، لكن توجد عمليات لم تكتمل مزامنتها: ' + syncResult.remainingCount + '. لا أؤكد تحديث Google Sheets بعد.';
+            } catch (error) {
+              console.error('Assistant follow-up batch sync failed:', error);
+              syncSummary = '\nتم الحفظ محليًا، لكن تعذر تأكيد المزامنة.';
+            }
+          } else if (savedNames.length) {
+            syncSummary = '\nالجهاز غير متصل؛ ستتم المزامنة عند عودة الإنترنت.';
+          }
+          response = {
+            text: 'نتيجة تسجيل الافتقاد (' + command.method + '):\nتم الحفظ: ' + savedNames.length + '\n' + (savedNames.length ? savedNames.map((name) => '• ' + name).join('\n') : 'لا توجد أسماء محفوظة.') +
+              (failedNames.length ? '\n\nلم يتم الحفظ (' + failedNames.length + '):\n' + failedNames.map((name) => '• ' + name).join('\n') : '') + syncSummary
+          };
         } else if (response.command?.type === 'openEdit') {
           const command = response.command;
           setActiveView('cards');
