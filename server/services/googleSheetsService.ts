@@ -233,15 +233,25 @@ export class GoogleSheetsService {
     // actual Friday history in the sheet remained unchanged.
     for (let columnIndex = 0; columnIndex < headers.length; columnIndex++) {
       const header = headers[columnIndex];
+      const normalizedHeader = header.toLowerCase().trim();
       if (/^\\d{4}-\\d{2}-\\d{2}$/.test(header) &&
           Object.prototype.hasOwnProperty.call(student.att || {}, header)) {
         rowValues[columnIndex] = student.att[header] ? '1' : '0';
-      } else {
-        const followupMatch = header.match(/^افتقاد\\s+(\\d{4}-\\d{2}-\\d{2})$/);
-        if (followupMatch && Object.prototype.hasOwnProperty.call(student.fu || {}, followupMatch[1])) {
-          rowValues[columnIndex] = String(student.fu[followupMatch[1]] ?? '');
-        }
+        continue;
       }
+
+      const followupMatch = header.match(/^افتقاد\\s+(\\d{4}-\\d{2}-\\d{2})$/);
+      if (followupMatch && Object.prototype.hasOwnProperty.call(student.fu || {}, followupMatch[1])) {
+        rowValues[columnIndex] = String(student.fu[followupMatch[1]] ?? '');
+        continue;
+      }
+
+      if (normalizedHeader === 'id') rowValues[columnIndex] = student.id;
+      else if (normalizedHeader === 'version' || header === 'الإصدار') rowValues[columnIndex] = String(student.version || 1);
+      else if (['إجمالي الحضور', 'اجمالي الحضور', 'attendancetotal'].includes(normalizedHeader)) rowValues[columnIndex] = String(student.attendanceTotal || 0);
+      else if (['حضور الشهر', 'attendancemonth'].includes(normalizedHeader)) rowValues[columnIndex] = String(student.attendanceMonth || 0);
+      else if (['الحالة', 'attendancestatus'].includes(normalizedHeader)) rowValues[columnIndex] = student.attendanceStatus || '';
+      else if (['حالة الافتقاد', 'followupstatus'].includes(normalizedHeader)) rowValues[columnIndex] = student.followupStatus || '';
     }
 
     const columnName = (index: number): string => {
