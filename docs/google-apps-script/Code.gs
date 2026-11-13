@@ -135,7 +135,7 @@ function doPost(e) {
     }
 
     var mutation = body.mutation || body;
-    var allowedActions = ['add', 'update', 'attendance', 'followup'];
+    var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete'];
     if (!mutation || allowedActions.indexOf(mutation.action) === -1) {
       return jsonResponse({ ok: false, status: 400, error: 'نوع العملية غير مسموح به' });
     }
@@ -254,9 +254,6 @@ function doPost(e) {
       sheet.appendRow(newRow);
     } else if (rowIndex !== -1) {
       var rowNum = rowIndex + 1;
-      if (versionCol >= 0) {
-        sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion);
-      }
       if (mutation.action === 'attendance') {
         var friday = String(payload.friday || payload.date || '');
         var normalizedAttendance = String(payload.isPresent).trim().toLowerCase();
@@ -344,6 +341,9 @@ function doPost(e) {
         setIfFound(sheet, rowNum, headers, ['منطقة', 'المنطقة'], payload.area);
         setIfFound(sheet, rowNum, headers, ['العنوان'], payload.address);
         setIfFound(sheet, rowNum, headers, ['ملاحظات الافتقاد', 'ملاحظات'], payload.notes);
+      }
+      if (versionCol >= 0) {
+        sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion);
       }
     }
 
