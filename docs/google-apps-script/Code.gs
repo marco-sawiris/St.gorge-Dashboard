@@ -214,27 +214,39 @@ function doPost(e) {
       }
       if (mutation.action === 'attendance') {
         var friday = String(payload.friday || payload.date || '');
-        var isPresent = Boolean(payload.isPresent);
-        if (friday) {
-          var fridayCol = findExactHeaderIndex(headers, friday);
-          if (fridayCol >= 0) {
-            sheet.getRange(rowNum, fridayCol + 1).setValue(isPresent ? '1' : '0');
-          }
-          if (isPresent) {
-            setIfFound(sheet, rowNum, headers, ['آخر حضور', 'اخر حضور'], friday);
-          }
+        var normalizedAttendance = String(payload.isPresent).trim().toLowerCase();
+        var isPresent = payload.isPresent === true || ['1', 'true', 'present', 'حاضر'].indexOf(normalizedAttendance) !== -1;
+        if (!friday) {
+          return jsonResponse({ ok: false, status: 400, error: 'تاريخ الجمعة مطلوب لتسجيل الحضور' });
         }
+
+        var fridayCol = findExactHeaderIndex(headers, friday);
+        if (fridayCol < 0) {
+          return jsonResponse({ ok: false, status: 400, error: 'عمود تاريخ الجمعة غير موجود في الشيت: ' + friday });
+        }
+
+        // Calculate the delta from the previously stored value. Replaying the same
+        // attendance mutation must not increment/decrement totals a second time.
+        var previousAttendance = String(values[rowIndex][fridayCol] || '').trim().toLowerCase();
+        var wasPresent = ['1', 'true', 'present', 'حاضر'].indexOf(previousAttendance) !== -1;
+        var attendanceDelta = (isPresent ? 1 : 0) - (wasPresent ? 1 : 0);
+
+        sheet.getRange(rowNum, fridayCol + 1).setValue(isPresent ? '1' : '0');
+        if (isPresent) {
+          setIfFound(sheet, rowNum, headers, ['آخر حضور', 'اخر حضور'], friday);
+        }
+
         var totalCol = findColIndex(headers, ['إجمالي الحضور', 'اجمالي الحضور', 'attendanceTotal']);
         var monthCol = findColIndex(headers, ['حضور الشهر', 'attendanceMonth']);
         var statusCol = findColIndex(headers, ['الحالة', 'attendanceStatus']);
         if (statusCol >= 0) sheet.getRange(rowNum, statusCol + 1).setValue(isPresent ? 'حاضر' : 'غائب');
-        if (totalCol >= 0) {
+        if (attendanceDelta !== 0 && totalCol >= 0) {
           var prevTotal = parseInt(values[rowIndex][totalCol] || '0', 10) || 0;
-          sheet.getRange(rowNum, totalCol + 1).setValue(Math.max(0, prevTotal + (isPresent ? 1 : -1)));
+          sheet.getRange(rowNum, totalCol + 1).setValue(Math.max(0, prevTotal + attendanceDelta));
         }
-        if (monthCol >= 0) {
+        if (attendanceDelta !== 0 && monthCol >= 0) {
           var prevMonth = parseInt(values[rowIndex][monthCol] || '0', 10) || 0;
-          sheet.getRange(rowNum, monthCol + 1).setValue(Math.max(0, prevMonth + (isPresent ? 1 : -1)));
+          sheet.getRange(rowNum, monthCol + 1).setValue(Math.max(0, prevMonth + attendanceDelta));
         }
       } else if (mutation.action === 'followup') {
         var fuDate = String(payload.friday || payload.date || '');
