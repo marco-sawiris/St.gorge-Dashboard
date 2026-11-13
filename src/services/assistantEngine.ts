@@ -423,7 +423,8 @@ export function parseAssistantCommand(
 
   const isAttendance = Boolean(attendanceMatch);
   const target = String(match[1] || '')
-    .replace(/^(?:ل|الولد|المخدوم|الطالب)\s+/, '')
+    .replace(/^(?:الولد|المخدوم|الطالب|كارت)\s+/, '')
+    .replace(/\s+(?:مرتين|مرة واحدة)$/, '')
     .trim();
 
   if (!target) {
@@ -490,6 +491,7 @@ export function processAssistantQuery(
     'birthdayMessage',
     'message',
     'stats',
+    'present',
     'absent',
     'lowAttendance',
     'topAttendance',
@@ -526,6 +528,9 @@ export function processAssistantQuery(
         if (daysMatch) {
           endOffsetDays = Math.min(366, Math.max(0, Number(daysMatch[1])));
           periodLabel = `خلال ${endOffsetDays} يوم`;
+        } else if (q.includes('خلال شهر') || q.includes('الشهر الجاي') || q.includes('بعد شهر')) {
+          endOffsetDays = 30;
+          periodLabel = 'خلال 30 يوم';
         } else if (q.includes('هذا الشهر') || q.includes('الشهر الحالي')) {
           const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
           endOffsetDays = Math.floor((monthEnd.getTime() - today.getTime()) / 86400000);
