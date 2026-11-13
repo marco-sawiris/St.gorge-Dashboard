@@ -164,9 +164,13 @@ router.post('/refresh', async (req: Request, res: Response) => {
   // Verify persisted session hasn't been revoked
   if (payload.sessionId) {
     const session = await dbManager.getSession(payload.sessionId);
-    if (!session || session.revoked || session.expiresAt.getTime() < Date.now()) {
+    const presentedHash = hashToken(String(refreshToken));
+    const storedHash = session?.tokenHash || '';
+    const hashesMatch = storedHash.length === presentedHash.length &&
+      crypto.timingSafeEqual(Buffer.from(storedHash, 'hex'), Buffer.from(presentedHash, 'hex'));
+    if (!session || session.revoked || session.expiresAt.getTime() < Date.now() || !hashesMatch) {
       res.clearCookie('stgorge_refresh_token');
-      return res.status(401).json({ error: 'تم إبطال الجلسة أو انتهت صلاحيتها' });
+      return res.status(401).json({ error: 'تم إبطال الجلسة أو انتهت صلاحيتها أو لا يطابق رمز التجديد الجلسة المحفوظة' });
     }
   }
 
