@@ -16,6 +16,12 @@ function readProductionSecret(name: 'JWT_SECRET' | 'JWT_REFRESH_SECRET'): string
     : 'development_only_refresh_secret_do_not_use_in_production');
 }
 
+const JWT_SECRET = readProductionSecret('JWT_SECRET');
+const JWT_REFRESH_SECRET = readProductionSecret('JWT_REFRESH_SECRET');
+if (isProduction && JWT_SECRET === JWT_REFRESH_SECRET) {
+  throw new Error('Production startup blocked: JWT_SECRET and JWT_REFRESH_SECRET must be different values.');
+}
+
 const parsedPort = Number.parseInt(process.env.PORT || '3000', 10);
 if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
   throw new Error('Invalid PORT environment variable; expected an integer from 1 to 65535.');
@@ -24,8 +30,8 @@ if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
 export const ENV = {
   NODE_ENV,
   PORT: parsedPort,
-  JWT_SECRET: readProductionSecret('JWT_SECRET'),
-  JWT_REFRESH_SECRET: readProductionSecret('JWT_REFRESH_SECRET'),
+  JWT_SECRET,
+  JWT_REFRESH_SECRET,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '15m',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
 
