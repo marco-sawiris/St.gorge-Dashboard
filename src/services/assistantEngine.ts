@@ -414,16 +414,16 @@ export function parseAssistantCommand(
   const q = normalizeArabicText(query);
   if (!q) return null;
 
-  const attendanceMatch = q.match(/^(?:سجل|سجلي|اثبت|اثبتي)\\s+(?:الحضور|حضور|الغياب|غياب|حاضر|غائب)\\s*(.*)$/);
-  const editMatch = q.match(/^(?:افتح|فتح)\\s+(?:تعديل|كارت للتعديل|الكارت للتعديل)\\s*(.*)$/) ||
-    q.match(/^عدل بيانات\\s+(.+)$/);
+  const attendanceMatch = q.match(/^(?:سجل|سجلي|اثبت|اثبتي)\s+(?:الحضور|حضور|الغياب|غياب|حاضر|غائب)\s*(.*)$/);
+  const editMatch = q.match(/^(?:افتح|فتح)\s+(?:تعديل|كارت للتعديل|الكارت للتعديل)\s*(.*)$/) ||
+    q.match(/^عدل بيانات\s+(.+)$/);
 
   const match = attendanceMatch || editMatch;
   if (!match) return null;
 
   const isAttendance = Boolean(attendanceMatch);
   const target = String(match[1] || '')
-    .replace(/^(?:ل|الولد|المخدوم|الطالب)\\s+/, '')
+    .replace(/^(?:ل|الولد|المخدوم|الطالب)\s+/, '')
     .trim();
 
   if (!target) {
@@ -453,7 +453,7 @@ export function parseAssistantCommand(
   }
   if (matches.length > 1) {
     return {
-      text: `الاسم «${target}» مطابق لأكثر من مخدوم. لم أنفذ أي تغيير لتجنب تسجيله للشخص الخطأ:\\n${matches.slice(0, 8).map((s, i) => `${i + 1}. ${s.name} — ${s.code} — الأشبين: ${s.servant || 'غير محدد'}`).join('\\n')}\\nاكتب الاسم بالكامل أو الكود.`
+      text: `الاسم «${target}» مطابق لأكثر من مخدوم. لم أنفذ أي تغيير لتجنب تسجيله للشخص الخطأ:\n${matches.slice(0, 8).map((s, i) => `${i + 1}. ${s.name} — ${s.code} — الأشبين: ${s.servant || 'غير محدد'}`).join('\n')}\nاكتب الاسم بالكامل أو الكود.`
     };
   }
 
