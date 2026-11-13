@@ -17,7 +17,8 @@ import {
   RefreshCw,
   PanelRightClose,
   PanelRightOpen,
-  Bot
+  Bot,
+  ChevronLeft
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -43,6 +44,7 @@ export const Sidebar: React.FC = () => {
   const [dragOffsetX, setDragOffsetX] = useState(0);
   const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
   const touchStartRef = React.useRef<{ x: number; y: number } | null>(null);
+  const dragHandleStartRef = React.useRef<number | null>(null);
 
   // Re-trigger staggered wordIn item choreography every time mobile drawer opens
   useEffect(() => {
@@ -77,6 +79,18 @@ export const Sidebar: React.FC = () => {
       servant: prev.servant === servantName ? '' : servantName
     }));
     setIsSidebarOpen(false);
+  };
+
+  const handleDragHandlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    dragHandleStartRef.current = e.clientX;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleDragHandlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (dragHandleStartRef.current === null) return;
+    const dragDistance = dragHandleStartRef.current - e.clientX;
+    dragHandleStartRef.current = null;
+    if (dragDistance >= 18) setIsSidebarOpen(true);
   };
 
   const handleDrawerTouchStart = (e: React.TouchEvent) => {
@@ -143,6 +157,23 @@ export const Sidebar: React.FC = () => {
         }`}
       />
 
+      {!isSidebarOpen && (
+        <motion.button
+          type="button"
+          aria-label="فتح القائمة الجانبية بالسحب"
+          title="اسحب لفتح القائمة"
+          onClick={() => setIsSidebarOpen(true)}
+          onPointerDown={handleDragHandlePointerDown}
+          onPointerUp={handleDragHandlePointerUp}
+          onPointerCancel={() => { dragHandleStartRef.current = null; }}
+          whileTap={{ scale: 0.94, x: -3 }}
+          className="fixed right-1 top-1/2 -translate-y-1/2 z-[45] lg:hidden w-7 h-24 rounded-full border border-white/45 bg-white/15 backdrop-blur-xl shadow-[0_0_18px_rgba(255,255,255,0.18)] flex items-center justify-center text-white/85 cursor-grab active:cursor-grabbing touch-pan-y"
+          style={{ touchAction: "pan-y" }}
+        >
+          <ChevronLeft className="w-4 h-4 drop-shadow" />
+        </motion.button>
+      )}
+
       {/* Premium Animated Liquid Glass Sidebar + Original Spring Slide, Live Drag & Stagger */}
       <aside
         aria-label="القائمة الجانبية الرئيسية"
@@ -173,7 +204,7 @@ export const Sidebar: React.FC = () => {
         />
 
         {/* Compact Foreground Layer (No vertical scrollbar needed — all items fit cleanly) */}
-        <div className="relative z-10 flex flex-col h-full p-3 overflow-hidden justify-between">
+        <div className="relative z-10 flex flex-col h-full p-3 overflow-hidden justify-start gap-2">
           <div className="flex flex-col min-h-0">
             {/* Brand Header & Collapse / Close Controls */}
             <div
@@ -374,7 +405,7 @@ export const Sidebar: React.FC = () => {
           </div>
 
           {/* Compact Servants Filter Section (Zero Scrollbar) */}
-          <div className={`pt-2.5 mt-2 border-t border-[var(--border-color)]/70 shrink-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+          <div className={`pt-2 mt-0 border-t border-[var(--border-color)]/70 shrink-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
             <div className="flex items-center justify-between mb-1.5">
               <p className="text-[11px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5 m-0">
                 <ShieldAlert className="w-3.5 h-3.5 text-[#20c7e8]" />
