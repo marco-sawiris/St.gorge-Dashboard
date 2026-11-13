@@ -421,15 +421,7 @@ export const Sidebar: React.FC = () => {
                     {showAllServants ? 'أقل' : `+${uniqueServants.length - 6}`}
                   </button>
                 )}
-                {filters.servant && (
-                  <button
-                    type="button"
-                    onClick={() => setFilters((p) => ({ ...p, servant: '' }))}
-                    className="text-[10.5px] text-rose-400 font-bold hover:underline cursor-pointer"
-                  >
-                    إلغاء
-                  </button>
-                )}
+
               </div>
             </div>
 
@@ -457,6 +449,16 @@ export const Sidebar: React.FC = () => {
                 })
               )}
             </div>
+            {filters.servant && (
+              <button
+                type="button"
+                onClick={() => setFilters((p) => ({ ...p, servant: '' }))}
+                className="mt-2 w-full px-3 py-2 rounded-xl text-[11px] font-bold text-[var(--accent-secondary)] bg-[var(--surface-primary)]/60 border border-[var(--border-color)] hover:border-[var(--accent-secondary)]/50 transition-colors cursor-pointer"
+                aria-label="مسح فلتر الأشبين وعرض كل المخدومين"
+              >
+                اعرض الكل
+              </button>
+            )}
           </div>
         </div>
       </aside>
