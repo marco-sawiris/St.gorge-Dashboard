@@ -147,7 +147,7 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
 });
 
 // POST /api/auth/refresh
-router.post('/refresh', async (req: Request, res: Response) => {
+router.post('/refresh', authLimiter, async (req: Request, res: Response) => {
   const refreshToken = (req.cookies && req.cookies.stgorge_refresh_token) || (req.body && req.body.refreshToken);
   const ip = getClientIp(req);
 
