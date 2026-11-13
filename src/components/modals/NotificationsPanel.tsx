@@ -85,7 +85,9 @@ export const NotificationsPanel: React.FC = () => {
             ? 'إضافة إشعارات Android غير مثبتة أو غير مسجلة في النسخة الحالية.'
             : syncRes.reason === 'permission_required'
               ? 'لازم تسمح بإذن الإشعارات من إعدادات Android أولاً.'
-              : 'لم يتم تأكيد جدولة كل التذكيرات. لم يتم اعتماد التغيير.',
+              : syncRes.reason === 'exact_alarm_permission_required'
+                ? 'فعّل إذن المنبهات والتذكيرات الدقيقة للتطبيق من إعدادات Android، ثم أعد المحاولة.'
+                : 'لم يتم تأكيد جدولة كل التذكيرات. لم يتم اعتماد التغيير.',
           'warn'
         );
         return false;
@@ -180,7 +182,9 @@ export const NotificationsPanel: React.FC = () => {
           'تم منح الإذن لكن الجدولة لم تكتمل',
           syncRes.reason === 'plugin_missing'
             ? 'إضافة إشعارات Android غير مثبتة أو غير مسجلة.'
-            : 'لم يتم تأكيد جدولة الإشعارات على الجهاز.',
+            : syncRes.reason === 'exact_alarm_permission_required'
+              ? 'لازم تفعّل إذن المنبهات والتذكيرات الدقيقة من إعدادات Android.'
+              : 'لم يتم تأكيد جدولة الإشعارات على الجهاز.',
           'warn'
         );
       }
