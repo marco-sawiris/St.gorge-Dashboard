@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useApp } from '../../context/AppContext';
 import { ARABIC_ALPHABET, normalizeArabicInitial } from '../../utils/arabicUtils';
-import { ChevronDown, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 /**
  * Bottom Arabic Alphabet Quick Filter Dock (Alphabet-only per user spec)
@@ -86,24 +86,25 @@ export const BottomKeyboardDock: React.FC = () => {
         className="pointer-events-none absolute -bottom-10 left-12 w-40 h-40 rounded-full bg-radial from-[#6548F5]/20 via-[#20C7E8]/10 to-transparent blur-2xl"
       />
 
-      {/* Dock Top Controls Header — Alphabet Filter Only */}
-      <div className="relative z-10 max-w-4xl mx-auto flex items-center justify-between gap-2 h-8 px-1 mb-1.5">
+      {/* Centered Keyboard Handle — preserve the All/Clear filter action */}
+      <div className="relative z-10 max-w-4xl mx-auto grid grid-cols-[1fr_auto_1fr] items-center gap-2 h-8 px-1 mb-1.5">
+        <span aria-hidden="true" />
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="glass-btn px-2.5 py-1 rounded-xl flex items-center gap-1 text-[11px] sm:text-xs font-extrabold cursor-pointer shrink-0"
+          className="glass-btn px-3 py-1 rounded-full flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold cursor-pointer shrink-0 justify-self-center border border-white/25"
           aria-expanded={!isCollapsed}
-          title={isCollapsed ? 'إظهار شريط الأبجدية' : 'طي شريط الأبجدية'}
+          title={isCollapsed ? 'إظهار الكيبورد' : 'إخفاء الكيبورد'}
         >
-          <ChevronDown
-            className={`w-3.5 h-3.5 text-[#20c7e8] transition-transform duration-300 ease-[var(--ease-spring)] ${
-              isCollapsed ? 'rotate-180' : 'rotate-0'
-            }`}
-          />
-          <span className="truncate">تصفية بالحروف الأبجدية</span>
+          {isCollapsed ? (
+            <ChevronUp className="w-3.5 h-3.5 text-[#20c7e8]" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-[#20c7e8]" />
+          )}
+          <span className="truncate">الكيبورد</span>
         </button>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center justify-end gap-1.5 shrink-0>
           {filters.alphabetLetter && (
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#20c7e8]/15 text-[#20c7e8] border border-[#20c7e8]/30 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-[#20c7e8]" />
