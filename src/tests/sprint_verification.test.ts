@@ -53,7 +53,8 @@ import {
 import {
   computeMonthlyAttendanceSummary,
   getMonthFridays,
-  getCairoDateParts
+  getCairoDateParts,
+  getLatestHeldFridayString
 } from '../utils/arabicUtils';
 import {
   DEFAULT_WEEKLY_REMINDERS,
@@ -1507,11 +1508,52 @@ async function runSprintTests() {
   );
   console.log('✅ Test 36 Passed: Full App choreography, view transitions & component animations verified\n');
 
+  // --------------------------------------------------------------------------
+  // TEST 37: Smart Assistant Data Queries & Real Card Commands
+  // --------------------------------------------------------------------------
+  const assistantFriday = getLatestHeldFridayString();
+  const assistantStudent = makeStudent({
+    id: 'assistant_student_1',
+    name: 'بيشوي عماد صموئيل',
+    birthDate: '2012-12-20',
+    att: { [assistantFriday]: true }
+  });
+  const presentAnswer = processAssistantQuery('هاتلي عدد الأولاد اللي حضرت النهارده', [assistantStudent]);
+  assert(presentAnswer.text.includes('الحضور المسجل') && presentAnswer.text.includes('بيشوي عماد صموئيل'), 'Test 37a: Assistant answers natural-language present query from latest held Friday');
+
+  const nextMonthAnswer = processAssistantQuery(
+    'هات أعياد الميلاد الشهر القادم',
+    [assistantStudent],
+    { referenceDate: new Date(2026, 10, 14) }
+  );
+  assert(nextMonthAnswer.text.includes('الشهر القادم') && nextMonthAnswer.text.includes('بيشوي عماد صموئيل'), 'Test 37b: Assistant searches the complete next calendar month, not only seven days');
+
+  const attendanceCommand = processAssistantQuery('سجل حضور بيشوي عماد صموئيل', [assistantStudent]);
+  assert(attendanceCommand.command?.type === 'markAttendance' && attendanceCommand.command.isPresent === true, 'Test 37c: Explicit attendance command resolves a unique student and requests a real attendance write');
+
+  const absenceCommand = processAssistantQuery('سجل غياب بيشوي عماد صموئيل', [assistantStudent]);
+  assert(absenceCommand.command?.type === 'markAttendance' && absenceCommand.command.isPresent === false, 'Test 37d: Explicit absence command resolves to absent status');
+
+  const editCommand = processAssistantQuery('افتح تعديل كارت بيشوي عماد صموئيل', [assistantStudent]);
+  assert(editCommand.command?.type === 'openEdit' && editCommand.command.studentId === assistantStudent.id, 'Test 37e: Assistant opens the exact student card in inline edit mode');
+
+  const ambiguousCommand = processAssistantQuery('سجل حضور بيشوي', [
+    assistantStudent,
+    makeStudent({ id: 'assistant_student_2', name: 'بيشوي جرجس' })
+  ]);
+  assert(!ambiguousCommand.command && ambiguousCommand.text.includes('أكثر من مخدوم'), 'Test 37f: Ambiguous student names never trigger an attendance mutation');
+
+  const unknownAttendance = processAssistantQuery('الغائبون', [
+    makeStudent({ id: 'assistant_student_3', name: 'مينا سمير', att: {} })
+  ]);
+  assert(unknownAttendance.text.includes('لم يُسجل') || unknownAttendance.text.includes('لم يتم تسجيل'), 'Test 37g: Missing attendance is distinguished from explicitly recorded absence');
+  console.log('✅ Test 37 Passed: Smart assistant queries, date ranges, safe commands & ambiguity guards verified\\n');
+
   (globalThis as any).fetch = originalFetch;
   await idbSaveStudents([], 'نشط', true).catch(() => {});
 
   console.log('======================================================');
-  console.log('🎉 ALL 36 SPRINT VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  console.log('🎉 ALL 37 SPRINT VERIFICATION TESTS PASSED SUCCESSFULLY!');
   console.log('======================================================');
 }
 
