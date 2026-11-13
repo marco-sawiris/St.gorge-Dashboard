@@ -312,7 +312,7 @@ class DatabaseManager {
         client.release();
       }
     } catch (err: any) {
-      console.warn('Could not bootstrap Postgres tables (using resilient fallback):', err.message);
+      console.warn('Could not bootstrap Postgres tables; production startup will fail closed:', err.message);
       this.isPostgresConnected = false;
     }
   }
@@ -337,6 +337,7 @@ class DatabaseManager {
             updatedAt: new Date(row.updated_at)
           };
         }
+        if (ENV.NODE_ENV === 'production') return null;
       } catch (err) {
         if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres query error, falling back to memory store:', err);
@@ -365,6 +366,7 @@ class DatabaseManager {
             updatedAt: new Date(row.updated_at)
           };
         }
+        if (ENV.NODE_ENV === 'production') return null;
       } catch (err) {
         if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres query error, falling back to memory store:', err);
