@@ -35,6 +35,7 @@ export const ENV = {
   SQL_PASSWORD: process.env.SQL_PASSWORD || '',
   SQL_DB_NAME: process.env.SQL_DB_NAME || 'st_george_db',
   DATABASE_URL: process.env.DATABASE_URL || '',
+  CORS_ORIGINS: process.env.CORS_ORIGINS || '',
 
   // Google Sheets integration config
   GOOGLE_SHEET_ID: process.env.GOOGLE_SHEET_ID || '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0',
