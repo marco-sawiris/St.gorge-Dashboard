@@ -132,16 +132,16 @@ export const AssistantModal: React.FC = () => {
         } else if (response.command?.type === 'openEdit') {
           const command = response.command;
           setActiveView('cards');
-          setFilters((prev) => ({
-            ...prev,
-            searchQuery: command.studentName,
-            sheet: '__ALL__',
-            servant: '',
-            area: '',
-            alphabetLetter: null
-          }));
           const opened = requestEditStudent(command.studentId);
           if (opened) {
+            setFilters((prev) => ({
+              ...prev,
+              searchQuery: command.studentName,
+              sheet: '__ALL__',
+              servant: '',
+              area: '',
+              alphabetLetter: null
+            }));
             addNotification('تم فتح كارت المخدوم', `كارت ${command.studentName} جاهز للتعديل. احفظ التغييرات من الكارت.`, 'success');
             setIsAssistantOpen(false);
           } else {
