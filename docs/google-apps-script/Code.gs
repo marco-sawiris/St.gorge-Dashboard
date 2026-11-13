@@ -329,7 +329,7 @@ function doPost(e) {
           setIfFound(sheet, rowNum, headers, ['آخر افتقاد', 'اخر افتقاد'], fuDate);
         }
         setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'ملاحظات الافتقاد', 'followupStatus'], fuMethod);
-        appendFollowupLogRow(ss, targetSheetName, headers, values[rowIndex], fuDate, fuMethod, payload.notes || '');
+        appendFollowupLogRow(ss, targetSheetName, headers, values[rowIndex], fuDate, fuMethod, payload.notes || '', idempotencyKey);
       } else if (mutation.action === 'update') {
         setIfFound(sheet, rowNum, headers, ['الاسم', 'name'], payload.name);
         setIfFound(sheet, rowNum, headers, ['كود', 'الكود', 'code'], payload.code);
@@ -479,14 +479,34 @@ function readFollowupLogRows(ss) {
   return records;
 }
 
-function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayDate, method, notes) {
+function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayDate, method, notes, mutationId) {
   var logSheet = ss.getSheetByName('سجل الافتقاد');
   if (!logSheet) return;
   var codeCol = findColIndex(studentHeaders, ['كود', 'الكود', 'code']);
   var nameCol = findColIndex(studentHeaders, ['الاسم', 'name']);
   var servantCol = findColIndex(studentHeaders, ['الاشبين', 'الأشبين', 'الخادم', 'servant']);
+  var logLastColumn = Math.max(logSheet.getLastColumn(), 8);
+  var logHeaders = logSheet.getRange(1, 1, 1, logLastColumn).getValues()[0]
+    .map(function (h) { return formatHeaderCell(h); });
+  var mutationIdCol = findColIndex(logHeaders, ['mutation_id']);
+  if (mutationIdCol < 0) {
+    mutationIdCol = logLastColumn;
+    logSheet.getRange(1, mutationIdCol + 1).setValue('mutation_id');
+  }
+
+  // A durable per-row mutation marker prevents duplicate follow-up log entries
+  // if the spreadsheet mutation succeeds but the global idempotency ledger write fails.
+  var logLastRow = logSheet.getLastRow();
+  if (mutationId && logLastRow > 1) {
+    var existingMutation = logSheet.getRange(2, mutationIdCol + 1, logLastRow - 1, 1)
+      .createTextFinder(String(mutationId))
+      .matchEntireCell(true)
+      .findNext();
+    if (existingMutation) return;
+  }
+
   var todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Africa/Cairo', 'yyyy-MM-dd');
-  logSheet.appendRow([
+  var newRow = [
     todayStr,
     fridayDate || todayStr,
     sheetName,
@@ -495,7 +515,10 @@ function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayD
     servantCol >= 0 ? formatCellValue(studentRow[servantCol]) : '',
     method || 'تم تليفونياً',
     notes || ''
-  ]);
+  ];
+  while (newRow.length <= mutationIdCol) newRow.push('');
+  newRow[mutationIdCol] = mutationId || '';
+  logSheet.appendRow(newRow);
 }
 
 function mapRowToStudent(headers, row, sheetName, rowNumber) {
