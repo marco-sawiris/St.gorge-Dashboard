@@ -157,6 +157,9 @@ export class GoogleSheetsService {
   }
 
   public async upsertStudent(student: Student): Promise<Student> {
+    if (!this.isGoogleConfigured()) {
+      throw new Error('Google Sheets write is unavailable: configure server-side Service Account credentials before accepting mutations.');
+    }
     const existing = this.students.get(student.id);
     const nextVersion = existing ? (existing.version || 1) + 1 : 1;
     const saved: Student = {
@@ -173,11 +176,39 @@ export class GoogleSheetsService {
     return { ...saved };
   }
 
-  private async syncStudentUpdateToGoogle(student: Student, isNew: boolean): Promise<void> {
+  private async syncStudentUpdateToGoogle(student: Student, _isNew: boolean): Promise<void> {
     const accessToken = await this.getGoogleAccessToken();
     const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
     const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
-    const rowValues = [[
+    const lookupRange = encodeURIComponent(`'${student.sourceSheet}'!A1:AZ1000`);
+    const lookupResponse = await fetch(`${sheetPrefix}/${lookupRange}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!lookupResponse.ok) {
+      throw new Error(`Google Sheets row lookup failed (${lookupResponse.status})`);
+    }
+
+    const lookupData = (await lookupResponse.json()) as { values?: string[][] };
+    const rows = lookupData.values || [];
+    const headers = (rows[0] || []).map((value) => String(value || '').trim());
+    if (!headers.length) {
+      throw new Error(`Google Sheets tab "${student.sourceSheet}" has no header row`);
+    }
+
+    const matchingRows = rows
+      .map((row, index) => ({ code: String(row?.[0] ?? '').trim(), rowNumber: index + 1 }))
+      .filter((row) => row.rowNumber > 1 && row.code === String(student.code).trim());
+    if (matchingRows.length > 1) {
+      throw new Error(`Duplicate student code "${student.code}" found in Google Sheets; refusing ambiguous write`);
+    }
+
+    const existingRowNumber = matchingRows[0]?.rowNumber;
+    const existingRow = existingRowNumber ? [...(rows[existingRowNumber - 1] || [])] : [];
+    const rowValues = existingRow;
+    while (rowValues.length < Math.max(headers.length, 12)) rowValues.push('');
+
+    // Stable base columns A:L.
+    const baseValues = [
       student.code,
       student.name,
       student.servant,
@@ -190,38 +221,46 @@ export class GoogleSheetsService {
       student.notes || '',
       student.lastAttendance || '',
       student.lastFollowup || ''
-    ]];
+    ];
+    baseValues.forEach((value, index) => { rowValues[index] = String(value ?? ''); });
 
-    // Resolve the physical row by the stable student code in column A. Never
-    // assume that an in-memory student ID is also a Google Sheets row number.
-    const lookupRange = encodeURIComponent(`'${student.sourceSheet}'!A:A`);
-    const lookupResponse = await fetch(`${sheetPrefix}/${lookupRange}`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!lookupResponse.ok) {
-      throw new Error(`Google Sheets row lookup failed (${lookupResponse.status})`);
+    // Preserve the dynamic Friday attendance and follow-up columns. These are
+    // essential: updating only A:L would make the UI appear saved while the
+    // actual Friday history in the sheet remained unchanged.
+    for (let columnIndex = 0; columnIndex < headers.length; columnIndex++) {
+      const header = headers[columnIndex];
+      if (/^\\d{4}-\\d{2}-\\d{2}$/.test(header) &&
+          Object.prototype.hasOwnProperty.call(student.att || {}, header)) {
+        rowValues[columnIndex] = student.att[header] ? '1' : '0';
+      } else {
+        const followupMatch = header.match(/^افتقاد\\s+(\\d{4}-\\d{2}-\\d{2})$/);
+        if (followupMatch && Object.prototype.hasOwnProperty.call(student.fu || {}, followupMatch[1])) {
+          rowValues[columnIndex] = String(student.fu[followupMatch[1]] ?? '');
+        }
+      }
     }
 
-    const lookupData = (await lookupResponse.json()) as { values?: string[][] };
-    const rows = lookupData.values || [];
-    const matchingRows = rows
-      .map((row, index) => ({ code: String(row?.[0] ?? '').trim(), rowNumber: index + 1 }))
-      .filter((row) => row.rowNumber > 1 && row.code === String(student.code).trim());
+    const columnName = (index: number): string => {
+      let n = index + 1;
+      let label = '';
+      while (n > 0) {
+        const remainder = (n - 1) % 26;
+        label = String.fromCharCode(65 + remainder) + label;
+        n = Math.floor((n - 1) / 26);
+      }
+      return label;
+    };
 
-    if (matchingRows.length > 1) {
-      throw new Error(`Duplicate student code "${student.code}" found in Google Sheets; refusing ambiguous write`);
-    }
-
-    const existingRow = matchingRows[0]?.rowNumber;
-    if (existingRow) {
-      const updateRange = encodeURIComponent(`'${student.sourceSheet}'!A${existingRow}:L${existingRow}`);
+    if (existingRowNumber) {
+      const lastColumn = columnName(Math.max(headers.length, 12) - 1);
+      const updateRange = encodeURIComponent(`'${student.sourceSheet}'!A${existingRowNumber}:${lastColumn}${existingRowNumber}`);
       const response = await fetch(`${sheetPrefix}/${updateRange}?valueInputOption=USER_ENTERED`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ values: rowValues })
+        body: JSON.stringify({ values: [rowValues] })
       });
       if (!response.ok) {
         const detail = await response.text().catch(() => '');
@@ -230,14 +269,16 @@ export class GoogleSheetsService {
       return;
     }
 
-    const appendRange = encodeURIComponent(`'${student.sourceSheet}'!A:L`);
+    const appendWidth = Math.max(headers.length, 12);
+    while (rowValues.length < appendWidth) rowValues.push('');
+    const appendRange = encodeURIComponent(`'${student.sourceSheet}'!A:${columnName(appendWidth - 1)}`);
     const appendResponse = await fetch(`${sheetPrefix}/${appendRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ values: rowValues })
+      body: JSON.stringify({ values: [rowValues] })
     });
     if (!appendResponse.ok) {
       const detail = await appendResponse.text().catch(() => '');
