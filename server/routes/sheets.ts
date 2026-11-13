@@ -186,7 +186,7 @@ router.post(
       const friday = String(payload.friday || payload.date || '');
       const rawAttendance = String(payload.isPresent ?? payload.status ?? '').trim().toLowerCase();
       const isPresent = payload.isPresent === true || ['1', 'true', 'present', 'حاضر'].includes(rawAttendance);
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(friday)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) {
         return res.status(400).json({ error: 'تاريخ الجمعة (friday) مطلوب بصيغة YYYY-MM-DD' });
       }
 
@@ -245,10 +245,10 @@ router.post(
 
       const candidateCode = String(candidate.code || req.body.studentCode || '').trim();
       const sameSheetStudents = await googleSheetsService.getStudents(targetSheet);
-      const normalizedName = studentName.replace(/\\s+/g, ' ').toLowerCase();
+      const normalizedName = studentName.replace(/\s+/g, ' ').toLowerCase();
       const duplicateStudent = sameSheetStudents.find((student) =>
         (candidateCode && String(student.code || '').trim() === candidateCode) ||
-        String(student.name || '').replace(/\\s+/g, ' ').trim().toLowerCase() === normalizedName
+        String(student.name || '').replace(/\s+/g, ' ').trim().toLowerCase() === normalizedName
       );
       if (duplicateStudent) {
         return res.status(409).json({
