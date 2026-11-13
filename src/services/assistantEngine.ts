@@ -282,6 +282,9 @@ export function detectAssistantIntent(query: string): AssistantIntent {
     return 'present';
   }
 
+  // Weak attendance requests should return the low-attendance list, even when phrased as a count.
+  if (q.includes('حضور') && (q.includes('مش قوي') || q.includes('ضعيف') || q.includes('اقل'))) return 'lowAttendance';
+
   // Stats & Analytics
   if (
     q.includes('احصائي') ||
@@ -710,8 +713,8 @@ export function processAssistantQuery(
     }
     case 'lowAttendance': {
       const lowList = [...students]
-        .filter((s) => Number(s.attendanceTotal) <= 1)
-        .sort((a, b) => Number(a.attendanceTotal) - Number(b.attendanceTotal));
+        .filter((s) => Number(s.attendanceMonth) <= 1)
+        .sort((a, b) => Number(a.attendanceMonth) - Number(b.attendanceMonth) || Number(a.attendanceTotal) - Number(b.attendanceTotal));
 
       if (lowList.length === 0) {
         return {
@@ -719,7 +722,7 @@ export function processAssistantQuery(
         };
       }
       const lines = lowList.slice(0, 12).map(
-        (s, idx) => `${idx + 1}. ${s.name} (${s.code}) — إجمالي الحضور: ${s.attendanceTotal} • آخر حضور: ${s.lastAttendance || 'غير مسجل'}`
+        (s, idx) => `${idx + 1}. ${s.name} (${s.code}) — حضور الشهر: ${s.attendanceMonth}/4 • إجمالي الحضور: ${s.attendanceTotal} • آخر حضور: ${s.lastAttendance || 'غير مسجل'}`
       );
       return {
         text: `📉 المخدومون الأقل حضوراً (<= 1 مرة) — عددهم (${lowList.length}):\n\n${lines.join('\n')}`,
@@ -815,7 +818,7 @@ export function processAssistantQuery(
           '• «مين حضر النهارده؟» / «مين غاب؟» / «اللي حضورهم مش قوي» — قوائم الحضور والغياب والمحتاجين افتقاد',
           '• «النهارده كلمت مارتن، مايكل» / «بعت واتساب لـ...» / «زرت ...» — تسجيل افتقاد جماعي على الكروت',
           '• «مين نسيته في الافتقاد الأسبوع ده؟» — المخدومون الذين لا يوجد لهم سجل افتقاد هذا الأسبوع حسب الأشبين المحدد',
-          '• «الغائبون» / «أقل حضور» / «أفضل حضور» — متابعة المخدومين',
+          '• «الغائبون» / «اللي حضورهم مش قوي» / «أفضل حضور» — متابعة المخدومين حسب حضور الشهر الحالي',
           '• «رسالة افتقاد [الاسم]» أو «رسالة عيد ميلاد [الاسم]» — رسالة جاهزة للنسخ والإرسال عبر WhatsApp',
           '• اكتب اسم أي مخدوم أو كود أو أشبين للبحث الفوري، أو اسأل «كيف أضيف/أصدر/أزامن؟»'
         ].join('\n'),
