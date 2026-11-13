@@ -204,21 +204,27 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     if (isAttendanceLoading) return false;
     setIsAttendanceLoading(true);
 
-    const success = await markAttendance(student.id, nextState, targetFridayDate);
+    try {
+      const success = await markAttendance(student.id, nextState, targetFridayDate);
 
-    if (success && nextState) {
-      try {
-        confetti({
-          particleCount: 25,
-          spread: 45,
-          origin: { y: 0.8 },
-          colors: ['#20C7E8', '#267AFF', '#6548F5']
-        });
-      } catch {}
+      if (success && nextState) {
+        try {
+          confetti({
+            particleCount: 25,
+            spread: 45,
+            origin: { y: 0.8 },
+            colors: ['#20C7E8', '#267AFF', '#6548F5']
+          });
+        } catch {}
+      }
+
+      return success;
+    } catch (error: any) {
+      console.error('Student attendance action failed:', error);
+      return false;
+    } finally {
+      setIsAttendanceLoading(false);
     }
-
-    setIsAttendanceLoading(false);
-    return success;
   };
 
   const handleInlineSave = async (e: React.FormEvent) => {
