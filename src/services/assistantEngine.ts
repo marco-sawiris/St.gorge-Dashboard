@@ -1,5 +1,5 @@
 import { Student } from '../types/student';
-import { getLatestHeldFridayString, normalizeArabicText } from '../utils/arabicUtils';
+import { getLatestHeldFridayString, getNearestFridayString, normalizeArabicText } from '../utils/arabicUtils';
 
 export interface AssistantAction {
   label: string;
@@ -10,7 +10,8 @@ export interface AssistantAction {
 
 export type AssistantCommand =
   | { type: 'markAttendance'; studentId: string; studentName: string; isPresent: boolean; targetFridayDate: string }
-  | { type: 'openEdit'; studentId: string; studentName: string };
+  | { type: 'openEdit'; studentId: string; studentName: string }
+  | { type: 'recordFollowupBatch'; students: Array<{ id: string; name: string }>; method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة'; weekFridayDate: string };
 
 export interface AssistantMessage {
   id: string;
@@ -243,6 +244,7 @@ export type AssistantIntent =
   | 'stats'
   | 'present'
   | 'absent'
+  | 'missingFollowup'
   | 'lowAttendance'
   | 'topAttendance'
   | 'faq'
@@ -293,11 +295,15 @@ export function detectAssistantIntent(query: string): AssistantIntent {
     return 'stats';
   }
 
+  // Follow-up gaps for the current service week.
+  if ((q.includes('افتقاد') || q.includes('افتقد') || q.includes('كلم')) &&
+      (q.includes('الاسبوع ده') || q.includes('هذا الاسبوع') || q.includes('نسي') || q.includes('ما افتقد') || q.includes('مفتقدتش') || q.includes('ما كلم'))) return 'missingFollowup';
+
   // Attendance tiers
   if (q.includes('غائب') || q.includes('غايب') || q.includes('لم يحضر') || q.includes('محتاجين افتقاد')) {
     return 'absent';
   }
-  if (q.includes('ضعيف') || q.includes('اقل حضور') || q.includes('منقطع') || q.includes('مقصر')) {
+  if (q.includes('ضعيف') || q.includes('اقل حضور') || q.includes('منقطع') || q.includes('مقصر') || q.includes('حضورهم مش قوي') || q.includes('حضورهم ضعيف')) {
     return 'lowAttendance';
   }
   if (q.includes('افضل') || q.includes('اعلي حضور') || q.includes('منتظم') || q.includes('اكثر حضور')) {
@@ -406,6 +412,20 @@ function pickMessageTemplate(query: string): { category: keyof typeof MESSAGE_TE
  * Converts explicit natural-language commands into safe, app-level actions.
  * Attendance commands require one uniquely identified student; ambiguous names never execute.
  */
+function resolveAssistantStudent(target: string, students: Student[]): { student?: Student; matches: Student[] } {
+  const normalizedTarget = normalizeArabicText(target);
+  const exactCode = students.filter((s) => normalizeArabicText(s.code || '') === normalizedTarget);
+  const exactName = students.filter((s) => normalizeArabicText(s.name || '') === normalizedTarget);
+  let matches = exactCode.length ? exactCode : exactName;
+  if (matches.length === 0) {
+    matches = students.filter((s) => {
+      const name = normalizeArabicText(s.name || '');
+      const code = normalizeArabicText(s.code || '');
+      return (name && (name.includes(normalizedTarget) || normalizedTarget.includes(name))) || code === normalizedTarget;
+    });
+  }
+  return { student: matches.length === 1 ? matches[0] : undefined, matches };
+}
 export function parseAssistantCommand(
   query: string,
   students: Student[],
@@ -414,6 +434,35 @@ export function parseAssistantCommand(
   const q = normalizeArabicText(query);
   if (!q) return null;
 
+  const followupMatch = query.match(/(?:كلمت|اتصلت(?:\s+ب)?|بعت(?:\s+رساله)?\s+واتساب\s+ل|بعت\s+واتساب\s+ل|زرت|عملت\s+زياره\s+منزليه\s+ل)\s*(.+)$/i);
+  if (followupMatch) {
+    const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').trim();
+    const method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة' = /واتساب/i.test(query) ? 'واتساب' : /زرت|زياره\s+منزليه/i.test(query) ? 'تم بزيارة' : 'تم تليفونياً';
+    const targets = rawTail.split(/،|,|\s+و\s+/).map((name) => name.trim()).filter(Boolean);
+    const resolved: Student[] = [];
+    const problems: string[] = [];
+    for (const targetName of targets) {
+      const result = resolveAssistantStudent(targetName, students);
+      if (!result.student) {
+        problems.push(result.matches.length > 1
+          ? '«' + targetName + '» اسم غير محدد ويطابق: ' + result.matches.slice(0, 4).map((s) => s.name + ' (' + s.code + ')').join('، ')
+          : '«' + targetName + '» غير موجود في البيانات المحملة');
+      } else if (!resolved.some((s) => s.id === result.student!.id)) resolved.push(result.student);
+    }
+    if (problems.length || resolved.length === 0) {
+      return { text: 'لم أسجل أي افتقاد لأن بعض الأسماء تحتاج توضيحًا:\n• ' + problems.join('\n• ') + '\nاكتب الاسم الكامل أو الكود لكل مخدوم، ثم أعد الأمر.' };
+    }
+    const weekFridayDate = getNearestFridayString();
+    const already = resolved.filter((s) => Boolean(s.fu?.[weekFridayDate]));
+    const fresh = resolved.filter((s) => !s.fu?.[weekFridayDate]);
+    if (fresh.length === 0) {
+      return { text: 'كل الأسماء المحددة لها افتقاد مسجل بالفعل لهذا الأسبوع (' + weekFridayDate + '):\n' + already.map((s) => '• ' + s.name + ': ' + s.fu?.[weekFridayDate]).join('\n') + '\nلم أضف سجلات مكررة.' };
+    }
+    return {
+      text: 'سأُسجل ' + method + ' للأسماء التالية: ' + fresh.map((s) => s.name).join('، ') + '.\n' + (already.length ? 'تم استبعاد ' + already.length + ' اسم مسجل بالفعل هذا الأسبوع.\n' : '') + 'جارٍ الحفظ...',
+      command: { type: 'recordFollowupBatch', students: fresh.map((s) => ({ id: s.id, name: s.name })), method, weekFridayDate }
+    };
+  }
   const attendanceMatch = q.match(/^(?:سجل|سجلي|اثبت|اثبتي)\s+(?:الحضور|حضور|الغياب|غياب|حاضر|غائب)\s*(.*)$/);
   const editMatch = q.match(/^(?:افتح|فتح)\s+(?:تعديل|كارت للتعديل|الكارت للتعديل)\s*(.*)$/) ||
     q.match(/^عدل بيانات\s+(.+)$/);
@@ -435,19 +484,7 @@ export function parseAssistantCommand(
     };
   }
 
-  const normalizedTarget = normalizeArabicText(target);
-  const exactCode = students.filter((s) => normalizeArabicText(s.code || '') === normalizedTarget);
-  const exactName = students.filter((s) => normalizeArabicText(s.name || '') === normalizedTarget);
-  let matches = exactCode.length ? exactCode : exactName;
-
-  if (matches.length === 0) {
-    matches = students.filter((s) => {
-      const name = normalizeArabicText(s.name || '');
-      const code = normalizeArabicText(s.code || '');
-      return (name && (name.includes(normalizedTarget) || normalizedTarget.includes(name))) ||
-        (code && code === normalizedTarget);
-    });
-  }
+  const { matches } = resolveAssistantStudent(target, students);
 
   if (matches.length === 0) {
     return { text: `لم أجد مخدوماً مطابقاً للاسم «${target}». لم يتم تنفيذ أي تغيير؛ جرّب الاسم بالكامل أو الكود.` };
@@ -493,6 +530,7 @@ export function processAssistantQuery(
     'stats',
     'present',
     'absent',
+    'missingFollowup',
     'lowAttendance',
     'topAttendance',
     'search'
@@ -657,6 +695,19 @@ export function processAssistantQuery(
       };
     }
 
+    case 'missingFollowup': {
+      const servantName = options?.servantName?.trim();
+      const weekFridayDate = getNearestFridayString(referenceDate);
+      const assigned = students.filter((s) => !servantName || s.servant?.trim() === servantName);
+      const missing = assigned.filter((s) => !s.fu?.[weekFridayDate]);
+      const scope = servantName ? 'الأشبن: ' + servantName : 'كل الأشابين (لم يتم تحديد أشبين بعينه)';
+      const lines = missing.slice(0, 30).map((s, i) => (i + 1) + '. ' + s.name + ' (' + s.code + ') — ' + (s.servant || 'غير مسند') + ' — آخر افتقاد: ' + (s.lastFollowup || 'غير مسجل'));
+      return {
+        text: missing.length
+          ? '📋 مخدومون لم يظهر لهم افتقاد مسجل هذا الأسبوع (أسبوع ' + weekFridayDate + ')\nالنطاق: ' + scope + '\nالعدد: ' + missing.length + ' من ' + assigned.length + '\n\n' + lines.join('\n') + (missing.length > 30 ? '\n... و' + (missing.length - 30) + ' أسماء أخرى.' : '') + '\n\nتنبيه: القائمة مبنية على سجلات الافتقاد المحفوظة في التطبيق، وليست إثباتًا أن مكالمة لم تحدث خارج التطبيق.'
+          : 'ممتاز، كل المخدومين ضمن النطاق المحدد لديهم افتقاد مسجل هذا الأسبوع (' + weekFridayDate + ').\nالنطاق: ' + scope + '.'
+      };
+    }
     case 'lowAttendance': {
       const lowList = [...students]
         .filter((s) => Number(s.attendanceTotal) <= 1)
@@ -761,7 +812,9 @@ export function processAssistantQuery(
         text: [
           'أهلاً بك في المساعد الذكي (يعمل محلياً بالكامل بدون إنترنت أو إرسال بيانات لخوادم ذكاء اصطناعي خارجية):',
           '• «أعياد الميلاد» أو «أعياد الميلاد الشهر القادم» أو «أعياد الميلاد خلال 30 يوم» — بحث بتاريخ مرن',
-          '• «مين حضر النهارده؟» / «مين غاب؟» — قوائم الحضور والغياب المسجل لآخر جمعة انعقدت',
+          '• «مين حضر النهارده؟» / «مين غاب؟» / «اللي حضورهم مش قوي» — قوائم الحضور والغياب والمحتاجين افتقاد',
+          '• «النهارده كلمت مارتن، مايكل» / «بعت واتساب لـ...» / «زرت ...» — تسجيل افتقاد جماعي على الكروت',
+          '• «مين نسيته في الافتقاد الأسبوع ده؟» — المخدومون الذين لا يوجد لهم سجل افتقاد هذا الأسبوع حسب الأشبين المحدد',
           '• «الغائبون» / «أقل حضور» / «أفضل حضور» — متابعة المخدومين',
           '• «رسالة افتقاد [الاسم]» أو «رسالة عيد ميلاد [الاسم]» — رسالة جاهزة للنسخ والإرسال عبر WhatsApp',
           '• اكتب اسم أي مخدوم أو كود أو أشبين للبحث الفوري، أو اسأل «كيف أضيف/أصدر/أزامن؟»'
