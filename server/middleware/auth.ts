@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { verifyAccessToken, TokenPayload } from '../security/jwt';
 
 export interface AuthenticatedRequest extends Request {
@@ -8,7 +9,13 @@ export interface AuthenticatedRequest extends Request {
 export const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const configuredRelayKey = (process.env.RELAY_KEY || '').trim();
   const providedRelayKey = String(req.headers['x-relay-key'] || '').trim();
-  if (configuredRelayKey && providedRelayKey && providedRelayKey === configuredRelayKey) {
+  const configuredBuffer = Buffer.from(configuredRelayKey, 'utf8');
+  const providedBuffer = Buffer.from(providedRelayKey, 'utf8');
+  const relayKeyMatches = configuredBuffer.length >= 32 &&
+    providedBuffer.length === configuredBuffer.length &&
+    crypto.timingSafeEqual(providedBuffer, configuredBuffer);
+
+  if (relayKeyMatches) {
     req.user = {
       userId: 'relay_service',
       username: 'relay_service',
