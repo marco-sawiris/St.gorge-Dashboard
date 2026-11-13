@@ -104,7 +104,7 @@ export const BottomKeyboardDock: React.FC = () => {
           <span className="truncate">الكيبورد</span>
         </button>
 
-        <div className="flex items-center justify-end gap-1.5 shrink-0>
+        <div className="flex items-center justify-end gap-1.5 shrink-0">
           {filters.alphabetLetter && (
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#20c7e8]/15 text-[#20c7e8] border border-[#20c7e8]/30 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-[#20c7e8]" />
