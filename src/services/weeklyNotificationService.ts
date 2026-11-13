@@ -293,7 +293,7 @@ export function buildCapacitorNotificationsPayload(
       }
       return occurrences;
     });
-
+}
 
 export async function getNotificationPermissionStatus(): Promise<NotificationPermissionState> {
   if (isNativeCapacitorRuntime()) {
@@ -370,7 +370,7 @@ export async function syncWeeklyNotificationSchedules(
     if (!settings.masterEnabled || payload.length === 0) {
       return { scheduledCount: 0, permission: perm, nextTriggers: [], reason: 'disabled' };
     }
-    return { scheduledCount: payload.length, permission: perm, nextTriggers, reason: 'web_preview' };
+    return { scheduledCount: nextTriggers.length, permission: perm, nextTriggers, reason: 'web_preview' };
   }
 
   try {
