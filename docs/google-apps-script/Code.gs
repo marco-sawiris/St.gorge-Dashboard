@@ -4,12 +4,12 @@
  * Deployed as a Web App under the Google Sheet owner's account:
  * - Execute as: Me (Owner) -> Keeps Google Sheet 100% PRIVATE (no public sharing!)
  * - Direct service mode (NO servant username/password screen required),
- *   protected by optional RELAY_KEY stored strictly in Google ScriptProperties
+ *   protected by mandatory RELAY_KEY stored in Google ScriptProperties
  *   + APPROVED_SHEETS allowlist + LockService + Idempotency + OCC 409 + Zero Delete (403).
  *
  * Script Properties (Project Settings -> Script Properties):
  *   SPREADSHEET_ID = "15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0"
- *   RELAY_KEY      = Optional shared relay secret configured by owner
+ *   RELAY_KEY      = Required high-entropy relay secret configured by owner
  */
 
 var APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط'];
@@ -31,9 +31,9 @@ function getSpreadsheet() {
 function verifyRelayKey(providedKey) {
   var props = PropertiesService.getScriptProperties();
   var expectedKey = props.getProperty('RELAY_KEY');
-  if (!expectedKey) {
-    // Owner chose to rely on private Apps Script Web App URL only
-    return { valid: true };
+  if (!expectedKey || String(expectedKey).trim().length < 32) {
+    // Fail closed: an unconfigured/weak relay key must never expose sheet data.
+    return { valid: false, error: 'Relay unavailable: configure a strong RELAY_KEY in Script Properties' };
   }
   if (!providedKey || String(providedKey).trim() !== String(expectedKey).trim()) {
     return { valid: false, error: 'Unauthorized: invalid or missing RELAY_KEY' };
