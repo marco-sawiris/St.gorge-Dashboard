@@ -382,20 +382,16 @@ export async function syncWeeklyNotificationSchedules(
       return { scheduledCount: 0, permission: perm, nextTriggers, reason: 'plugin_missing' };
     }
 
-    // Always cancel stale/existing weekly IDs before rescheduling to eliminate duplicates across restarts/reboots
-    const pending = await ln.getPending().catch(() => ({ notifications: [] }));
     const knownIds = new Set<number>(WEEKLY_NOTIFICATION_IDS);
-    for (const p of pending.notifications || []) {
-      if (typeof p.id === 'number' && knownIds.has(p.id)) {
-        knownIds.add(p.id);
-      }
-    }
-    await ln.cancel({
-      notifications: Array.from(knownIds).map((id) => ({ id }))
-    }).catch(() => {});
 
+    // When reminders are disabled, explicitly cancel every ID owned by this service.
+    // Do not cancel active reminders before permission checks or before replacement
+    // schedules are ready; a failed schedule must not silently erase existing alarms.
     if (!settings.masterEnabled || payload.length === 0) {
       const perm = await getNotificationPermissionStatus();
+      await ln.cancel({
+        notifications: Array.from(knownIds).map((id) => ({ id }))
+      });
       return { scheduledCount: 0, permission: perm, nextTriggers: [], reason: 'disabled' };
     }
 
@@ -412,6 +408,17 @@ export async function syncWeeklyNotificationSchedules(
       visibility: 1,
       vibration: true
     }).catch(() => {});
+
+    // Cancel only reminders that are no longer enabled. Keep active IDs intact until
+    // the replacement schedule is submitted successfully; this preserves the last
+    // working reminders if the native scheduler rejects the new request.
+    const activeIds = new Set<number>(payload.map((item) => item.id));
+    const staleIds = Array.from(knownIds).filter((id) => !activeIds.has(id));
+    if (staleIds.length > 0) {
+      await ln.cancel({
+        notifications: staleIds.map((id) => ({ id }))
+      });
+    }
 
     await ln.schedule({
       notifications: payload
