@@ -78,6 +78,7 @@ export const NotificationsPanel: React.FC = () => {
       ))) {
         saveWeeklyNotificationSettings(previous);
         setSettings(previous);
+        await syncWeeklyNotificationSchedules(previous).catch(() => null);
         addNotification(
           'تعذر جدولة التذكيرات',
           syncRes.reason === 'plugin_missing'
@@ -136,6 +137,7 @@ export const NotificationsPanel: React.FC = () => {
 
   const handleResetDefaults = async () => {
     setIsUpdatingSchedule(true);
+    const previous = settings;
     try {
       const defaults = resetDefaultNotificationSettings();
       setSettings(defaults);
@@ -144,6 +146,9 @@ export const NotificationsPanel: React.FC = () => {
       const nativeSuccess = !isNativeCapacitorRuntime() ||
         (!syncRes.reason && syncRes.scheduledCount === DEFAULT_WEEKLY_REMINDERS.length);
       if (!nativeSuccess) {
+        saveWeeklyNotificationSettings(previous);
+        setSettings(previous);
+        await syncWeeklyNotificationSchedules(previous).catch(() => null);
         addNotification(
           'تعذر استعادة الجدولة',
           'تم حفظ الإعدادات، لكن لم يتم تأكيد جدولة الإشعارات على الجهاز.',
