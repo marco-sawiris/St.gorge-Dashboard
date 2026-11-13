@@ -243,6 +243,20 @@ router.post(
         return res.status(400).json({ error: 'اسم المخدوم مطلوب عند الإضافة' });
       }
 
+      const candidateCode = String(candidate.code || req.body.studentCode || '').trim();
+      const sameSheetStudents = await googleSheetsService.getStudents(targetSheet);
+      const normalizedName = studentName.replace(/\\s+/g, ' ').toLowerCase();
+      const duplicateStudent = sameSheetStudents.find((student) =>
+        (candidateCode && String(student.code || '').trim() === candidateCode) ||
+        String(student.name || '').replace(/\\s+/g, ' ').trim().toLowerCase() === normalizedName
+      );
+      if (duplicateStudent) {
+        return res.status(409).json({
+          error: `المخدوم موجود بالفعل في فصل "${targetSheet}" (${duplicateStudent.name} / ${duplicateStudent.code}).`,
+          duplicateStudentId: duplicateStudent.id
+        });
+      }
+
       updatedStudent = {
         id: studentId,
         code: String(candidate.code || req.body.studentCode || 'SG-NEW'),
