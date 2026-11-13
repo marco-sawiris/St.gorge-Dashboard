@@ -424,11 +424,15 @@ export async function syncWeeklyNotificationSchedules(
     };
   } catch (err: any) {
     const perm = await getNotificationPermissionStatus().catch(() => 'prompt' as const);
+    const errorMessage = String(err?.message || err || '');
+    const reason = /exact.?alarm|alarm.?permission|OS-PLUG-LNOT-0018/i.test(errorMessage)
+      ? 'exact_alarm_permission_required'
+      : errorMessage || 'schedule_failed';
     return {
       scheduledCount: 0,
       permission: perm,
       nextTriggers,
-      reason: err?.message || 'schedule_failed'
+      reason
     };
   }
 }
