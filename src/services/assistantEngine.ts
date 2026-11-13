@@ -436,7 +436,7 @@ export function parseAssistantCommand(
 
   const followupMatch = query.match(/(?:كلمت|اتصلت(?:\s+ب)?|بعت(?:\s+رساله)?\s+واتساب\s+ل|بعت\s+واتساب\s+ل|زرت|عملت\s+زياره\s+منزليه\s+ل)\s*(.+)$/i);
   if (followupMatch) {
-    const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').replace(/^(?:مثلاً|مثلا|أنا|انا|النهارده|النهاردة)\\s+/i, '').trim();
+    const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').replace(/^(?:مثلاً|مثلا|أنا|انا|النهارده|النهاردة)\s+/i, '').trim();
     const method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة' = /واتساب/i.test(query) ? 'واتساب' : /زرت|زياره\s+منزليه/i.test(query) ? 'تم بزيارة' : 'تم تليفونياً';
     const targets = rawTail.split(/،|,|\s+و\s+/).map((name) => name.trim()).filter(Boolean);
     const resolved: Student[] = [];
