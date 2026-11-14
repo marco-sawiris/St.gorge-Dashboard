@@ -392,13 +392,6 @@ export async function executeSyncData(
     const appsScriptUrl = getEffectiveAppsScriptUrl();
     const relayKey = getEffectiveRelayKey();
 
-    if (appsScriptUrl && !relayKey) {
-      const error = 'مفتاح RELAY_KEY غير محفوظ على هذا الجهاز. أدخل مفتاح الربط في تفاصيل المزامنة، وتأكد أنه مطابق لقيمة Script Properties في Apps Script.';
-      onRecordError?.(error);
-      onNotify?.('مفتاح المزامنة غير مضبوط', error, 'danger');
-      return false;
-    }
-
     const hasExpressCredentials = Boolean(user?.token || relayKey || buildApiUrl('/api/sheets/data').startsWith('https://'));
 
     let data: any;
@@ -414,18 +407,49 @@ export async function executeSyncData(
         );
       }
 
-      const separator = appsScriptUrl.includes('?') ? '&' : '?';
-      const relayQuery = `${appsScriptUrl}${separator}action=getStudents&sheet=${encodeURIComponent(targetSheet)}&t=${Date.now()}${relayKey ? `&relayKey=${encodeURIComponent(relayKey)}` : ''}`;
-      const res = await fetch(relayQuery, { method: 'GET' });
-      if (!res.ok) {
-        throw new Error(`استجاب وسيط Google Sheets بخطأ (HTTP ${res.status})`);
+      // Apps Script is the authenticated write relay. Read from it only when a client key
+      // is configured and its response matches the current students contract.
+      let relayReadSucceeded = false;
+      if (relayKey) {
+        try {
+          const separator = appsScriptUrl.includes('?') ? '&' : '?';
+          const relayQuery = `${appsScriptUrl}${separator}action=getStudents&sheet=${encodeURIComponent(targetSheet)}&t=${Date.now()}&relayKey=${encodeURIComponent(relayKey)}`;
+          const res = await fetch(relayQuery, { method: 'GET' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const relayData = await res.json();
+          if (!relayData || relayData.ok === false || !Array.isArray(relayData.students)) {
+            throw new Error(relayData?.error || 'استجابة Apps Script لا تحتوي على students');
+          }
+          data = relayData;
+          relayReadSucceeded = true;
+        } catch (relayReadError: any) {
+          console.warn('Apps Script read unavailable; falling back to Google Sheets Gviz:', relayReadError);
+          onNotify?.('تعذر استخدام وسيط القراءة', 'سيتم جلب البيانات مباشرة من Google Sheets مع استمرار التحقق من عمليات الكتابة بشكل منفصل.', 'info');
+        }
+      } else {
+        console.warn('RELAY_KEY is not configured; skipping Apps Script read and using Gviz. Queued writes remain protected.');
       }
 
-      data = await res.json();
-      if (!data || data.ok === false || !Array.isArray(data.students)) {
-        throw new Error(data?.error || 'تعذر تحميل البيانات من Google Sheets');
-      }
-      if (Array.isArray(data.followupRecords) && data.followupRecords.length > 0) {
+      // Gviz is the read fallback (and the normal read path when the relay key is absent).
+      // Every requested sheet must be confirmed before reconciliation can modify local data.
+      if (!relayReadSucceeded) {
+        const existingList = await idbGetStudents().catch(() => []);
+        const existingMap = new Map(existingList.map((student) => [student.id, student]));
+        const gvizResult = await fetchSheetStudentsViaGviz(SPREADSHEET_ID, targetSheet, existingMap);
+        const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, gvizResult.students).catch((error) => {
+          console.warn('Gviz follow-up log read failed:', error);
+          return [];
+        });
+        if (remoteFollowups.length > 0) {
+          const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
+          onUpdateFollowups?.(reconciledFu);
+        }
+        data = {
+          ok: true, targetSheet, sheet: targetSheet, isComplete: true, confirmedComplete: true,
+          confirmedSheets: gvizResult.confirmedSheets, confirmedEmptySheets: gvizResult.confirmedEmptySheets,
+          sheetsMeta: gvizResult.sheetsMeta, students: gvizResult.students, followupRecords: remoteFollowups
+        };
+      } else if (Array.isArray(data.followupRecords) && data.followupRecords.length > 0) {
         const reconciledFu = await idbSaveRemoteFollowupRecords(data.followupRecords).catch(() => data.followupRecords);
         onUpdateFollowups?.(reconciledFu);
       }
