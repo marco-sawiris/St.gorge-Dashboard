@@ -72,8 +72,17 @@ router.post(
   apiLimiter,
   async (req: AuthenticatedRequest, res: Response) => {
     const user = req.user!;
-    const ip = getClientIp(req);
-    const idempotencyKey = (req.headers['x-idempotency-key'] as string) || req.body?.id;
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const rawHeaderKey = req.headers['x-idempotency-key'] as string | undefined;
+    let decodedHeaderKey: string | undefined = undefined;
+    if (rawHeaderKey && typeof rawHeaderKey === 'string') {
+      try {
+        decodedHeaderKey = decodeURIComponent(rawHeaderKey.trim());
+      } catch {
+        decodedHeaderKey = rawHeaderKey.trim();
+      }
+    }
+    const idempotencyKey = decodedHeaderKey || req.body?.idempotencyKey || req.body?.id;
 
     if (!idempotencyKey || typeof idempotencyKey !== 'string') {
       return res.status(400).json({ error: 'ترويسة مفتاح عدم التكرار (X-Idempotency-Key) إلزامية' });

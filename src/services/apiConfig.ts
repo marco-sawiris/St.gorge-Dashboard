@@ -131,8 +131,23 @@ export function setRelayKey(key: string): void {
   }
 }
 
+export const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzetL8maCClf180cEMTVUYrxTSQH8pCX969eUxkuDeW6lmpb8HmVAWCs4Y3iSQZbRvY4g/exec';
+export const DEFAULT_RELAY_KEY = 'st_gorge_secret_token_2026';
+
+export function getEffectiveAppsScriptUrl(): string {
+  const configured = getAppsScriptUrl();
+  if (configured) return configured;
+  return DEFAULT_APPS_SCRIPT_URL;
+}
+
+export function getEffectiveRelayKey(): string {
+  const configured = getRelayKey();
+  if (configured) return configured;
+  return DEFAULT_RELAY_KEY;
+}
+
 export function hasConfiguredRemoteBackend(): boolean {
-  if (getAppsScriptUrl()) return true;
+  if (getEffectiveAppsScriptUrl()) return true;
   if (getApiBaseUrl()) return true;
   if (!isNativeCapacitorRuntime()) {
     if (typeof window !== 'undefined' && /^https?:$/i.test(window.location?.protocol || '')) {
@@ -148,13 +163,40 @@ export function buildApiUrl(endpoint: string): string {
   return base ? `${base}${normalizedEndpoint}` : normalizedEndpoint;
 }
 
+/**
+ * Ensures HTTP header values strictly conform to ByteString / ISO-8859-1 standards (ASCII range \x20-\x7E).
+ * Prevents "Failed to construct 'Request': Failed to read the 'headers' property from 'RequestInit': String contains non-ISO-8859-1 code point"
+ * by URI-encoding any Unicode/Arabic characters.
+ */
+export function toSafeHeaderAscii(value?: string | null): string {
+  if (!value) return '';
+  const trimmed = String(value).trim();
+  if (/^[\x20-\x7E]+$/.test(trimmed)) {
+    return trimmed;
+  }
+  return encodeURIComponent(trimmed);
+}
+
+export function fromSafeHeaderAscii(value?: string | null): string {
+  if (!value) return '';
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export function getAuthHeaders(token?: string | null): Record<string, string> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   };
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    const safeToken = toSafeHeaderAscii(token);
+    if (safeToken) {
+      headers['Authorization'] = `Bearer ${safeToken}`;
+    }
   }
 
   // The shared Apps Script relay key is sent only in the Apps Script request

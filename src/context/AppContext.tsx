@@ -16,9 +16,14 @@ import {
   getAuthHeaders,
   getAppsScriptUrl,
   getRelayKey,
+  getEffectiveAppsScriptUrl,
+  getEffectiveRelayKey,
+  DEFAULT_APPS_SCRIPT_URL,
+  DEFAULT_RELAY_KEY,
   hasConfiguredRemoteBackend,
   isNativeCapacitorRuntime,
-  safeGetLocalStorage
+  safeGetLocalStorage,
+  toSafeHeaderAscii
 } from '../services/apiConfig';
 import {
   idbGetStudents,
@@ -35,7 +40,9 @@ import {
   idbReconcileStudents,
   idbPurgeMockRecords,
   idbSaveRemoteFollowupRecords,
-  idbGetAttendanceHistory
+  idbGetAttendanceHistory,
+  idbUpdateMutationError,
+  idbResetMutationRetry
 } from '../services/indexedDbService';
 import { syncWeeklyNotificationSchedules } from '../services/weeklyNotificationService';
 import { fetchSheetStudentsViaGviz, fetchFollowupLogViaGviz } from '../services/googleSheetParser';
@@ -163,6 +170,8 @@ interface AppContextType {
   setIsAboutModalOpen: (open: boolean) => void;
   setIsAddModalOpen: (open: boolean) => void;
   setIsSyncModalOpen: (open: boolean) => void;
+  isQueueModalOpen: boolean;
+  setIsQueueModalOpen: (open: boolean) => void;
   syncData: (overrideSheet?: SheetName) => Promise<boolean>;
   markAttendance: (studentId: string, isPresent: boolean, targetFridayDate?: string) => Promise<boolean>;
   recordFollowup: (studentId: string, method: string, notes?: string) => Promise<boolean>;
@@ -199,6 +208,9 @@ export async function executeProcessOfflineQueue(
   if (!appsScriptUrl && !hasConfiguredRemoteBackend() && isNativeCapacitorRuntime()) {
     onNotify?.('مطلوب رابط المزامنة', 'يرجى ضبط رابط Google Apps Script في تفاصيل المزامنة. العمليات محفوظة محلياً بأمان.', 'warn');
     const pending = await idbGetPendingMutations();
+    for (const m of pending) {
+      await idbUpdateMutationError(m.id, 'يرجى ضبط رابط Google Apps Script في تفاصيل المزامنة للمزامنة مع الشيت', 'failed');
+    }
     return { success: false, sentCount: 0, remainingCount: pending.length };
   }
 
@@ -214,22 +226,53 @@ export async function executeProcessOfflineQueue(
       let response: Response;
       if (appsScriptUrl) {
         const relayKey = getRelayKey();
+        const payloadDate = String(mutation.payload?.friday || mutation.payload?.date || '').trim();
+        const payloadPresent = mutation.payload?.isPresent ?? mutation.payload?.present ?? false;
+
+        const appsScriptBody = {
+          // Legacy Google Apps Script contract (deployed web app)
+          sheet: mutation.sourceSheet || 'نشط',
+          sourceSheet: mutation.sourceSheet || 'نشط',
+          name: mutation.studentName || '',
+          studentName: mutation.studentName || '',
+          studentId: mutation.studentId || '',
+          studentCode: mutation.studentCode || '',
+          action: mutation.action,
+          date: payloadDate,
+          friday: payloadDate,
+          present: payloadPresent,
+          isPresent: payloadPresent,
+          token: relayKey || DEFAULT_RELAY_KEY,
+          relayKey: relayKey || DEFAULT_RELAY_KEY,
+          idempotencyKey: mutation.id,
+          id: mutation.id,
+          expectedVersion: mutation.expectedVersion || 1,
+          payload: mutation.payload || {},
+          type: mutation.payload?.method || mutation.payload?.type,
+          notes: mutation.payload?.notes,
+          fields: mutation.payload?.fields,
+          // Modern Code.gs envelope
+          mutation: {
+            ...mutation,
+            id: mutation.id,
+            sourceSheet: mutation.sourceSheet || 'نشط',
+            studentName: mutation.studentName || '',
+            payload: mutation.payload || {}
+          }
+        };
+
         response = await fetch(appsScriptUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'text/plain;charset=utf-8'
           },
-          body: JSON.stringify({
-            ...mutation,
-            idempotencyKey: mutation.id,
-            ...(relayKey ? { relayKey } : {})
-          })
+          body: JSON.stringify(appsScriptBody)
         });
       } else {
         const mutateUrl = buildApiUrl('/api/sheets/mutate');
-        const headers = {
+        const headers: Record<string, string> = {
           ...getAuthHeaders(user?.token),
-          'X-Idempotency-Key': mutation.id
+          'X-Idempotency-Key': toSafeHeaderAscii(mutation.id)
         };
 
         response = await fetch(mutateUrl, {
@@ -269,17 +312,30 @@ export async function executeProcessOfflineQueue(
           } catch {}
           onRecordPushTime?.(nowIso);
         } else {
-          console.warn(`Server rejected mutation ${mutation.id}:`, result?.error);
+          const errMsg = result?.error || 'رفض Google Sheets العملية';
+          console.warn(`Server rejected mutation ${mutation.id}:`, errMsg);
+          await idbUpdateMutationError(mutation.id, errMsg, 'failed');
           break; // Stop loop on rejection
         }
       } else {
-        // Non-200 HTTP status (500, 502, 503): retain in queue and STOP loop
+        // Non-200 HTTP status (401, 500, 502, 503): retain in queue and STOP loop
+        let errDetail = `استجاب الخادم برمز خطأ (HTTP ${response.status})`;
+        if (response.status === 401) {
+          errDetail = 'يتطلب إرسال التعديلات للشيت تفعيل رابط Google Apps Script في إعدادات المنظومة أو تسجيل دخول موثق';
+        } else if (response.status === 403) {
+          errDetail = 'غير مصرح: الحساب الحالي لا يملك صلاحية تعديل هذا المخدوم';
+        } else if (response.status >= 500) {
+          errDetail = `الخادم غير متاح مؤقتاً (HTTP ${response.status})، سيُعاد الإرسال تلقائياً`;
+        }
         console.warn(`Failed to sync mutation ${mutation.id}, HTTP status: ${response.status}`);
+        await idbUpdateMutationError(mutation.id, errDetail, 'failed');
         break;
       }
-    } catch (networkError) {
+    } catch (networkError: any) {
       // Network timeout / connection dropped: preserve in queue and STOP loop
+      const errMsg = `تعذر الاتصال بالشبكة لإرسال العملية: ${networkError?.message || 'انقطع الاتصال'}`;
       console.warn(`Network failure syncing mutation ${mutation.id}:`, networkError);
+      await idbUpdateMutationError(mutation.id, errMsg, 'failed');
       break;
     }
   }
@@ -333,12 +389,10 @@ export async function executeSyncData(
       const queueResult = await executeProcessOfflineQueue(user, false, onNotify, onRecordPushTime);
       if (!queueResult.success && queueResult.remainingCount > 0) {
         onNotify?.(
-          'مزامنة غير مكتملة',
-          `لم يتم تأكيد إرسال جميع العمليات المعلقة (${queueResult.remainingCount} متبقية).`,
-          'warn'
+          'مزامنة مع حفظ المعلق',
+          `توجد عمليات معلقة لم يتم تأكيد إرسالها بعد (${queueResult.remainingCount} متبقية)، جاري جلب أحدث البيانات مع الحفاظ على العمليات المحلية.`,
+          'info'
         );
-        onRecordError?.(`توجد عمليات معلقة لم يتم تأكيد إرسالها (${queueResult.remainingCount} متبقية)`);
-        return false;
       }
 
       const separator = appsScriptUrl.includes('?') ? '&' : '?';
@@ -409,12 +463,10 @@ export async function executeSyncData(
 
       if (!queueResult.success && queueResult.remainingCount > 0) {
         onNotify?.(
-          'مزامنة غير مكتملة',
-          `لم يتم تأكيد إرسال جميع العمليات المعلقة (${queueResult.remainingCount} متبقية في الطابور). تم إيقاف سحب بيانات الشيت لتفادي التعارض.`,
-          'warn'
+          'مزامنة مع حفظ المعلق',
+          `توجد عمليات معلقة لم يتم تأكيد إرسالها بعد (${queueResult.remainingCount} متبقية)، جاري جلب أحدث البيانات مع الحفاظ على العمليات المحلية.`,
+          'info'
         );
-        onRecordError?.(`توجد عمليات معلقة لم يتم تأكيد إرسالها (${queueResult.remainingCount} متبقية)`);
-        return false;
       }
 
       const dataUrl = buildApiUrl(`/api/sheets/data?sheet=${encodeURIComponent(targetSheet)}&t=${Date.now()}`);
@@ -499,13 +551,13 @@ export async function executeSyncData(
         onNotify?.('تم التحديث بنجاح', 'تم تحديث جميع الفصول بنجاح دون المساس بأي بيانات محلية', 'success');
         return true;
       } else {
-        onRecordError?.('تحديث مع وجود عمليات معلقة محلياً');
+        onRecordError?.(null);
         onNotify?.(
-          'تحديث مع وجود عمليات معلقة',
-          'تم تحديث الفصول مع الحفاظ الكامل على العمليات المحلية غير المرسلة',
-          'warn'
+          'تم التحديث مع حفظ المعلق',
+          `تم تحديث الفصول بنجاح مع الحفاظ الكامل على العمليات المحلية غير المرسلة (${remainingMutations.length} معلقة)`,
+          'info'
         );
-        return false;
+        return true;
       }
     } else {
       // Single sheet handling
@@ -537,13 +589,15 @@ export async function executeSyncData(
       if (remainingMutations.length > 0) {
         finalStudents = await idbReconcileStudents(data.students, remainingMutations, targetSheet, isTargetSheetConfirmedComplete);
         onUpdateStudents?.(finalStudents);
-        onRecordError?.('تحديث مع وجود عمليات معلقة محلياً');
+        const nowIso = new Date().toISOString();
+        onRecordTimes?.(nowIso);
+        onRecordError?.(null);
         onNotify?.(
-          'تحديث مع وجود عمليات معلقة',
-          `تم جلب بيانات الفصل مع الحفاظ الكامل على العمليات المحلية غير المرسلة وعزل الفصول الأخرى`,
-          'warn'
+          'تم التحديث مع حفظ المعلق',
+          `تم جلب بيانات الفصل بنجاح مع الحفاظ الكامل على العمليات المحلية غير المرسلة (${remainingMutations.length} معلقة)`,
+          'info'
         );
-        return false;
+        return true;
       } else {
         await idbSaveStudents(data.students, targetSheet, isTargetSheetConfirmedComplete);
         finalStudents = await idbGetStudents();
@@ -648,6 +702,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpenState] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -1050,7 +1105,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Each distinct intentional action gets a unique operation ID (RFC 4122 UUID)
       const opId = generateUUID();
-      const idempotencyKey = `ATT_${studentId}_${friday}_${opId}`;
+      const safeStudentId = toSafeHeaderAscii(studentId);
+      const idempotencyKey = `ATT_${safeStudentId}_${friday}_${opId}`;
 
       const nextAtt: Record<string, boolean> = { ...(student.att || {}), [friday]: isPresent };
       const monthlySummary = computeMonthlyAttendanceSummary(nextAtt);
@@ -1132,7 +1188,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const friday = getNearestFridayString();
       const opId = generateUUID();
       const recordId = generateUUID();
-      const idempotencyKey = `FU_${studentId}_${opId}`;
+      const safeStudentId = toSafeHeaderAscii(studentId);
+      const idempotencyKey = `FU_${safeStudentId}_${opId}`;
       const cleanNotes = (notes || '').trim();
 
       const updatedStudent: Student = {
@@ -1211,8 +1268,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       const opId = generateUUID();
+      const safeStudentId = toSafeHeaderAscii(studentId);
       const mutation: OfflineMutation = {
-        id: `UPD_${studentId}_${opId}`,
+        id: `UPD_${safeStudentId}_${opId}`,
         action: 'update',
         studentId,
         studentCode: student.code,
@@ -1385,6 +1443,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAboutModalOpen,
         isAddModalOpen,
         isSyncModalOpen,
+        isQueueModalOpen,
         setFilters,
         setActiveView,
         setActiveEditingId,
@@ -1399,6 +1458,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAboutModalOpen,
         setIsAddModalOpen,
         setIsSyncModalOpen,
+        setIsQueueModalOpen,
         syncData,
         markAttendance,
         recordFollowup,

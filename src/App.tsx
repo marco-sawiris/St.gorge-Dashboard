@@ -12,6 +12,7 @@ import { NotificationsPanel } from './components/modals/NotificationsPanel';
 import { AreaFilterModal } from './components/modals/AreaFilterModal';
 import { AboutModal } from './components/modals/AboutModal';
 import { SyncDetailsModal } from './components/modals/SyncDetailsModal';
+import { QueueDetailsModal } from './components/modals/QueueDetailsModal';
 import { StudentCard } from './components/cards/StudentCard';
 import { StudentsTableView } from './components/table/StudentsTableView';
 import { DashboardChartsView } from './components/charts/DashboardChartsView';
@@ -75,6 +76,7 @@ export default function App() {
         <AreaFilterModal />
         <AboutModal />
         <SyncDetailsModal />
+        <QueueDetailsModal />
 
         {/* Add Modal & Table-View Edit Modal (Cards view uses Inline Card Edit so all cards stay visible) */}
         <StudentFormModal

@@ -851,6 +851,81 @@ export async function idbMarkMutationConflict(id: string, errorMessage: string):
   });
 }
 
+// Persist failure details (error message, retry count, attempt timestamp) without deleting mutation (Zero Data Loss)
+export async function idbUpdateMutationError(
+  id: string,
+  errorMessage: string,
+  status: 'pending' | 'conflict' | 'failed' = 'failed'
+): Promise<void> {
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+
+    const tx = db.transaction('mutations', 'readwrite');
+    const store = tx.objectStore('mutations');
+
+    const getReq = store.get(id);
+    getReq.onerror = () => tx.abort();
+
+    getReq.onsuccess = () => {
+      const mutation: OfflineMutation = getReq.result;
+      if (!mutation) {
+        return;
+      }
+      mutation.status = status;
+      mutation.lastError = errorMessage;
+      mutation.retryCount = (mutation.retryCount || 0) + 1;
+      mutation.lastAttemptAt = Date.now();
+      const putReq = store.put(mutation);
+      putReq.onerror = () => tx.abort();
+    };
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => safeReject(tx.error || new Error(`فشلت معاملة تحديث خطأ العملية: ${id}`));
+    tx.onabort = () => safeReject(tx.error || new Error(`تم إلغاء معاملة تحديث خطأ العملية: ${id}`));
+  });
+}
+
+// Reset mutation status to pending for intentional retry
+export async function idbResetMutationRetry(id: string): Promise<void> {
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+
+    const tx = db.transaction('mutations', 'readwrite');
+    const store = tx.objectStore('mutations');
+
+    const getReq = store.get(id);
+    getReq.onerror = () => tx.abort();
+
+    getReq.onsuccess = () => {
+      const mutation: OfflineMutation = getReq.result;
+      if (!mutation) {
+        return;
+      }
+      mutation.status = 'pending';
+      const putReq = store.put(mutation);
+      putReq.onerror = () => tx.abort();
+    };
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => safeReject(tx.error || new Error(`فشلت معاملة إعادة ضبط محاولة العملية: ${id}`));
+    tx.onabort = () => safeReject(tx.error || new Error(`تم إلغاء معاملة إعادة ضبط محاولة العملية: ${id}`));
+  });
+}
+
 export async function idbClearMutations(): Promise<void> {
   const db = await getIndexedDB();
   return new Promise((resolve, reject) => {

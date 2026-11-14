@@ -29,6 +29,7 @@ export interface OfflineMutation {
   expectedVersion?: number;
   timestamp: number;
   retryCount?: number;
-  status?: 'pending' | 'conflict';
+  status?: 'pending' | 'conflict' | 'failed';
   lastError?: string;
+  lastAttemptAt?: number;
 }

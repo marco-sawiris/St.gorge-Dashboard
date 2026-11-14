@@ -10,13 +10,15 @@ import {
   CheckCircle2,
   Clock,
   Database,
-  ShieldCheck
+  ShieldCheck,
+  ChevronLeft
 } from 'lucide-react';
 
 export const SyncDetailsModal: React.FC = () => {
   const {
     isSyncModalOpen,
     setIsSyncModalOpen,
+    setIsQueueModalOpen,
     syncState,
     isSyncing,
     isOnline,
@@ -169,17 +171,33 @@ export const SyncDetailsModal: React.FC = () => {
             </div>
 
             {/* Offline Pending Queue */}
-            <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                setIsQueueModalOpen(true);
+              }}
+              className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] hover:border-amber-500/40 flex items-center justify-between text-right cursor-pointer transition-all duration-200 group active:scale-[0.99]"
+              title="اضغط لعرض تفاصيل العمليات المعلقة"
+              aria-label="عرض تفاصيل طابور العمليات المعلقة"
+            >
               <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-amber-500" />
-                <span className="font-bold text-xs text-[var(--text-secondary)]">طابور العمليات</span>
+                <Database className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                <div className="flex flex-col text-right">
+                  <span className="font-bold text-xs text-[var(--text-secondary)]">طابور العمليات</span>
+                  <span className="text-[10px] text-[var(--text-muted)] group-hover:text-amber-400/90 transition-colors">
+                    اضغط لعرض التفاصيل
+                  </span>
+                </div>
               </div>
-              <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full font-mono ${
-                pendingMutationsCount > 0 ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'bg-[var(--accent-secondary)]/10 text-[var(--accent-secondary)]'
-              }`}>
-                {pendingMutationsCount} معلق
-              </span>
-            </div>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full font-mono ${
+                  pendingMutationsCount > 0 ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'bg-[var(--accent-secondary)]/10 text-[var(--accent-secondary)]'
+                }`}>
+                  {pendingMutationsCount} معلق
+                </span>
+                <ChevronLeft className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" />
+              </div>
+            </button>
 
             {/* Last Successful Pull */}
             <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] space-y-1">
