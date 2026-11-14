@@ -158,7 +158,7 @@ export default function App() {
           </div>
 
           {/* Main Content Area with compensated top padding for Fixed TopBar */}
-          <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-4 pt-[calc(5.25rem+env(safe-area-inset-top))] pb-28 relative z-10">
+          <main className="flex-1 min-w-0 w-full max-w-6xl mx-auto px-3 sm:px-4 pt-[calc(5.25rem+env(safe-area-inset-top))] pb-28 relative z-10 overflow-x-clip box-border">
             {/* Active Area Filter Banner */}
             {filters.area && (
               <div className="mb-3.5 p-3 rounded-2xl glass border border-[var(--border-color)] flex items-center justify-between text-xs font-bold text-[var(--accent-secondary)] shadow-xs word-in">
@@ -273,11 +273,11 @@ export default function App() {
                           </p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 word-in-scope min-w-0">
+                        <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 word-in-scope overflow-x-clip box-border">
                           {filteredStudents.map((student, idx) => (
                             <div
                               key={student.id}
-                              className="word-in min-w-0 w-[90%] max-w-[90%] mx-auto"
+                              className="word-in min-w-0 w-full max-w-full mx-auto box-border"
                               style={{ '--i': Math.min(idx, 8) } as React.CSSProperties}
                             >
                               <StudentCard
