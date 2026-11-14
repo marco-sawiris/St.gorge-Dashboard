@@ -589,16 +589,14 @@ async function runPhase2Tests() {
     const syncLock = { current: false };
 
     (globalThis as any).fetch = async (url: string) => {
-      if (url.includes('/api/health')) {
-        // Add artificial delay to guarantee overlap
+      if (url.includes('script.google.com/macros/s/')) {
+        // The production config now defaults to the Apps Script relay.
+        // Delay its real read path to guarantee both sync calls overlap.
         await new Promise((r) => setTimeout(r, 50));
-        return { ok: true, status: 200 };
-      }
-      if (url.includes('/api/sheets/data')) {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ targetSheet: 'نشط', isComplete: true, students: [] })
+          json: async () => ({ ok: true, targetSheet: 'نشط', isComplete: true, students: [] })
         };
       }
       return { ok: true, status: 200, json: async () => ({}) };
