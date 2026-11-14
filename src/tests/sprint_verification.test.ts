@@ -136,6 +136,8 @@ async function cleanIDB() {
 
 async function runSprintTests() {
   (globalThis as any).localStorage = createStorageMock();
+  // The direct relay path requires the configured shared key; this is a test-only value.
+  setRelayKey('SPRINT_TEST_RELAY_KEY_32_CHARACTERS_MINIMUM');
   const originalFetch = globalThis.fetch;
 
   const adminUser: AuthUser = {
