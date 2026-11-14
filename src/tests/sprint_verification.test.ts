@@ -155,10 +155,10 @@ async function runSprintTests() {
   let recordedError: string | null = null;
 
   (globalThis as any).fetch = async (url: string) => {
-    if (String(url).includes('/api/health')) {
+    if (String(url).includes('script.google.com/macros/s/')) {
       return { ok: true, status: 200, json: async () => ({ status: 'ok' }) } as any;
     }
-    if (String(url).includes('/api/sheets/data')) {
+    if (String(url).includes('action=getStudents')) {
       return {
         ok: true,
         status: 200,
@@ -269,8 +269,9 @@ async function runSprintTests() {
 
   const seenKeys: string[] = [];
   (globalThis as any).fetch = async (url: string, opts?: any) => {
-    if (String(url).includes('/api/sheets/mutate')) {
-      seenKeys.push(opts?.headers?.['X-Idempotency-Key']);
+    if (String(url).includes('script.google.com/macros/s/')) {
+      const body = JSON.parse(opts?.body || '{}');
+      seenKeys.push(body.idempotencyKey);
       return {
         ok: true,
         status: 200,
