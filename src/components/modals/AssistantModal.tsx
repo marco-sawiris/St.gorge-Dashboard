@@ -150,7 +150,7 @@ export const AssistantModal: React.FC = () => {
               continue;
             }
             try {
-              const saved = await recordFollowup(target.id, command.method, 'تم التسجيل بواسطة المساعد الذكي — ' + command.weekFridayDate);
+              const saved = await recordFollowup(target.id, command.method);
               if (saved) savedNames.push(target.name); else failedNames.push(target.name);
             } catch (error) {
               console.error('Assistant follow-up save failed for ' + target.name, error);
