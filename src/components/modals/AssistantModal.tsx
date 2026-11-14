@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   AssistantMessage,
   processAssistantQuery
@@ -24,13 +25,17 @@ const QUICK_PROMPTS = [
   { label: '🌟 رسالة تشجيع', query: 'رسالة تشجيع' },
   { label: '📊 إحصائيات', query: 'إحصائيات' },
   { label: '⚠️ الغائبون', query: 'الغائبون' },
+  { label: '✅ الحضور اليوم', query: 'مين حضر النهارده؟' },
+  { label: '🎂 الشهر القادم', query: 'أعياد الميلاد الشهر القادم' },
+  { label: '📞 افتقاد هذا الأسبوع', query: 'مين نسيت افتقدهم الأسبوع ده؟' },
+  { label: '📉 حضور ضعيف', query: 'الأولاد اللي حضورهم مش قوي' },
   { label: '❓ مساعدة', query: 'مساعدة' }
 ];
 
 const INITIAL_BOT_MESSAGE: AssistantMessage = {
   id: 'welcome-msg',
   role: 'bot',
-  text: 'سلام ونعمة ✝️ أنا المساعد الذكي لفصل الشهيد مارجرجس.\nأعمل محلياً داخل التطبيق مباشرة من بياناتك الحقيقية (أعياد الميلاد، الغياب، الإحصائيات، البحث، ورسائل الافتقاد الجاهزة) دون إرسال بياناتك لأي خدمة خارجية.',
+  text: 'سلام ونعمة ✝️ أنا المساعد الذكي لفصل الشهيد مارجرجس.\nأفهم بيانات المخدومين والحضور والغياب وأعياد الميلاد والافتقاد، وأقدر أنفذ أوامر واضحة لتسجيل الحضور والغياب والافتقاد الجماعي (مكالمة أو واتساب أو زيارة منزلية)، وأفتح كروت المخدومين للتعديل، مع استخدام قاعدة البيانات المحلية وطابور المزامنة.',
   actions: [
     { label: '📊 عرض الإحصائيات', type: 'prompt', payload: 'إحصائيات' },
     { label: '🎂 أعياد الميلاد', type: 'prompt', payload: 'أعياد الميلاد' },
@@ -44,10 +49,20 @@ export const AssistantModal: React.FC = () => {
     isAssistantOpen,
     setIsAssistantOpen,
     students,
+    filters,
     lastSuccessfulSyncTime,
     syncData,
-    isSyncing
+    isSyncing,
+    isOnline,
+    markAttendance,
+    recordFollowup,
+    processOfflineQueue,
+    requestEditStudent,
+    setFilters,
+    setActiveView,
+    addNotification
   } = useApp();
+  const { user } = useAuth();
 
   const [messages, setMessages] = useState<AssistantMessage[]>([INITIAL_BOT_MESSAGE]);
   const [input, setInput] = useState('');
@@ -81,21 +96,121 @@ export const AssistantModal: React.FC = () => {
     setIsTyping(true);
 
     setTimeout(() => {
-      const response = processAssistantQuery(clean, students, {
-        lastSyncLabel: lastSuccessfulSyncTime
-      });
-      const botMsg: AssistantMessage = {
-        id: generateUUID(),
-        role: 'bot',
-        text: response.text,
-        copyText: response.copyText,
-        whatsappText: response.whatsappText,
-        whatsappPhone: response.whatsappPhone,
-        actions: response.actions,
-        timestamp: Date.now()
-      };
-      setMessages((prev) => [...prev, botMsg]);
-      setIsTyping(false);
+      void (async () => {
+        let response = processAssistantQuery(clean, students, {
+          lastSyncLabel: lastSuccessfulSyncTime,
+          servantName: filters.servant || user?.assignedServantName || undefined
+        });
+
+        // Explicit, uniquely matched attendance commands write through the same
+        // IndexedDB + offline mutation queue used by the student card controls.
+        if (response.command?.type === 'markAttendance') {
+          const command = response.command;
+          const currentStudent = students.find((s) => s.id === command.studentId);
+          const existing = currentStudent?.att?.[command.targetFridayDate];
+          if (existing === command.isPresent) {
+            response = {
+              text: `\u2139\ufe0f ${command.studentName} مسجل بالفعل كـ${command.isPresent ? 'حاضر' : 'غائب'} عن ${command.targetFridayDate}. لم أضف سجلًا مكررًا.`
+            };
+          } else {
+            const saved = await markAttendance(command.studentId, command.isPresent, command.targetFridayDate);
+            if (!saved) {
+              response = {
+                text: `تعذر تسجيل ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName}. راجع تنبيه التطبيق وحالة المزامنة، ولم أعتبر العملية ناجحة.`
+              };
+            } else if (isOnline) {
+              try {
+                const syncResult = await processOfflineQueue();
+                response = {
+                  text: syncResult.success && syncResult.remainingCount === 0
+                    ? `\u2705 تم تسجيل ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} عن ${command.targetFridayDate}، وتم إرسال العملية بنجاح إلى المزامنة.\n\nعدد العمليات المعلقة الآن: 0.`
+                    : `\u2705 تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}. لكن المزامنة لم تكتمل بعد؛ العمليات المعلقة: ${syncResult.remainingCount}. لن أفترض أن Google Sheets تم تحديثه.`
+                };
+              } catch (error) {
+                console.error('Assistant attendance sync failed:', error);
+                response = {
+                  text: `\u2705 تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}، لكن تعذر تأكيد المزامنة. البيانات محفوظة في طابور الإرسال للمحاولة لاحقًا.`
+                };
+              }
+            } else {
+              response = {
+                text: `\u2705 تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}. الجهاز غير متصل، وسيتم إرسال العملية عند عودة الإنترنت.`
+              };
+            }
+          }
+        } else if (response.command?.type === 'recordFollowupBatch') {
+          const command = response.command;
+          const savedNames: string[] = [];
+          const failedNames: string[] = [];
+          for (const target of command.students) {
+            const currentStudent = students.find((s) => s.id === target.id);
+            if (!currentStudent) { failedNames.push(target.name + ' (غير موجود)'); continue; }
+            if (currentStudent.fu?.[command.weekFridayDate]) {
+              failedNames.push(target.name + ' (مسجل بالفعل هذا الأسبوع)');
+              continue;
+            }
+            try {
+              const saved = await recordFollowup(target.id, command.method, 'تم التسجيل بواسطة المساعد الذكي — ' + command.weekFridayDate);
+              if (saved) savedNames.push(target.name); else failedNames.push(target.name);
+            } catch (error) {
+              console.error('Assistant follow-up save failed for ' + target.name, error);
+              failedNames.push(target.name);
+            }
+          }
+          let syncSummary = '';
+          if (savedNames.length && isOnline) {
+            try {
+              const syncResult = await processOfflineQueue();
+              syncSummary = syncResult.success && syncResult.remainingCount === 0
+                ? '\nتمت مزامنة كل العمليات بنجاح.'
+                : '\nتم الحفظ محليًا، لكن توجد عمليات لم تكتمل مزامنتها: ' + syncResult.remainingCount + '. لا أؤكد تحديث Google Sheets بعد.';
+            } catch (error) {
+              console.error('Assistant follow-up batch sync failed:', error);
+              syncSummary = '\nتم الحفظ محليًا، لكن تعذر تأكيد المزامنة.';
+            }
+          } else if (savedNames.length) {
+            syncSummary = '\nالجهاز غير متصل؛ ستتم المزامنة عند عودة الإنترنت.';
+          }
+          response = {
+            text: 'نتيجة تسجيل الافتقاد (' + command.method + '):\nتم الحفظ: ' + savedNames.length + '\n' + (savedNames.length ? savedNames.map((name) => '• ' + name).join('\n') : 'لا توجد أسماء محفوظة.') +
+              (failedNames.length ? '\n\nلم يتم الحفظ (' + failedNames.length + '):\n' + failedNames.map((name) => '• ' + name).join('\n') : '') + syncSummary
+          };
+        } else if (response.command?.type === 'openEdit') {
+          const command = response.command;
+          setActiveView('cards');
+          const opened = requestEditStudent(command.studentId);
+          if (opened) {
+            setFilters((prev) => ({
+              ...prev,
+              searchQuery: command.studentName,
+              sheet: '__ALL__',
+              servant: '',
+              area: '',
+              alphabetLetter: null
+            }));
+            addNotification('تم فتح كارت المخدوم', `كارت ${command.studentName} جاهز للتعديل. احفظ التغييرات من الكارت.`, 'success');
+            setIsAssistantOpen(false);
+          } else {
+            response = {
+              text: `لم أفتح كارت ${command.studentName} لأن هناك كارتًا آخر قيد التعديل أو تغييرات غير محفوظة. احفظ التعديل الحالي أو ألغِه أولاً.`
+            };
+          }
+        }
+
+        const botMsg: AssistantMessage = {
+          id: generateUUID(),
+          role: 'bot',
+          text: response.text,
+          copyText: response.copyText,
+          whatsappText: response.whatsappText,
+          whatsappPhone: response.whatsappPhone,
+          actions: response.actions,
+          command: response.command,
+          timestamp: Date.now()
+        };
+        setMessages((prev) => [...prev, botMsg]);
+        setIsTyping(false);
+      })();
     }, 140);
   };
 
@@ -120,7 +235,7 @@ export const AssistantModal: React.FC = () => {
       aria-modal="true"
       aria-label="المساعد الذكي"
     >
-      <div className="w-full max-w-2xl h-[86vh] max-h-[720px] glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col animate-wordIn">
+      <div className="w-full max-w-2xl h-[min(90dvh,760px)] max-h-[90dvh] min-w-0 glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col animate-wordIn">
         {/* Header */}
         <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--surface-primary)]/50 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -265,7 +380,7 @@ export const AssistantModal: React.FC = () => {
         </div>
 
         {/* Quick Prompts Strip */}
-        <div className="px-3.5 py-2 border-t border-[var(--border-color)] bg-[var(--surface-primary)]/40 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+        <div className="px-3.5 py-2 border-t border-[var(--border-color)] bg-[var(--surface-primary)]/40 flex flex-wrap justify-center items-center gap-1.5 shrink-0">
           {QUICK_PROMPTS.map((qp) => (
             <button
               key={qp.label}
@@ -290,8 +405,8 @@ export const AssistantModal: React.FC = () => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="اسأل عن أعياد الميلاد، الغائبين، الإحصائيات، أو اكتب اسم مخدوم..."
-            className="flex-1 h-10 px-3.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs sm:text-sm font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#20c7e8]"
+            placeholder="اسأل عن الحضور والغياب وأعياد الميلاد، أو قل: سجل حضور + اسم المخدوم..."
+            className="flex-1 min-w-0 h-10 px-3.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs sm:text-sm font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#20c7e8]"
             dir="rtl"
           />
           <button

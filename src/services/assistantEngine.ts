@@ -1,5 +1,5 @@
 import { Student } from '../types/student';
-import { getNearestFridayString, normalizeArabicText } from '../utils/arabicUtils';
+import { getLatestHeldFridayString, getNearestFridayString, normalizeArabicText } from '../utils/arabicUtils';
 
 export interface AssistantAction {
   label: string;
@@ -7,6 +7,11 @@ export interface AssistantAction {
   payload: string;
   phone?: string;
 }
+
+export type AssistantCommand =
+  | { type: 'markAttendance'; studentId: string; studentName: string; isPresent: boolean; targetFridayDate: string }
+  | { type: 'openEdit'; studentId: string; studentName: string }
+  | { type: 'recordFollowupBatch'; students: Array<{ id: string; name: string }>; method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة'; weekFridayDate: string };
 
 export interface AssistantMessage {
   id: string;
@@ -16,6 +21,7 @@ export interface AssistantMessage {
   whatsappText?: string;
   whatsappPhone?: string;
   actions?: AssistantAction[];
+  command?: AssistantCommand;
   timestamp: number;
 }
 
@@ -25,6 +31,7 @@ export interface AssistantResponse {
   whatsappText?: string;
   whatsappPhone?: string;
   actions?: AssistantAction[];
+  command?: AssistantCommand;
 }
 
 export interface AssistantFaqItem {
@@ -200,7 +207,8 @@ export interface BirthdayMatch {
 export function getBirthdayStudents(
   students: Student[],
   daysWindow: number = 7,
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  startOffsetDays: number = 0
 ): BirthdayMatch[] {
   const today = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
   const matches: BirthdayMatch[] = [];
@@ -215,7 +223,7 @@ export function getBirthdayStudents(
     }
 
     const diffDays = Math.round((nextBd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays >= 0 && diffDays <= daysWindow) {
+    if (diffDays >= Math.max(0, startOffsetDays) && diffDays <= daysWindow) {
       matches.push({
         student: s,
         date: bd,
@@ -234,7 +242,9 @@ export type AssistantIntent =
   | 'birthdayMessage'
   | 'message'
   | 'stats'
+  | 'present'
   | 'absent'
+  | 'missingFollowup'
   | 'lowAttendance'
   | 'topAttendance'
   | 'faq'
@@ -266,6 +276,15 @@ export function detectAssistantIntent(query: string): AssistantIntent {
     return 'message';
   }
 
+  // Attendance queries for the latest held Friday (not the next upcoming Friday).
+  if ((q.includes('حضر') || q.includes('حاضرين') || q.includes('الحضور')) &&
+      (q.includes('مين') || q.includes('عدد') || q.includes('كام') || q.includes('النهارده') || q.includes('اليوم'))) {
+    return 'present';
+  }
+
+  // Weak attendance requests should return the low-attendance list, even when phrased as a count.
+  if (q.includes('حضور') && (q.includes('مش قوي') || q.includes('ضعيف') || q.includes('اقل'))) return 'lowAttendance';
+
   // Stats & Analytics
   if (
     q.includes('احصائي') ||
@@ -279,11 +298,15 @@ export function detectAssistantIntent(query: string): AssistantIntent {
     return 'stats';
   }
 
+  // Follow-up gaps for the current service week.
+  if ((q.includes('افتقاد') || q.includes('افتقد') || q.includes('كلم')) &&
+      (q.includes('الاسبوع ده') || q.includes('هذا الاسبوع') || q.includes('نسي') || q.includes('ما افتقد') || q.includes('مفتقدتش') || q.includes('ما كلم'))) return 'missingFollowup';
+
   // Attendance tiers
   if (q.includes('غائب') || q.includes('غايب') || q.includes('لم يحضر') || q.includes('محتاجين افتقاد')) {
     return 'absent';
   }
-  if (q.includes('ضعيف') || q.includes('اقل حضور') || q.includes('منقطع') || q.includes('مقصر')) {
+  if (q.includes('ضعيف') || q.includes('اقل حضور') || q.includes('منقطع') || q.includes('مقصر') || q.includes('حضورهم مش قوي') || q.includes('حضورهم ضعيف') || (q.includes('حضور') && q.includes('مش قوي'))) {
     return 'lowAttendance';
   }
   if (q.includes('افضل') || q.includes('اعلي حضور') || q.includes('منتظم') || q.includes('اكثر حضور')) {
@@ -387,21 +410,130 @@ function pickMessageTemplate(query: string): { category: keyof typeof MESSAGE_TE
   return { category, text: chosen };
 }
 
+
+/**
+ * Converts explicit natural-language commands into safe, app-level actions.
+ * Attendance commands require one uniquely identified student; ambiguous names never execute.
+ */
+function resolveAssistantStudent(target: string, students: Student[]): { student?: Student; matches: Student[] } {
+  const normalizedTarget = normalizeArabicText(target);
+  const exactCode = students.filter((s) => normalizeArabicText(s.code || '') === normalizedTarget);
+  const exactName = students.filter((s) => normalizeArabicText(s.name || '') === normalizedTarget);
+  let matches = exactCode.length ? exactCode : exactName;
+  if (matches.length === 0) {
+    matches = students.filter((s) => {
+      const name = normalizeArabicText(s.name || '');
+      const code = normalizeArabicText(s.code || '');
+      return (name && (name.includes(normalizedTarget) || normalizedTarget.includes(name))) || code === normalizedTarget;
+    });
+  }
+  return { student: matches.length === 1 ? matches[0] : undefined, matches };
+}
+export function parseAssistantCommand(
+  query: string,
+  students: Student[],
+  targetFridayDate: string
+): AssistantResponse | null {
+  const q = normalizeArabicText(query);
+  if (!q) return null;
+
+  const followupMatch = query.match(/(?:كلمت|اتصلت(?:\s+ب)?|بعت(?:\s+رساله)?\s+واتساب\s+لـ?|بعت\s+واتساب\s+لـ?|زرت|عملت\s+زياره\s+منزليه\s+لـ?)\s*(.+)$/i);
+  if (followupMatch) {
+    const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').replace(/^(?:مثلاً|مثلا|أنا|انا|النهارده|النهاردة)\s+/i, '').trim();
+    const method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة' = /واتساب/i.test(query) ? 'واتساب' : /زرت|زياره\s+منزليه/i.test(query) ? 'تم بزيارة' : 'تم تليفونياً';
+    const targets = rawTail.split(/،|,|\s+و\s*/).map((name) => name.trim()).filter(Boolean);
+    const resolved: Student[] = [];
+    const problems: string[] = [];
+    for (const targetName of targets) {
+      const result = resolveAssistantStudent(targetName, students);
+      if (!result.student) {
+        problems.push(result.matches.length > 1
+          ? '«' + targetName + '» اسم غير محدد ويطابق: ' + result.matches.slice(0, 4).map((s) => s.name + ' (' + s.code + ')').join('، ')
+          : '«' + targetName + '» غير موجود في البيانات المحملة');
+      } else if (!resolved.some((s) => s.id === result.student!.id)) resolved.push(result.student);
+    }
+    if (problems.length || resolved.length === 0) {
+      return { text: 'لم أسجل أي افتقاد لأن بعض الأسماء تحتاج توضيحًا:\n• ' + problems.join('\n• ') + '\nاكتب الاسم الكامل أو الكود لكل مخدوم، ثم أعد الأمر.' };
+    }
+    const weekFridayDate = getNearestFridayString();
+    const already = resolved.filter((s) => Boolean(s.fu?.[weekFridayDate]));
+    const fresh = resolved.filter((s) => !s.fu?.[weekFridayDate]);
+    if (fresh.length === 0) {
+      return { text: 'كل الأسماء المحددة لها افتقاد مسجل بالفعل لهذا الأسبوع (' + weekFridayDate + '):\n' + already.map((s) => '• ' + s.name + ': ' + s.fu?.[weekFridayDate]).join('\n') + '\nلم أضف سجلات مكررة.' };
+    }
+    return {
+      text: 'سأُسجل ' + method + ' للأسماء التالية: ' + fresh.map((s) => s.name).join('، ') + '.\n' + (already.length ? 'تم استبعاد ' + already.length + ' اسم مسجل بالفعل هذا الأسبوع.\n' : '') + 'جارٍ الحفظ...',
+      command: { type: 'recordFollowupBatch', students: fresh.map((s) => ({ id: s.id, name: s.name })), method, weekFridayDate }
+    };
+  }
+  const attendanceMatch = q.match(/^(?:سجل|سجلي|اثبت|اثبتي)\s+(?:الحضور|حضور|الغياب|غياب|حاضر|غائب)\s*(.*)$/);
+  const editMatch = q.match(/^(?:افتح|فتح)\s+(?:تعديل|كارت للتعديل|الكارت للتعديل)\s*(.*)$/) ||
+    q.match(/^عدل بيانات\s+(.+)$/);
+
+  const match = attendanceMatch || editMatch;
+  if (!match) return null;
+
+  const isAttendance = Boolean(attendanceMatch);
+  const target = String(match[1] || '')
+    .replace(/^(?:الولد|المخدوم|الطالب|كارت)\s+/, '')
+    .replace(/\s+(?:مرتين|مرة واحدة)$/, '')
+    .trim();
+
+  if (!target) {
+    return {
+      text: isAttendance
+        ? 'اكتب اسم المخدوم أو الكود، مثال: «سجل حضور بيشوي عماد». لم يتم تسجيل أي تغيير.'
+        : 'اكتب اسم المخدوم أو الكود، مثال: «افتح تعديل كارت بيشوي عماد».'
+    };
+  }
+
+  const { matches } = resolveAssistantStudent(target, students);
+
+  if (matches.length === 0) {
+    return { text: `لم أجد مخدوماً مطابقاً للاسم «${target}». لم يتم تنفيذ أي تغيير؛ جرّب الاسم بالكامل أو الكود.` };
+  }
+  if (matches.length > 1) {
+    return {
+      text: `الاسم «${target}» مطابق لأكثر من مخدوم. لم أنفذ أي تغيير لتجنب تسجيله للشخص الخطأ:\n${matches.slice(0, 8).map((s, i) => `${i + 1}. ${s.name} — ${s.code} — الأشبين: ${s.servant || 'غير محدد'}`).join('\n')}\nاكتب الاسم بالكامل أو الكود.`
+    };
+  }
+
+  const student = matches[0];
+  if (isAttendance) {
+    const isPresent = !/(?:غياب|الغياب|غائب)/.test(q.slice(0, q.indexOf(target)));
+    return {
+      text: `جارٍ تسجيل ${isPresent ? 'حضور' : 'غياب'} ${student.name} عن ${targetFridayDate}.`,
+      command: { type: 'markAttendance', studentId: student.id, studentName: student.name, isPresent, targetFridayDate }
+    };
+  }
+
+  return {
+    text: `هفتح كارت ${student.name} في وضع التعديل. تقدر تعدل البيانات وتحفظ من الكارت نفسه.`,
+    command: { type: 'openEdit', studentId: student.id, studentName: student.name }
+  };
+}
+
 export function processAssistantQuery(
   query: string,
   students: Student[],
-  options?: { referenceDate?: Date; lastSyncLabel?: string | null }
+  options?: { referenceDate?: Date; lastSyncLabel?: string | null; servantName?: string | null }
 ): AssistantResponse {
   const trimmed = String(query || '').trim();
   const intent = detectAssistantIntent(trimmed);
-  const currentFriday = getNearestFridayString(options?.referenceDate || new Date());
+  const referenceDate = options?.referenceDate || new Date();
+  const currentFriday = getLatestHeldFridayString();
+
+  const command = parseAssistantCommand(trimmed, students, currentFriday);
+  if (command) return command;
 
   const dataIntents: AssistantIntent[] = [
     'birthdays',
     'birthdayMessage',
     'message',
     'stats',
+    'present',
     'absent',
+    'missingFollowup',
     'lowAttendance',
     'topAttendance',
     'search'
@@ -421,10 +553,35 @@ export function processAssistantQuery(
 
   switch (intent) {
     case 'birthdays': {
-      const matches = getBirthdayStudents(students, 7, options?.referenceDate);
+      const q = normalizeArabicText(trimmed);
+      const today = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+      let startOffsetDays = 0;
+      let endOffsetDays = 7;
+      let periodLabel = 'اليوم والـ 7 أيام القادمة';
+      if (q.includes('الشهر القادم') || q.includes('الشهر الجاي') || q.includes('الشهر المقبل') || q.includes('الشهر اللي جاي')) {
+        const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+        startOffsetDays = Math.ceil((nextMonthStart.getTime() - today.getTime()) / 86400000);
+        endOffsetDays = Math.floor((nextMonthEnd.getTime() - today.getTime()) / 86400000);
+        periodLabel = 'الشهر القادم';
+      } else {
+        const daysMatch = q.match(/(\d+)\s*(?:يوم|ايام)/);
+        if (daysMatch) {
+          endOffsetDays = Math.min(366, Math.max(0, Number(daysMatch[1])));
+          periodLabel = `خلال ${endOffsetDays} يوم`;
+        } else if (q.includes('خلال شهر') || q.includes('الشهر الجاي') || q.includes('بعد شهر')) {
+          endOffsetDays = 30;
+          periodLabel = 'خلال 30 يوم';
+        } else if (q.includes('هذا الشهر') || q.includes('الشهر الحالي')) {
+          const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          endOffsetDays = Math.floor((monthEnd.getTime() - today.getTime()) / 86400000);
+          periodLabel = 'باقي الشهر الحالي';
+        }
+      }
+      const matches = getBirthdayStudents(students, endOffsetDays, referenceDate, startOffsetDays);
       if (matches.length === 0) {
         return {
-          text: `لا توجد أعياد ميلاد مسجلة خلال اليوم أو الـ 7 أيام القادمة من إجمالي ${students.length} مخدوم محمّل.`,
+          text: `لا توجد أعياد ميلاد مسجلة خلال ${periodLabel} من إجمالي ${students.length} مخدوم محمّل.`,
           actions: [
             { label: '🎉 رسالة تهنئة عامة', type: 'prompt', payload: 'اكتب رسالة عيد ميلاد' },
             { label: '📊 عرض الإحصائيات', type: 'prompt', payload: 'إحصائيات' }
@@ -441,7 +598,7 @@ export function processAssistantQuery(
       const sampleMsg = MESSAGE_TEMPLATES.birthday[0].replace('{name}', first.name.split(' ')[0] || first.name);
 
       return {
-        text: `🎂 أعياد الميلاد القادمة (${matches.length}):\n\n${lines.join('\n')}`,
+        text: `🎂 أعياد الميلاد — ${periodLabel} (${matches.length}):\n\n${lines.join('\n')}`,
         copyText: sampleMsg,
         whatsappText: sampleMsg,
         whatsappPhone: getPreferredPhone(first),
@@ -478,8 +635,9 @@ export function processAssistantQuery(
 
     case 'stats': {
       const total = students.length;
-      const present = students.filter((s) => Boolean(s.att && s.att[currentFriday])).length;
-      const absent = Math.max(0, total - present);
+      const present = students.filter((s) => s.att?.[currentFriday] === true).length;
+      const absent = students.filter((s) => s.att?.[currentFriday] === false).length;
+      const unrecorded = Math.max(0, total - present - absent);
       const attPct = total > 0 ? Math.round((present / total) * 100) : 0;
       const regular = students.filter((s) => Number(s.attendanceMonth) >= 3).length;
       const zeroMonth = students.filter((s) => Number(s.attendanceMonth) === 0).length;
@@ -492,7 +650,7 @@ export function processAssistantQuery(
       const summary = [
         `📊 إحصائيات الخدمة الحقيقية (جمعة ${currentFriday}):`,
         `• إجمالي المخدومين المحملين: ${total} (موزعين على ${servants} خادم/أشبين)`,
-        `• حضور الجمعة الحالية: ${present} (${attPct}%) | الغائبون: ${absent}`,
+        `• حضور آخر جمعة انعقدت (${currentFriday}): ${present} (${attPct}%) | غياب مسجل: ${absent} | لم يُسجل: ${unrecorded}`,
         `• المنتظمون هذا الشهر (3+): ${regular} | لم يحضروا هذا الشهر: ${zeroMonth}`,
         `• نسبة الافتقاد المسجل: ${followedUp} (${fuPct}%)`,
         options?.lastSyncLabel ? `• آخر مزامنة ناجحة: ${options.lastSyncLabel}` : '• المزامنة: لم تتم مزامنة موثقة بعد'
@@ -509,11 +667,22 @@ export function processAssistantQuery(
       };
     }
 
+    case 'present': {
+      const presentList = students.filter((s) => s.att?.[currentFriday] === true);
+      const unrecorded = students.filter((s) => typeof s.att?.[currentFriday] !== 'boolean').length;
+      return {
+        text: `✅ الحضور المسجل لآخر جمعة انعقدت (${currentFriday}): ${presentList.length} مخدوم من إجمالي ${students.length}.\n\n${presentList.length ? presentList.map((s, i) => `${i + 1}. ${s.name} (${s.code}) — الأشبين: ${s.servant || 'غير محدد'}`).join('\n') : 'لا يوجد حضور مسجل.'}\n\nعدد السجلات التي لم يُسجل لها حضور أو غياب: ${unrecorded}.`,
+        copyText: presentList.map((s) => `${s.name} (${s.code})`).join('\n'),
+        actions: [{ label: '⚠️ عرض الغائبين', type: 'prompt', payload: 'الغائبون' }]
+      };
+    }
+
     case 'absent': {
-      const absentList = students.filter((s) => !s.att || !s.att[currentFriday]);
+      const absentList = students.filter((s) => s.att?.[currentFriday] === false);
+      const unrecorded = students.filter((s) => typeof s.att?.[currentFriday] !== 'boolean').length;
       if (absentList.length === 0) {
         return {
-          text: `🎉 لا يوجد أي مخدوم غائب مسجل لجمعة (${currentFriday}) ضمن البيانات المحملة (${students.length} حاضر).`
+          text: `🎉 لا يوجد أي مخدوم مسجل كغائب لآخر جمعة انعقدت (${currentFriday}). يوجد ${unrecorded} سجل لم يُسجل له حضور أو غياب.`
         };
       }
       const preview = absentList.slice(0, 12).map((s, idx) => {
@@ -523,16 +692,34 @@ export function processAssistantQuery(
       });
       const extra = absentList.length > 12 ? `\n...وعدد ${absentList.length - 12} آخرين.` : '';
       return {
-        text: `⚠️ الغائبون عن جمعة (${currentFriday}) — الإجمالي (${absentList.length}):\n\n${preview.join('\n')}${extra}`,
+        text: `⚠️ الغياب المسجل عن آخر جمعة انعقدت (${currentFriday}) — الإجمالي (${absentList.length}):\n\n${preview.join('\n')}${extra}\n\nسجلات بدون تسجيل حضور/غياب: ${unrecorded}.`,
         copyText: preview.join('\n'),
         actions: [{ label: '💙 رسالة افتقاد جاهزة', type: 'prompt', payload: 'رسالة افتقاد' }]
       };
     }
 
+    case 'missingFollowup': {
+      const explicitServant = trimmed.match(/(?:للأشبين|للأشبن|بالنسبة للأشبين|بالنسبة للأشبن)\s+(.+)$/);
+      const servantName = options?.servantName?.trim() || explicitServant?.[1]?.trim();
+      const allServantsRequested = normalizeArabicText(trimmed).includes('كل الاشابين');
+      if (!servantName && !allServantsRequested) {
+        return { text: 'علشان أطلع لك الأسماء اللي تخصك بدقة، اختار اسمك من فلتر «أشابين وخدام الفصل» في القائمة الجانبية، وبعدها اسألني تاني. أو قل «كل الأشابين» لعرض تقرير شامل.' };
+      }
+      const weekFridayDate = getNearestFridayString(referenceDate);
+      const assigned = students.filter((s) => allServantsRequested || s.servant?.trim() === servantName);
+      const missing = assigned.filter((s) => !s.fu?.[weekFridayDate]);
+      const scope = allServantsRequested ? 'كل الأشابين' : 'الأشبن: ' + servantName;
+      const lines = missing.slice(0, 30).map((s, i) => (i + 1) + '. ' + s.name + ' (' + s.code + ') — ' + (s.servant || 'غير مسند') + ' — آخر افتقاد: ' + (s.lastFollowup || 'غير مسجل'));
+      return {
+        text: missing.length
+          ? '📋 مخدومون لم يظهر لهم افتقاد مسجل هذا الأسبوع (أسبوع ' + weekFridayDate + ')\nالنطاق: ' + scope + '\nالعدد: ' + missing.length + ' من ' + assigned.length + '\n\n' + lines.join('\n') + (missing.length > 30 ? '\n... و' + (missing.length - 30) + ' أسماء أخرى.' : '') + '\n\nتنبيه: القائمة مبنية على سجلات الافتقاد المحفوظة في التطبيق، وليست إثباتًا أن مكالمة لم تحدث خارج التطبيق.'
+          : 'ممتاز، كل المخدومين ضمن النطاق المحدد لديهم افتقاد مسجل هذا الأسبوع (' + weekFridayDate + ').\nالنطاق: ' + scope + '.'
+      };
+    }
     case 'lowAttendance': {
       const lowList = [...students]
-        .filter((s) => Number(s.attendanceTotal) <= 1)
-        .sort((a, b) => Number(a.attendanceTotal) - Number(b.attendanceTotal));
+        .filter((s) => (!options?.servantName || s.servant?.trim() === options.servantName.trim()) && Number(s.attendanceMonth) <= 1)
+        .sort((a, b) => Number(a.attendanceMonth) - Number(b.attendanceMonth) || Number(a.attendanceTotal) - Number(b.attendanceTotal));
 
       if (lowList.length === 0) {
         return {
@@ -540,7 +727,7 @@ export function processAssistantQuery(
         };
       }
       const lines = lowList.slice(0, 12).map(
-        (s, idx) => `${idx + 1}. ${s.name} (${s.code}) — إجمالي الحضور: ${s.attendanceTotal} • آخر حضور: ${s.lastAttendance || 'غير مسجل'}`
+        (s, idx) => `${idx + 1}. ${s.name} (${s.code}) — حضور الشهر: ${s.attendanceMonth}/4 • إجمالي الحضور: ${s.attendanceTotal} • آخر حضور: ${s.lastAttendance || 'غير مسجل'}`
       );
       return {
         text: `📉 المخدومون الأقل حضوراً (<= 1 مرة) — عددهم (${lowList.length}):\n\n${lines.join('\n')}`,
@@ -632,9 +819,11 @@ export function processAssistantQuery(
       return {
         text: [
           'أهلاً بك في المساعد الذكي (يعمل محلياً بالكامل بدون إنترنت أو إرسال بيانات لخوادم ذكاء اصطناعي خارجية):',
-          '• «أعياد الميلاد» — أعياد ميلاد اليوم والأيام السبعة القادمة',
-          '• «إحصائيات» — ملخص الحضور، الغياب، الانتظام والافتقاد من البيانات المحملة',
-          '• «الغائبون» / «أقل حضور» / «أفضل حضور» — متابعة المخدومين',
+          '• «أعياد الميلاد» أو «أعياد الميلاد الشهر القادم» أو «أعياد الميلاد خلال 30 يوم» — بحث بتاريخ مرن',
+          '• «مين حضر النهارده؟» / «مين غاب؟» / «اللي حضورهم مش قوي» — قوائم الحضور والغياب والمحتاجين افتقاد',
+          '• «النهارده كلمت مارتن، مايكل» / «بعت واتساب لـ...» / «زرت ...» — تسجيل افتقاد جماعي على الكروت',
+          '• «مين نسيته في الافتقاد الأسبوع ده؟» — المخدومون الذين لا يوجد لهم سجل افتقاد هذا الأسبوع حسب الأشبين المحدد',
+          '• «الغائبون» / «اللي حضورهم مش قوي» / «أفضل حضور» — متابعة المخدومين حسب حضور الشهر الحالي',
           '• «رسالة افتقاد [الاسم]» أو «رسالة عيد ميلاد [الاسم]» — رسالة جاهزة للنسخ والإرسال عبر WhatsApp',
           '• اكتب اسم أي مخدوم أو كود أو أشبين للبحث الفوري، أو اسأل «كيف أضيف/أصدر/أزامن؟»'
         ].join('\n'),

@@ -9,10 +9,10 @@ export const NavigationTabs: React.FC = () => {
   const { activeView, setActiveView, filteredStudents } = useApp();
 
   const tabs = [
-    { id: 'cards', label: `كروت المخدومين (${filteredStudents.length})`, icon: CreditCard },
-    { id: 'table', label: 'جدول الحضور', icon: TableIcon },
-    { id: 'charts', label: 'الإحصائيات الذكية', icon: PieChart },
-    { id: 'followup', label: 'سجل الافتقاد', icon: PhoneCall }
+    { id: 'cards', label: `كروت المخدومين (${filteredStudents.length})`, shortLabel: 'الكروت', icon: CreditCard },
+    { id: 'table', label: 'جدول الحضور', shortLabel: 'الجدول', icon: TableIcon },
+    { id: 'charts', label: 'الإحصائيات الذكية', shortLabel: 'الإحصاءات', icon: PieChart },
+    { id: 'followup', label: 'سجل الافتقاد', shortLabel: 'الافتقاد', icon: PhoneCall }
   ] as const;
 
   const handleKeyDown = (e: React.KeyboardEvent, idx: number) => {
@@ -32,7 +32,7 @@ export const NavigationTabs: React.FC = () => {
     <nav
       role="tablist"
       aria-label="التنقل الرئيسي بين أقسام التطبيق"
-      className="clay-selection-bar word-in-scope relative flex gap-1.5 p-1.5 mb-5 overflow-x-auto select-none backdrop-blur-xl"
+      className="clay-selection-bar word-in-scope relative grid grid-cols-4 min-w-0 gap-1 p-1.5 mb-5 select-none backdrop-blur-xl"
     >
       {tabs.map((tab, idx) => {
         const IconComponent = tab.icon;
@@ -48,7 +48,7 @@ export const NavigationTabs: React.FC = () => {
             onClick={() => setActiveView(tab.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
             style={{ '--i': idx } as React.CSSProperties}
-            className={`word-in relative flex-1 min-w-[118px] flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-extrabold cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#20C7E8] ${
+            className={`word-in relative flex min-w-0 flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl text-[10px] sm:text-sm font-extrabold cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#20C7E8] ${
               isActive
                 ? 'text-white'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05]'
@@ -74,7 +74,8 @@ export const NavigationTabs: React.FC = () => {
               <IconComponent className={`w-4 h-4 ${isActive ? 'text-[#20C7E8] drop-shadow-[0_0_8px_rgba(32,199,232,0.65)]' : ''}`} />
             </motion.span>
 
-            <span className="relative z-10 whitespace-nowrap">{tab.label}</span>
+            <span className="relative z-10 hidden sm:inline whitespace-nowrap">{tab.label}</span>
+            <span className="relative z-10 sm:hidden whitespace-nowrap text-[10px]">{tab.shortLabel}</span>
           </motion.button>
         );
       })}

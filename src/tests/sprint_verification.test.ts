@@ -53,10 +53,13 @@ import {
 import {
   computeMonthlyAttendanceSummary,
   getMonthFridays,
-  getCairoDateParts
+  getCairoDateParts,
+  getLatestHeldFridayString,
+  getNearestFridayString
 } from '../utils/arabicUtils';
 import {
   DEFAULT_WEEKLY_REMINDERS,
+  WEEKLY_NOTIFICATION_HORIZON,
   buildCapacitorNotificationsPayload,
   computeNextCairoOccurrence,
   loadWeeklyNotificationSettings,
@@ -956,7 +959,7 @@ async function runSprintTests() {
   console.log('✅ Test 22 Passed: Blurry Loading SplashScreen real progress & non-blocking UX verified');
 
   // --------------------------------------------------------------------------
-  // TEST 23: Alphabet-Only Bottom Dock (Keyboard Icon & Soft Keyboard Removed)
+  // TEST 23: Centered Alphabet Dock Handle (Keyboard Label + All Filter Preserved)
   // --------------------------------------------------------------------------
   const dockHtml = renderToString(
     React.createElement(
@@ -977,20 +980,23 @@ async function runSprintTests() {
     !dockHtml.includes('AR / EN') &&
       !dockHtml.includes('العربية') &&
       !dockHtml.includes('English') &&
-      dockHtml.includes('تصفية بالحروف الأبجدية') &&
+      dockHtml.includes('الكيبورد') &&
+      dockHtml.includes('الكل') &&
       dockHtml.includes('safe-area-inset-bottom') &&
       !dockHtml.includes('تبديل إلى الكيبورد'),
-    'Test 23a: BottomKeyboardDock renders ONLY Arabic alphabet filter dock without language or soft-keyboard labels'
+    'Test 23a: BottomKeyboardDock shows the centered keyboard handle and preserves the All filter without language controls'
   );
   const dockSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/layout/BottomKeyboardDock.tsx'), 'utf-8');
   assert(
     dockSrc.includes('hasModalBlockingDock') &&
+      dockSrc.includes('ChevronUp') &&
+      dockSrc.includes('ChevronDown') &&
       !dockSrc.includes('<Keyboard') &&
       !dockSrc.includes('dockMode') &&
       !dockSrc.includes('applyKeyboardActionToText'),
-    'Test 23b: Keyboard icon and soft-keyboard mode are completely deleted from BottomKeyboardDock'
+    'Test 23b: Bottom dock uses a directional handle without introducing a soft keyboard mode'
   );
-  console.log('✅ Test 23 Passed: Alphabet-only Bottom Dock (keyboard icon removed) verified');
+  console.log('✅ Test 23 Passed: Centered keyboard dock handle and All filter verified');
 
   // --------------------------------------------------------------------------
   // TEST 24: SearchFilterBar Removes 'فصل نشط فقط' Toggle Under Sync
@@ -1273,15 +1279,15 @@ async function runSprintTests() {
   const loadedSettings = loadWeeklyNotificationSettings();
   const partialPayload = buildCapacitorNotificationsPayload(loadedSettings, wedPastRef);
   assert(
-    partialPayload.length === 3 &&
-      new Set(partialPayload.map((n) => n.id)).size === 3 &&
+    partialPayload.length === 3 * WEEKLY_NOTIFICATION_HORIZON &&
+      new Set(partialPayload.map((n) => n.id)).size === partialPayload.length &&
       partialPayload.every((n) => n.schedule.at.getTime() > wedPastRef.getTime()),
     'Test 31e: Per-rule toggles filter payload cleanly with deterministic unique IDs and future-only triggers'
   );
   const resetSettings = resetDefaultNotificationSettings();
   assert(
     resetSettings.masterEnabled === true &&
-      buildCapacitorNotificationsPayload(resetSettings, wedPastRef).length === 5,
+      buildCapacitorNotificationsPayload(resetSettings, wedPastRef).length === 5 * WEEKLY_NOTIFICATION_HORIZON,
     'Test 31f: Reset restores all 5 weekly defaults cleanly'
   );
 
@@ -1299,7 +1305,24 @@ async function runSprintTests() {
     manifestSrc.includes('POST_NOTIFICATIONS') && manifestSrc.includes('RECEIVE_BOOT_COMPLETED'),
     'Test 31h: AndroidManifest declares POST_NOTIFICATIONS & RECEIVE_BOOT_COMPLETED'
   );
-  console.log('✅ Test 31 Passed: Weekly Cairo DST notifications, deduplication, no-past guard & Settings UI verified');
+  const appsScriptSrc = fs.readFileSync(path.resolve(process.cwd(), 'docs/google-apps-script/Code.gs'), 'utf-8');
+  const validAttendanceDateRegexCount = (appsScriptSrc.match(/\/\^\\d\{4\}-\\d\{2\}-\\d\{2}\$\/\.test/g) || []).length;
+  assert(
+    validAttendanceDateRegexCount >= 2,
+    'Test 31i: Apps Script monthly and latest attendance calculations use valid single-escaped ISO date regexes'
+  );
+  assert(
+    appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete'];") &&
+      appsScriptSrc.indexOf("sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion)") >
+        appsScriptSrc.indexOf("if (!friday)"),
+    'Test 31j: Apps Script explicitly rejects delete and commits the row version only after attendance validation'
+  );
+  assert(
+    appsScriptSrc.includes("var mutationIdCol = findColIndex(logHeaders, ['mutation_id']);") &&
+      appsScriptSrc.includes(".createTextFinder(String(mutationId))"),
+    'Test 31k: Follow-up log appends are deduplicated using a durable mutation ID'
+  );
+  console.log('✅ Test 31 Passed: Weekly Cairo DST notifications, Apps Script attendance guards, deduplication, no-past guard & Settings UI verified');
 
   // --------------------------------------------------------------------------
   // TEST 32: Clean SearchFilterBar + Alphabet-only Dock Confirmation
@@ -1486,11 +1509,77 @@ async function runSprintTests() {
   );
   console.log('✅ Test 36 Passed: Full App choreography, view transitions & component animations verified\n');
 
+  // --------------------------------------------------------------------------
+  // TEST 37: Smart Assistant Data Queries & Real Card Commands
+  // --------------------------------------------------------------------------
+  const assistantFriday = getLatestHeldFridayString();
+  const assistantStudent = makeStudent({
+    id: 'assistant_student_1',
+    name: 'بيشوي عماد صموئيل',
+    birthDate: '2012-12-20',
+    att: { [assistantFriday]: true }
+  });
+  const presentAnswer = processAssistantQuery('هاتلي عدد الأولاد اللي حضرت النهارده', [assistantStudent]);
+  assert(presentAnswer.text.includes('الحضور المسجل') && presentAnswer.text.includes('بيشوي عماد صموئيل'), 'Test 37a: Assistant answers natural-language present query from latest held Friday');
+
+  const nextMonthAnswer = processAssistantQuery(
+    'هات أعياد الميلاد الشهر القادم',
+    [assistantStudent],
+    { referenceDate: new Date(2026, 10, 14) }
+  );
+  assert(nextMonthAnswer.text.includes('الشهر القادم') && nextMonthAnswer.text.includes('بيشوي عماد صموئيل'), 'Test 37b: Assistant searches the complete next calendar month, not only seven days');
+
+  const attendanceCommand = processAssistantQuery('سجل حضور بيشوي عماد صموئيل', [assistantStudent]);
+  assert(attendanceCommand.command?.type === 'markAttendance' && attendanceCommand.command.isPresent === true, 'Test 37c: Explicit attendance command resolves a unique student and requests a real attendance write');
+
+  const absenceCommand = processAssistantQuery('سجل غياب بيشوي عماد صموئيل', [assistantStudent]);
+  assert(absenceCommand.command?.type === 'markAttendance' && absenceCommand.command.isPresent === false, 'Test 37d: Explicit absence command resolves to absent status');
+
+  const editCommand = processAssistantQuery('افتح تعديل كارت بيشوي عماد صموئيل', [assistantStudent]);
+  assert(editCommand.command?.type === 'openEdit' && editCommand.command.studentId === assistantStudent.id, 'Test 37e: Assistant opens the exact student card in inline edit mode');
+
+  const ambiguousCommand = processAssistantQuery('سجل حضور بيشوي', [
+    assistantStudent,
+    makeStudent({ id: 'assistant_student_2', name: 'بيشوي جرجس' })
+  ]);
+  assert(!ambiguousCommand.command && ambiguousCommand.text.includes('أكثر من مخدوم'), 'Test 37f: Ambiguous student names never trigger an attendance mutation');
+
+  const unknownAttendance = processAssistantQuery('الغائبون', [
+    makeStudent({ id: 'assistant_student_3', name: 'مينا سمير', att: {} })
+  ]);
+  assert(unknownAttendance.text.includes('لم يُسجل') || unknownAttendance.text.includes('لم يتم تسجيل'), 'Test 37g: Missing attendance is distinguished from explicitly recorded absence');
+  console.log('✅ Test 37 Passed: Smart assistant queries, date ranges, safe commands & ambiguity guards verified\\n');
+
+  // --------------------------------------------------------------------------
+  // TEST 38: Follow-up Batch Commands, Weekly Gaps & Weak Attendance
+  // --------------------------------------------------------------------------
+  const followupFriday = getNearestFridayString();
+  const marten = makeStudent({ id: 'assistant_fu_1', name: 'مارتن فايز', servant: 'ماركو', fu: {} });
+  const michael = makeStudent({ id: 'assistant_fu_2', name: 'مايكل سمير', servant: 'ماركو', fu: {} });
+  const mina = makeStudent({ id: 'assistant_fu_3', name: 'مينا عادل', servant: 'آخر', fu: {} });
+  const batchCall = processAssistantQuery('النهارده أنا كلمت مثلاً مارتن فايز، مايكل سمير', [marten, michael, mina]);
+  assert(batchCall.command?.type === 'recordFollowupBatch' && batchCall.command.method === 'تم تليفونياً' && batchCall.command.students.length === 2, 'Test 38a: Assistant resolves multiple named students for phone follow-up');
+  const batchWhatsapp = processAssistantQuery('بعت واتساب لـ مارتن فايز و مايكل سمير', [marten, michael, mina]);
+  assert(batchWhatsapp.command?.type === 'recordFollowupBatch' && batchWhatsapp.command.method === 'واتساب' && batchWhatsapp.command.students.length === 2, 'Test 38b: Assistant resolves multiple WhatsApp follow-ups');
+  const batchVisit = processAssistantQuery('زرت مينا عادل', [marten, michael, mina]);
+  assert(batchVisit.command?.type === 'recordFollowupBatch' && batchVisit.command.method === 'تم بزيارة', 'Test 38c: Assistant resolves home visit follow-up');
+  const ambiguousBatch = processAssistantQuery('كلمت مارتن', [marten, makeStudent({ id: 'assistant_fu_4', name: 'مارتن جرجس', servant: 'ماركو' })]);
+  assert(!ambiguousBatch.command && ambiguousBatch.text.includes('تحتاج توضيحًا'), 'Test 38d: Ambiguous follow-up names never write any record');
+  const weeklyMissing = processAssistantQuery('مين نسيت افتقدهم الأسبوع ده؟', [marten, michael, mina], { referenceDate: new Date(), servantName: 'ماركو' });
+  assert(weeklyMissing.text.includes('الأشبن: ماركو') && weeklyMissing.text.includes('مارتن فايز') && !weeklyMissing.text.includes('مينا عادل'), 'Test 38e: Weekly missing-follow-up report is scoped to the assigned servant');
+  const alreadyFollowed = makeStudent({ id: 'assistant_fu_done', name: 'بيشوي سمير', servant: 'ماركو', fu: { [followupFriday]: 'واتساب' } });
+  const weeklyDone = processAssistantQuery('مين نسيت افتقدهم الأسبوع ده؟', [alreadyFollowed], { referenceDate: new Date(), servantName: 'ماركو' });
+  assert(weeklyDone.text.includes('كل المخدومين') && weeklyDone.text.includes('لديهم افتقاد مسجل'), 'Test 38f: Current-week follow-up records are excluded from the missing list');
+  const weakAttendance = processAssistantQuery('اديني عدد الأولاد اللي حضورهم مش قوي عشان أفتقدهم', [makeStudent({ id: 'weak_1', name: 'مينا', attendanceMonth: 1, attendanceTotal: 6 }), makeStudent({ id: 'weak_2', name: 'مارك', attendanceMonth: 4, attendanceTotal: 10 })]);
+  assert(weakAttendance.text.includes('مينا') && !weakAttendance.text.includes('مارك'), 'Test 38g: Weak attendance report uses current-month attendance, not lifetime total');
+  console.log('✅ Test 38 Passed: Batch follow-up, method detection, weekly gaps, servant scope & weak attendance verified\\n');
+
+
   (globalThis as any).fetch = originalFetch;
   await idbSaveStudents([], 'نشط', true).catch(() => {});
 
   console.log('======================================================');
-  console.log('🎉 ALL 36 SPRINT VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  console.log('🎉 ALL 38 SPRINT VERIFICATION TESTS PASSED SUCCESSFULLY!');
   console.log('======================================================');
 }
 

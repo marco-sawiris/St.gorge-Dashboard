@@ -4,6 +4,7 @@ import { dbManager } from '../db';
 import { apiLimiter } from '../middleware/rateLimit';
 import { googleSheetsService } from '../services/googleSheetsService';
 import { Student, APPROVED_SHEETS, ALL_SHEETS_SENTINEL } from '../../src/types/student';
+import { getCairoDateParts } from '../../src/utils/arabicUtils';
 
 const router = Router();
 
@@ -94,6 +95,9 @@ router.post(
     if (!action || !studentId) {
       return res.status(400).json({ error: 'بيانات العملية غير مكتملة (action و studentId مطلوبان)' });
     }
+    if (action !== 'add' && (!Number.isInteger(expectedVersion) || expectedVersion < 1)) {
+      return res.status(400).json({ error: 'expectedVersion إلزامي ويجب أن يكون رقم إصدار صحيحاً لكل تعديل على سجل موجود.' });
+    }
 
     // 2. Zero Delete Student Policy Enforcement
     if (action === 'delete') {
@@ -156,8 +160,8 @@ router.post(
     }
 
     // 5. Optimistic Concurrency Control (OCC) Version Conflict Check
-    if (currentStudent && typeof expectedVersion === 'number') {
-      if (currentStudent.version > expectedVersion) {
+    if (currentStudent && action !== 'add') {
+      if (currentStudent.version !== expectedVersion) {
         await dbManager.logAudit({
           timestamp: new Date(),
           userId: user.userId,
@@ -169,7 +173,7 @@ router.post(
         });
 
         return res.status(409).json({
-          error: `تعارض في التعديل المتزامن (HTTP 409): تم تعديل بيانات المخدوم على الخادم بنسخة أحدث (Version ${currentStudent.version}) من نسختك (Version ${expectedVersion})`,
+          error: `تعارض في التعديل المتزامن (HTTP 409): إصدار الخادم (${currentStudent.version}) لا يطابق الإصدار المرسل (${expectedVersion}).`,
           latestServerRecord: currentStudent
         });
       }
@@ -180,21 +184,32 @@ router.post(
 
     if (action === 'attendance' && currentStudent && payload) {
       const friday = String(payload.friday || payload.date || '');
-      const isPresent = payload.isPresent !== undefined ? Boolean(payload.isPresent) : Boolean(payload.status);
-      if (!friday) {
-        return res.status(400).json({ error: 'تاريخ الجمعة (friday) مطلوب لتسجيل الحضور' });
+      const rawAttendance = String(payload.isPresent ?? payload.status ?? '').trim().toLowerCase();
+      const isPresent = payload.isPresent === true || ['1', 'true', 'present', 'حاضر'].includes(rawAttendance);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) {
+        return res.status(400).json({ error: 'تاريخ الجمعة (friday) مطلوب بصيغة YYYY-MM-DD' });
       }
 
-      const prevVal = Boolean(currentStudent.att?.[friday]);
+      const previousAttendance = currentStudent.att?.[friday];
+      const prevVal = previousAttendance === true;
       const delta = isPresent ? (prevVal ? 0 : 1) : (prevVal ? -1 : 0);
+      const nextAttendance = { ...(currentStudent.att || {}), [friday]: isPresent };
+      const currentCairoMonth = getCairoDateParts().isoDate.slice(0, 7);
+      const monthlyAttendanceCount = Object.entries(nextAttendance).reduce((count, [date, present]) =>
+        date.slice(0, 7) === currentCairoMonth && present === true ? count + 1 : count, 0);
+      const latestPresentFriday = Object.entries(nextAttendance)
+        .filter(([, present]) => present === true)
+        .map(([date]) => date)
+        .sort()
+        .pop();
 
       updatedStudent = {
         ...currentStudent,
-        att: { ...(currentStudent.att || {}), [friday]: isPresent },
+        att: nextAttendance,
         attendanceTotal: Math.max(0, (currentStudent.attendanceTotal || 0) + delta),
-        attendanceMonth: Math.max(0, (currentStudent.attendanceMonth || 0) + delta),
+        attendanceMonth: monthlyAttendanceCount,
         attendanceStatus: isPresent ? 'حاضر' : 'غائب',
-        lastAttendance: isPresent ? friday : currentStudent.lastAttendance
+        lastAttendance: latestPresentFriday
       };
     } else if (action === 'followup' && currentStudent && payload) {
       const friday = String(payload.friday || payload.date || '');
@@ -226,6 +241,20 @@ router.post(
       const studentName = String(candidate.name || req.body.studentName || '').trim();
       if (!studentName) {
         return res.status(400).json({ error: 'اسم المخدوم مطلوب عند الإضافة' });
+      }
+
+      const candidateCode = String(candidate.code || req.body.studentCode || '').trim();
+      const sameSheetStudents = await googleSheetsService.getStudents(targetSheet);
+      const normalizedName = studentName.replace(/\s+/g, ' ').toLowerCase();
+      const duplicateStudent = sameSheetStudents.find((student) =>
+        (candidateCode && String(student.code || '').trim() === candidateCode) ||
+        String(student.name || '').replace(/\s+/g, ' ').trim().toLowerCase() === normalizedName
+      );
+      if (duplicateStudent) {
+        return res.status(409).json({
+          error: `المخدوم موجود بالفعل في فصل "${targetSheet}" (${duplicateStudent.name} / ${duplicateStudent.code}).`,
+          duplicateStudentId: duplicateStudent.id
+        });
       }
 
       updatedStudent = {

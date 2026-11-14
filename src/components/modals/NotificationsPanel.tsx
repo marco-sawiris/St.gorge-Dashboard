@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../../context/AppContext';
+import { isNativeCapacitorRuntime } from '../../services/apiConfig';
 import { LiquidToggle } from '../glass/LiquidToggle';
 import {
   DEFAULT_WEEKLY_REMINDERS,
@@ -62,13 +63,41 @@ export const NotificationsPanel: React.FC = () => {
 
   const commitSettingsUpdate = async (next: WeeklyNotificationSettings): Promise<boolean> => {
     setIsUpdatingSchedule(true);
+    const previous = settings;
     try {
       const saved = saveWeeklyNotificationSettings(next);
-      setSettings(saved);
       const syncRes = await syncWeeklyNotificationSchedules(saved);
       setPermissionState(syncRes.permission);
+
+      // On Android, a saved preference is not proof that native alarms were scheduled.
+      // Roll back the preference when the native plugin, permission, or scheduler fails.
+      if (isNativeCapacitorRuntime() && (syncRes.reason || syncRes.scheduledCount !== (
+        saved.masterEnabled
+          ? DEFAULT_WEEKLY_REMINDERS.filter((rule) => saved.enabledRules[rule.key] !== false).length
+          : 0
+      ))) {
+        saveWeeklyNotificationSettings(previous);
+        setSettings(previous);
+        await syncWeeklyNotificationSchedules(previous).catch(() => null);
+        addNotification(
+          'تعذر جدولة التذكيرات',
+          syncRes.reason === 'plugin_missing'
+            ? 'إضافة إشعارات Android غير مثبتة أو غير مسجلة في النسخة الحالية.'
+            : syncRes.reason === 'permission_required'
+              ? 'لازم تسمح بإذن الإشعارات من إعدادات Android أولاً.'
+              : syncRes.reason === 'exact_alarm_permission_required'
+                ? 'فعّل إذن المنبهات والتذكيرات الدقيقة للتطبيق من إعدادات Android، ثم أعد المحاولة.'
+                : 'لم يتم تأكيد جدولة كل التذكيرات. لم يتم اعتماد التغيير.',
+          'warn'
+        );
+        return false;
+      }
+
+      setSettings(saved);
       return true;
     } catch {
+      saveWeeklyNotificationSettings(previous);
+      setSettings(previous);
       return false;
     } finally {
       setIsUpdatingSchedule(false);
@@ -88,7 +117,9 @@ export const NotificationsPanel: React.FC = () => {
       addNotification(
         enabled ? 'تم تفعيل التذكيرات الأسبوعية' : 'تم إيقاف التذكيرات الأسبوعية',
         enabled
-          ? 'سيتم تذكيرك بمواعيد التحضير والافتقاد والخدمة بتوقيت القاهرة.'
+          ? isNativeCapacitorRuntime()
+            ? 'تم تأكيد جدولة التذكيرات على الجهاز بتوقيت القاهرة.'
+            : 'تم حفظ الإعدادات. الجدولة الفعلية متاحة داخل تطبيق Android فقط.'
           : 'لن تصلك تنبيهات أسبوعية حتى تعيد تفعيلها.',
         enabled ? 'success' : 'info'
       );
@@ -108,16 +139,32 @@ export const NotificationsPanel: React.FC = () => {
 
   const handleResetDefaults = async () => {
     setIsUpdatingSchedule(true);
+    const previous = settings;
     try {
       const defaults = resetDefaultNotificationSettings();
       setSettings(defaults);
       const syncRes = await syncWeeklyNotificationSchedules(defaults);
       setPermissionState(syncRes.permission);
-      addNotification(
-        'تمت استعادة المواعيد الافتراضية',
-        'تم تفعيل جميع التذكيرات الخمسة بتوقيت القاهرة بنجاح.',
-        'success'
-      );
+      const nativeSuccess = !isNativeCapacitorRuntime() ||
+        (!syncRes.reason && syncRes.scheduledCount === DEFAULT_WEEKLY_REMINDERS.length);
+      if (!nativeSuccess) {
+        saveWeeklyNotificationSettings(previous);
+        setSettings(previous);
+        await syncWeeklyNotificationSchedules(previous).catch(() => null);
+        addNotification(
+          'تعذر استعادة الجدولة',
+          'تم حفظ الإعدادات، لكن لم يتم تأكيد جدولة الإشعارات على الجهاز.',
+          'warn'
+        );
+      } else {
+        addNotification(
+          'تمت استعادة المواعيد الافتراضية',
+          isNativeCapacitorRuntime()
+            ? 'تم تأكيد جدولة التذكيرات الخمسة بتوقيت القاهرة.'
+            : 'تم حفظ الإعدادات. الجدولة الفعلية متاحة داخل تطبيق Android فقط.',
+          isNativeCapacitorRuntime() ? 'success' : 'info'
+        );
+      }
     } finally {
       setIsUpdatingSchedule(false);
     }
@@ -127,8 +174,20 @@ export const NotificationsPanel: React.FC = () => {
     const nextPerm = await requestNotificationPermission();
     setPermissionState(nextPerm);
     if (nextPerm === 'granted') {
-      await syncWeeklyNotificationSchedules(settings);
-      addNotification('تم منح إذن الإشعارات', 'سيعمل التذكير الأسبوعي بتوقيت القاهرة.', 'success');
+      const syncRes = await syncWeeklyNotificationSchedules(settings);
+      if (!syncRes.reason && syncRes.scheduledCount > 0) {
+        addNotification('تم منح إذن الإشعارات', 'تم تأكيد جدولة التذكيرات الأسبوعية بتوقيت القاهرة.', 'success');
+      } else {
+        addNotification(
+          'تم منح الإذن لكن الجدولة لم تكتمل',
+          syncRes.reason === 'plugin_missing'
+            ? 'إضافة إشعارات Android غير مثبتة أو غير مسجلة.'
+            : syncRes.reason === 'exact_alarm_permission_required'
+              ? 'لازم تفعّل إذن المنبهات والتذكيرات الدقيقة من إعدادات Android.'
+              : 'لم يتم تأكيد جدولة الإشعارات على الجهاز.',
+          'warn'
+        );
+      }
     } else if (nextPerm === 'denied') {
       addNotification(
         'إذن الإشعارات مرفوض',

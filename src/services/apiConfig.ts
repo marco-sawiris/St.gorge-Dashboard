@@ -157,10 +157,7 @@ export function getAuthHeaders(token?: string | null): Record<string, string> {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const relayKey = getRelayKey();
-  if (relayKey) {
-    headers['X-Relay-Key'] = relayKey;
-  }
-
+  // The shared Apps Script relay key is sent only in the Apps Script request
+  // body. It is not an Express identity and must never be forwarded as auth.
   return headers;
 }

@@ -1096,8 +1096,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         await idbAtomicRecordAttendanceWithMutation(updatedStudent, historyRecord, mutation);
         setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
-        const pending = await idbGetPendingMutations();
-        setPendingMutationsCount(pending.length);
+
+        // Refreshing the pending counter is secondary UI work. If this read fails
+        // after the atomic attendance+queue transaction committed, do not roll back
+        // the visible attendance state or report the saved attendance as failed.
+        try {
+          const pending = await idbGetPendingMutations();
+          setPendingMutationsCount(pending.length);
+        } catch (counterError) {
+          console.warn('Attendance saved, but pending mutation count could not refresh:', counterError);
+        }
+
         return true;
       } catch (err: any) {
         setStudents(priorStudents);

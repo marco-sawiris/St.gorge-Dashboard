@@ -205,12 +205,137 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
         </div>
       </div>
 
-      {/* Main Table Scroll Container (Liquid Glass) */}
+      {/* Responsive Mobile Records: same data and actions without horizontal table scrolling */}
+      <div className="2xl:hidden space-y-3 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl glass-strong border border-[var(--glass-border)]">
+          <label htmlFor="mobile-student-sort" className="text-xs font-bold text-[var(--text-secondary)]">ترتيب حسب</label>
+          <select
+            id="mobile-student-sort"
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value as SortField)}
+            className="flex-1 min-w-0 h-9 px-2 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)]"
+          >
+            <option value="name">الاسم</option>
+            <option value="code">الكود</option>
+            <option value="servant">الأشبين</option>
+            <option value="attendanceTotal">إجمالي الحضور</option>
+            <option value="attendanceMonth">حضور الشهر</option>
+            <option value="lastAttendance">آخر حضور</option>
+            <option value="area">المنطقة</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+            className="glass-btn px-3 py-2 rounded-xl text-xs font-bold shrink-0"
+            aria-label="عكس ترتيب السجلات"
+          >
+            {sortOrder === 'asc' ? 'تصاعدي ↑' : 'تنازلي ↓'}
+          </button>
+        </div>
+
+        {sortedStudents.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl glass border border-[var(--border-color)] text-xs text-[var(--text-muted)]">
+            لا توجد سجلات تطابق الفلاتر المحددة حالياً.
+          </div>
+        ) : (
+          sortedStudents.map((s, idx) => {
+            const isPresent = Boolean(s.att && s.att[currentFriday]);
+            const isAnotherCardEditing = Boolean(activeEditingId && activeEditingId !== s.id);
+            return (
+              <article
+                key={s.id}
+                className="word-in min-w-0 p-3.5 rounded-2xl glass-strong border border-[var(--glass-border)] shadow-md space-y-3"
+                style={{ '--i': Math.min(idx + 1, 10) } as React.CSSProperties}
+              >
+                <div className="flex items-start justify-between gap-2 min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-mono font-bold text-[var(--accent)] m-0">{s.code || 'بدون كود'}</p>
+                    <h3 className="text-sm font-extrabold text-[var(--text-primary)] m-0 break-words">{s.name}</h3>
+                    <p className="text-[11px] text-[var(--text-secondary)] m-0 break-words">الأشبين: {s.servant || 'غير محدد'}</p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-[var(--navy)]/80 border border-[var(--glass-border)] text-[var(--text)] shrink-0">
+                    {s.sourceSheet || 'نشط'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="min-w-0 p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                    <span className="block text-[10px] text-[var(--text-muted)]">المنطقة</span>
+                    <strong className="block text-[var(--text-primary)] break-words">{s.area || 'غير محددة'}</strong>
+                  </div>
+                  <div className="p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                    <span className="block text-[10px] text-[var(--text-muted)]">إجمالي الحضور</span>
+                    <strong className="block font-mono text-[var(--accent)]">{s.attendanceTotal ?? 0}</strong>
+                  </div>
+                  <div className="p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                    <span className="block text-[10px] text-[var(--text-muted)]">حضور الشهر</span>
+                    <strong className="block font-mono text-[var(--primary)]">{s.attendanceMonth ?? 0}</strong>
+                  </div>
+                  <div className="p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                    <span className="block text-[10px] text-[var(--text-muted)]">آخر حضور</span>
+                    <strong className="block font-mono text-[var(--text-primary)] break-words">{s.lastAttendance || '-'}</strong>
+                  </div>
+                  <div className="p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                    <span className="block text-[10px] text-[var(--text-muted)]">حضور الجمعة ({currentFriday})</span>
+                    <strong className={`block ${isPresent ? 'text-[#20c7e8]' : 'text-rose-400'}`}>{isPresent ? 'حاضر' : 'غائب'}</strong>
+                  </div>
+                  <div className="min-w-0 p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                    <span className="block text-[10px] text-[var(--text-muted)]">حالة الافتقاد</span>
+                    <strong className="block text-[var(--accent)] break-words">{s.followupStatus || 'بدون'}</strong>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border-color)] pt-2">
+                  <button
+                    type="button"
+                    onClick={() => markAttendance(s.id, !isPresent)}
+                    aria-pressed={isPresent}
+                    className={`glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold inline-flex items-center gap-1 ${isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-muted)]'}`}
+                  >
+                    {isPresent ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                    {isPresent ? 'حاضر' : 'تسجيل حضور'}
+                  </button>
+                  {s.phoneStudent && (
+                    <a href={`tel:${s.phoneStudent}`} className="glass-btn p-2 rounded-lg" aria-label={`اتصال بـ ${s.name}`}>
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {(s.phoneStudent || s.phoneParent1) && (
+                    <a
+                      href={`https://wa.me/2${(s.phoneStudent || s.phoneParent1)?.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="glass-btn p-2 rounded-lg"
+                      aria-label={`واتساب ${s.name}`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  <button type="button" onClick={() => onOpenFollowup(s)} className="glass-btn p-2 rounded-lg text-[var(--accent)]" title="تسجيل افتقاد">
+                    <HeartHandshake className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isAnotherCardEditing}
+                    onClick={() => onOpenEdit(s)}
+                    className="glass-btn p-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={isAnotherCardEditing ? 'يوجد كارت آخر قيد التعديل' : 'تعديل البيانات'}
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+
+      {/* Wide-screen Table: no horizontal scroll; compact fixed columns with wrapping */}
       <div
-        className="word-in overflow-x-auto rounded-3xl glass-strong border border-[var(--glass-border)] shadow-xl select-none"
+        className="hidden 2xl:block word-in overflow-hidden rounded-3xl glass-strong border border-[var(--glass-border)] shadow-xl select-none"
         style={{ '--i': 1 } as React.CSSProperties}
       >
-        <table className="w-full text-right text-xs border-collapse">
+        <table className="w-full table-fixed text-right text-xs border-collapse">
           <thead>
             <tr className="border-b border-[var(--glass-border)] bg-[var(--navy)]/80 text-[var(--text-secondary)] font-extrabold backdrop-blur-md">
               <th className="py-3.5 px-3.5 cursor-pointer hover:text-[var(--accent)] transition-colors" onClick={() => handleSort('code')}>
@@ -277,21 +402,21 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                     className="word-in hover:bg-white/5 transition-colors"
                     style={{ '--i': Math.min(idx + 1, 10) } as React.CSSProperties}
                   >
-                    <td className="py-3.5 px-3.5 font-mono font-bold text-[var(--accent)] whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 font-mono font-bold text-[var(--accent)] break-words">
                       {s.code}
                     </td>
-                    <td className="py-3.5 px-3.5 font-bold text-[var(--text)] whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 font-bold text-[var(--text)] break-words">
                       {s.name}
                     </td>
-                    <td className="py-3.5 px-3.5 font-semibold text-[var(--text-secondary)] whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 font-semibold text-[var(--text-secondary)] break-words">
                       {s.servant}
                     </td>
-                    <td className="py-3.5 px-3.5 whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 break-words">
                       <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--navy)]/80 border border-[var(--glass-border)] text-[var(--text)]">
                         {s.sourceSheet}
                       </span>
                     </td>
-                    <td className="py-3.5 px-3.5 text-[var(--text-secondary)] whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 text-[var(--text-secondary)] break-words">
                       {s.area}
                     </td>
                     <td className="py-3.5 px-3.5 text-center font-mono font-bold text-[var(--accent)] tabular-nums">
@@ -300,10 +425,10 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                     <td className="py-3.5 px-3.5 text-center font-mono font-bold text-[var(--primary)] tabular-nums">
                       {s.attendanceMonth}
                     </td>
-                    <td className="py-3.5 px-3.5 font-mono text-[var(--text-secondary)] whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 font-mono text-[var(--text-secondary)] break-words">
                       {s.lastAttendance || '-'}
                     </td>
-                    <td className="py-3.5 px-3.5 text-center whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 text-center break-words">
                       <button
                         type="button"
                         onClick={() => markAttendance(s.id, !isPresent)}
@@ -325,10 +450,10 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                         )}
                       </button>
                     </td>
-                    <td className="py-3.5 px-3.5 font-semibold text-[var(--accent)] whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 font-semibold text-[var(--accent)] break-words">
                       {s.followupStatus || 'بدون'}
                     </td>
-                    <td className="py-3.5 px-3.5 text-center whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 text-center break-words">
                       <div className="flex items-center justify-center gap-1.5">
                         {s.phoneStudent && (
                           <a

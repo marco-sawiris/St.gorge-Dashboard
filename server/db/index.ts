@@ -57,6 +57,10 @@ class InMemoryDatabase {
   }
 
   async seedDefaults() {
+    // Demo credentials are permitted only in development/test environments.
+    // Production must provision real users through an explicit administrative process.
+    if (ENV.NODE_ENV === 'production') return;
+
     const adminPass = await hashPassword('Admin@123456');
     const servantPass = await hashPassword('Servant@123456');
     const viewerPass = await hashPassword('Viewer@123456');
@@ -171,10 +175,28 @@ class InMemoryDatabase {
 class DatabaseManager {
   private pool: Pool | null = null;
   private inMemory: InMemoryDatabase = new InMemoryDatabase();
+  private bootstrapPromise: Promise<void> = Promise.resolve();
   public isPostgresConnected = false;
 
   constructor() {
     this.initPool();
+  }
+
+  private assertDatabaseReady(): void {
+    if (ENV.NODE_ENV === 'production' && (!this.pool || !this.isPostgresConnected)) {
+      throw new Error('Production database unavailable: PostgreSQL is not connected; in-memory fallback is disabled.');
+    }
+  }
+
+  async ensureProductionReady(): Promise<void> {
+    if (ENV.NODE_ENV !== 'production') return;
+    if (!this.pool) {
+      throw new Error('Production startup blocked: DATABASE_URL or complete PostgreSQL connection settings are required.');
+    }
+    await this.bootstrapPromise;
+    if (!this.isPostgresConnected) {
+      throw new Error('Production startup blocked: PostgreSQL connection/schema bootstrap failed. In-memory fallback is disabled.');
+    }
   }
 
   private initPool() {
@@ -201,8 +223,9 @@ class DatabaseManager {
           console.warn('Postgres pool idle client warning:', err.message);
         });
 
-        // Initialize schema in background
-        this.bootstrapPostgres();
+        // Keep the bootstrap promise so production startup can fail closed
+        // instead of accepting requests while the database is unavailable.
+        this.bootstrapPromise = this.bootstrapPostgres();
       } catch (err: any) {
         console.warn('Postgres initialization deferred to in-memory store:', err.message);
       }
@@ -258,9 +281,10 @@ class DatabaseManager {
           );
         `);
 
-        // Seed initial default users in Postgres if table is empty
+        // Seed demo users only outside production. Never create known default
+        // usernames/passwords in a production database.
         const countRes = await client.query('SELECT COUNT(*)::int AS total FROM users');
-        if ((countRes.rows[0]?.total ?? 0) === 0) {
+        if (ENV.NODE_ENV !== 'production' && (countRes.rows[0]?.total ?? 0) === 0) {
           await this.inMemory.initPromise;
           for (const u of this.inMemory.users.values()) {
             await client.query(
@@ -288,12 +312,13 @@ class DatabaseManager {
         client.release();
       }
     } catch (err: any) {
-      console.warn('Could not bootstrap Postgres tables (using resilient fallback):', err.message);
+      console.warn('Could not bootstrap Postgres tables; production startup will fail closed:', err.message);
       this.isPostgresConnected = false;
     }
   }
 
   async getUserByUsername(username: string): Promise<UserRecord | null> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
@@ -312,7 +337,9 @@ class DatabaseManager {
             updatedAt: new Date(row.updated_at)
           };
         }
+        if (ENV.NODE_ENV === 'production') return null;
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres query error, falling back to memory store:', err);
       }
     }
@@ -320,6 +347,7 @@ class DatabaseManager {
   }
 
   async getUserById(id: string): Promise<UserRecord | null> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM users WHERE id = $1', [id]);
@@ -338,7 +366,9 @@ class DatabaseManager {
             updatedAt: new Date(row.updated_at)
           };
         }
+        if (ENV.NODE_ENV === 'production') return null;
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres query error, falling back to memory store:', err);
       }
     }
@@ -346,6 +376,7 @@ class DatabaseManager {
   }
 
   async updateUser(user: UserRecord): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query(
@@ -353,6 +384,7 @@ class DatabaseManager {
           [user.failedAttempts, user.lockoutUntil, user.id]
         );
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres updateUser error:', err);
       }
     }
@@ -360,6 +392,7 @@ class DatabaseManager {
   }
 
   async saveSession(session: RefreshSessionRecord): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query(
@@ -369,6 +402,7 @@ class DatabaseManager {
           [session.id, session.userId, session.tokenHash, session.expiresAt, session.revoked, session.createdAt]
         );
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres saveSession error:', err);
       }
     }
@@ -376,6 +410,7 @@ class DatabaseManager {
   }
 
   async getSession(id: string): Promise<RefreshSessionRecord | null> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM refresh_sessions WHERE id = $1', [id]);
@@ -390,7 +425,9 @@ class DatabaseManager {
             createdAt: new Date(row.created_at)
           };
         }
+        if (ENV.NODE_ENV === 'production') return null;
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres getSession error:', err);
       }
     }
@@ -398,10 +435,12 @@ class DatabaseManager {
   }
 
   async revokeSession(id: string): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query('UPDATE refresh_sessions SET revoked = TRUE WHERE id = $1', [id]);
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres revokeSession error:', err);
       }
     }
@@ -409,6 +448,7 @@ class DatabaseManager {
   }
 
   async getIdempotencyRecord(key: string): Promise<IdempotencyRecord | null> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM idempotency_keys WHERE key = $1', [key]);
@@ -423,7 +463,9 @@ class DatabaseManager {
             createdAt: new Date(row.created_at)
           };
         }
+        if (ENV.NODE_ENV === 'production') return null;
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres idempotency query error:', err);
       }
     }
@@ -431,6 +473,7 @@ class DatabaseManager {
   }
 
   async saveIdempotencyRecord(record: IdempotencyRecord): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query(
@@ -440,6 +483,7 @@ class DatabaseManager {
           [record.key, record.action, record.studentId, record.status, JSON.stringify(record.responseBody), record.createdAt]
         );
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres idempotency save error:', err);
       }
     }
@@ -447,6 +491,7 @@ class DatabaseManager {
   }
 
   async logAudit(log: AuditLogRecord): Promise<void> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query(
@@ -455,6 +500,7 @@ class DatabaseManager {
           [log.timestamp, log.userId, log.username, log.action, log.status, log.ipAddress, JSON.stringify(log.details || {})]
         );
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres audit log error:', err);
       }
     }
@@ -462,6 +508,7 @@ class DatabaseManager {
   }
 
   async getAuditLogs(limit = 100): Promise<AuditLogRecord[]> {
+    this.assertDatabaseReady();
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query(
@@ -479,6 +526,7 @@ class DatabaseManager {
           details: row.details
         }));
       } catch (err) {
+        if (ENV.NODE_ENV === 'production') throw err;
         console.warn('Postgres audit query error:', err);
       }
     }
