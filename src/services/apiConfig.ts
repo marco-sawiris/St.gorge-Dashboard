@@ -93,12 +93,12 @@ export function setApiBaseUrl(url: string): boolean {
 
 export function getAppsScriptUrl(): string {
   const runtimeUrl = safeGetLocalStorage('stgorge_apps_script_url');
-  if (runtimeUrl && /^https:\/\/script\.google\.com\/macros\//i.test(runtimeUrl.trim())) {
+  if (runtimeUrl && /^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec(?:\?.*)?$/i.test(runtimeUrl.trim())) {
     return runtimeUrl.trim();
   }
 
   const envUrl = (import.meta as any).env?.VITE_APPS_SCRIPT_URL;
-  if (typeof envUrl === 'string' && /^https:\/\/script\.google\.com\/macros\//i.test(envUrl.trim())) {
+  if (typeof envUrl === 'string' && /^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec(?:\?.*)?$/i.test(envUrl.trim())) {
     return envUrl.trim();
   }
 
