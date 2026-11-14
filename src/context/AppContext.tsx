@@ -14,8 +14,6 @@ import { generateUUID } from '../utils/uuid';
 import {
   buildApiUrl,
   getAuthHeaders,
-  getAppsScriptUrl,
-  getRelayKey,
   getEffectiveAppsScriptUrl,
   getEffectiveRelayKey,
   DEFAULT_APPS_SCRIPT_URL,
@@ -204,7 +202,7 @@ export async function executeProcessOfflineQueue(
     return { success: false, sentCount: 0, remainingCount: pending.length };
   }
 
-  const appsScriptUrl = getAppsScriptUrl();
+  const appsScriptUrl = getEffectiveAppsScriptUrl();
   if (!appsScriptUrl && !hasConfiguredRemoteBackend() && isNativeCapacitorRuntime()) {
     onNotify?.('مطلوب رابط المزامنة', 'يرجى ضبط رابط Google Apps Script في تفاصيل المزامنة. العمليات محفوظة محلياً بأمان.', 'warn');
     const pending = await idbGetPendingMutations();
@@ -225,7 +223,7 @@ export async function executeProcessOfflineQueue(
     try {
       let response: Response;
       if (appsScriptUrl) {
-        const relayKey = getRelayKey();
+        const relayKey = getEffectiveRelayKey();
         const payloadDate = String(mutation.payload?.friday || mutation.payload?.date || '').trim();
         const payloadPresent = mutation.payload?.isPresent ?? mutation.payload?.present ?? false;
 
@@ -378,8 +376,8 @@ export async function executeSyncData(
       throw new Error('لا يوجد اتصال بالإنترنت حالياً');
     }
 
-    const appsScriptUrl = getAppsScriptUrl();
-    const relayKey = getRelayKey();
+    const appsScriptUrl = getEffectiveAppsScriptUrl();
+    const relayKey = getEffectiveRelayKey();
     const hasExpressCredentials = Boolean(user?.token || relayKey || buildApiUrl('/api/sheets/data').startsWith('https://'));
 
     let data: any;

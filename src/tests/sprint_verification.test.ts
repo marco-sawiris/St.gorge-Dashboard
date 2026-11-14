@@ -155,10 +155,10 @@ async function runSprintTests() {
   let recordedError: string | null = null;
 
   (globalThis as any).fetch = async (url: string) => {
-    if (String(url).includes('/api/health')) {
-      return { ok: true, status: 200, json: async () => ({ status: 'ok' }) } as any;
-    }
-    if (String(url).includes('/api/sheets/data')) {
+    const requestUrl = String(url);
+    // Match the data action before the generic Apps Script host check:
+    // both requests share the same deployment URL.
+    if (requestUrl.includes('action=getStudents')) {
       return {
         ok: true,
         status: 200,
@@ -170,6 +170,9 @@ async function runSprintTests() {
           students: [serverStudent]
         })
       } as any;
+    }
+    if (requestUrl.includes('script.google.com/macros/s/')) {
+      return { ok: true, status: 200, json: async () => ({ status: 'ok' }) } as any;
     }
     return { ok: false, status: 404 } as any;
   };
@@ -269,8 +272,9 @@ async function runSprintTests() {
 
   const seenKeys: string[] = [];
   (globalThis as any).fetch = async (url: string, opts?: any) => {
-    if (String(url).includes('/api/sheets/mutate')) {
-      seenKeys.push(opts?.headers?.['X-Idempotency-Key']);
+    if (String(url).includes('script.google.com/macros/s/')) {
+      const body = JSON.parse(opts?.body || '{}');
+      seenKeys.push(body.idempotencyKey);
       return {
         ok: true,
         status: 200,

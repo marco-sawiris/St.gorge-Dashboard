@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Sparkles, CheckCircle2, ArrowLeft, RefreshCw } from 'lucide-react';
+import { CheckCircle2, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
@@ -136,10 +136,7 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
           <p className="text-xs sm:text-sm font-bold text-[#8ECFFF] m-0 word-in" style={{ '--i': 4 } as React.CSSProperties}>
             بكنيسة السيدة العذراء مريم بالزيتون
           </p>
-          <p className="text-[11px] text-[#A6B1C2] font-semibold m-0 flex items-center justify-center gap-1.5 pt-1 word-in" style={{ '--i': 5 } as React.CSSProperties}>
-            <Sparkles className="w-3.5 h-3.5 text-[#20C7E8]" />
-            <span>Liquid Glass Service Dashboard</span>
-          </p>
+
         </div>
 
         {/* Real Initialization Status Capsule (Honest milestone indicator — NO fake 0-100% loop) */}
