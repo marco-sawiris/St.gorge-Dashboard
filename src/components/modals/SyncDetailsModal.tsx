@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { getAppsScriptUrl, getRelayKey, setAppsScriptUrl, setRelayKey } from '../../services/apiConfig';
+import React from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   X,
@@ -29,34 +28,7 @@ export const SyncDetailsModal: React.FC = () => {
     processOfflineQueue
   } = useApp();
 
-  const [appsScriptUrl, setAppsScriptUrlInput] = useState(() => getAppsScriptUrl());
-  const [relayKey, setRelayKeyInput] = useState(() => getRelayKey());
-  const [configMessage, setConfigMessage] = useState('');
-  const [configSaved, setConfigSaved] = useState(false);
-
   if (!isSyncModalOpen) return null;
-
-  const handleSaveConnection = () => {
-    const cleanedUrl = appsScriptUrl.trim();
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec(?:\?.*)?$/i.test(cleanedUrl)) {
-      setConfigSaved(false);
-      setConfigMessage('رابط Apps Script لازم يكون رابط Web App وينتهي بـ /exec.');
-      return;
-    }
-    if (relayKey.trim().length < 32) {
-      setConfigSaved(false);
-      setConfigMessage('مفتاح RELAY_KEY غير صالح. لازم يكون 32 حرفًا على الأقل ويطابق القيمة الموجودة في Script Properties.');
-      return;
-    }
-    if (!setAppsScriptUrl(cleanedUrl)) {
-      setConfigSaved(false);
-      setConfigMessage('تعذر حفظ رابط Apps Script. راجع الرابط وحاول مرة تانية.');
-      return;
-    }
-    setRelayKey(relayKey.trim());
-    setConfigSaved(true);
-    setConfigMessage('تم حفظ إعدادات الاتصال على هذا الجهاز. اضغط «مزامنة فورية الآن» لاختبار القراءة والكتابة.');
-  };
 
   const handleSyncNow = async () => {
     await syncData();
@@ -149,7 +121,7 @@ export const SyncDetailsModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Modal Body */}
+        {/* Modal Body (Public Read-Only Sync Status & Trigger Actions Only — Zero Editable Endpoint/Secret Fields) */}
         <div className="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
           {/* Main Status Banner */}
           <div className="p-4 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] shadow-xs flex items-start gap-3">
@@ -176,28 +148,6 @@ export const SyncDetailsModal: React.FC = () => {
               </p>
             </div>
           )}
-
-          {/* Google Apps Script connection settings */}
-          <section className="p-4 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] space-y-3">
-            <div className="space-y-1">
-              <h4 className="font-extrabold text-sm text-[var(--text-primary)] m-0">إعداد اتصال Google Apps Script</h4>
-              <p className="text-xs text-[var(--text-muted)] m-0 leading-relaxed">أدخل رابط Web App المنشور ومفتاح RELAY_KEY المطابق لقيم Script Properties.</p>
-            </div>
-            <label className="block space-y-1.5">
-              <span className="text-xs font-bold text-[var(--text-secondary)]">Web App URL</span>
-              <input dir="ltr" type="url" value={appsScriptUrl} onChange={(event) => { setAppsScriptUrlInput(event.target.value); setConfigSaved(false); }} placeholder="https://script.google.com/macros/s/.../exec" autoComplete="url" className="w-full min-w-0 box-border rounded-xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-2.5 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-secondary)]" />
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-xs font-bold text-[var(--text-secondary)]">RELAY_KEY</span>
-              <input dir="ltr" type="password" value={relayKey} onChange={(event) => { setRelayKeyInput(event.target.value); setConfigSaved(false); }} placeholder="أدخل المفتاح السري (32 حرفًا على الأقل)" autoComplete="new-password" className="w-full min-w-0 box-border rounded-xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-2.5 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-secondary)]" />
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={handleSaveConnection} className="glass-btn--primary px-4 py-2 rounded-xl text-xs font-bold">حفظ إعدادات الاتصال</button>
-              {configSaved && <span className="text-xs font-bold text-[var(--accent-secondary)]">تم الحفظ</span>}
-            </div>
-            {configMessage && <p role="status" className={`text-xs m-0 leading-relaxed ${configSaved ? 'text-[var(--accent-secondary)]' : 'text-[var(--danger)]'}`}>{configMessage}</p>}
-            <p className="text-[11px] text-amber-500 m-0 leading-relaxed">تنبيه أمني: المفتاح يُحفظ محليًا داخل التطبيق، ويمكن استخراجه من جهاز أو APK؛ لذلك لا تعتبره سرًا غير قابل للاستخراج. استخدم مفتاحًا مخصصًا لهذا التطبيق وغيّره فور الاشتباه في تسريبه.</p>
-          </section>
 
           {/* Metrics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
