@@ -111,7 +111,7 @@ export function setAppsScriptUrl(url: string): boolean {
     safeRemoveLocalStorage('stgorge_apps_script_url');
     return true;
   }
-  if (!/^https:\/\/script\.google\.com\/macros\//i.test(cleaned)) {
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec(?:\?.*)?$/i.test(cleaned)) {
     return false;
   }
   safeSetLocalStorage('stgorge_apps_script_url', cleaned);
