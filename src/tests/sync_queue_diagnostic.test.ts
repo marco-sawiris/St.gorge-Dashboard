@@ -151,6 +151,7 @@ async function runDiagnosticTests() {
     // TEST 3: executeProcessOfflineQueue Records Errors and Retains Mutations
     // --------------------------------------------------------------------------
     setAppsScriptUrl('https://script.google.com/macros/s/AKfycbDiagTest/exec');
+    setRelayKey('SYNC_DIAGNOSTIC_TEST_RELAY_KEY_32_CHARS_MINIMUM');
 
     // Simulate 500 error from Apps Script
     (globalThis as any).fetch = async (url: string) => {
@@ -227,10 +228,10 @@ async function runDiagnosticTests() {
       (err) => { recordedError = err; }
     );
 
-    // CRITICAL: Pull must SUCCEED (true), not FAIL (false)!
-    assert(syncResult === true, 'Test 4a: executeSyncData returns true upon successful pull and reconciliation');
-    assert(recordedError === null, 'Test 4b: No sync failure error reported when pull succeeds');
-    assert(recordedPullIso !== null, 'Test 4c: Successful pull ISO timestamp updated');
+    // Pull may succeed while the overall sync remains incomplete because queued writes failed.
+    assert(syncResult === false, 'Test 4a: Overall sync reports incomplete while a mutation remains unconfirmed');
+    assert(recordedError !== null, 'Test 4b: Failed queued write remains visible as a sync error');
+    assert(recordedPullIso !== null, 'Test 4c: Successful pull timestamp is still updated independently');
 
     // Zero Data Loss: verify local student attendance was PRESERVED because of pending mutation!
     const localStudents = await idbGetStudents();
