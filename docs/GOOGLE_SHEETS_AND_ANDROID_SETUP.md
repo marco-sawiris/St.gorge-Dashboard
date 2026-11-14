@@ -12,10 +12,10 @@
 2. Go to **Extensions -> Apps Script** and paste the contents of `docs/google-apps-script/Code.gs`.
 3. In **Project Settings -> Script Properties**, add:
    - `SPREADSHEET_ID`: `15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0`
-   - `SESSION_SECRET`: Strong random 64-char secret (stored strictly on Google's servers).
+   - `RELAY_KEY`: Strong random secret of at least 32 characters (stored strictly on Google's servers).
 4. Click **Deploy -> New deployment -> Web app**:
    - **Execute as:** `Me (Owner)`
-   - **Who has access:** `Anyone` (protected inside `Code.gs` via `verifyBearerToken` HMAC signature + per-servant RLAC).
+   - **Who has access:** `Anyone` (the script checks `RELAY_KEY`; note that a key embedded in a client app can be extracted).
 5. Grant Google Drive / Google Sheets OAuth scope (`https://www.googleapis.com/auth/spreadsheets`) once under your owner account.
 
 ### Alternative Option: Hosted Express Backend (`server.ts`)
