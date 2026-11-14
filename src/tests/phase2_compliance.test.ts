@@ -1,6 +1,12 @@
 import { indexedDB as fakeIndexedDB } from 'fake-indexeddb';
 // Polyfill indexedDB in Node environment
 (globalThis as any).indexedDB = fakeIndexedDB;
+const testStorage = new Map<string, string>();
+(globalThis as any).localStorage = {
+  getItem: (key: string) => testStorage.get(key) ?? null,
+  setItem: (key: string, value: string) => testStorage.set(key, String(value)),
+  removeItem: (key: string) => testStorage.delete(key)
+};
 
 import fs from 'fs';
 import path from 'path';
@@ -47,6 +53,7 @@ import { getNearestFridayString } from '../utils/arabicUtils';
 import { Student, ALL_SHEETS_SENTINEL, APPROVED_SHEETS } from '../types/student';
 import { FollowupRecord } from '../types/followup';
 import { OfflineMutation, AuthUser } from '../types/auth';
+import { setRelayKey } from '../services/apiConfig';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -351,6 +358,9 @@ async function runPhase2Tests() {
       status: 'pending'
     };
     await idbQueueMutation(mutation);
+
+    // Relay key authenticates the shared endpoint; no servant account login is required.
+    setRelayKey('PHASE2_TEST_RELAY_KEY_32_CHARACTERS_MINIMUM');
 
     // 4a. Direct execution succeeds without requiring servant login when server responds 200 ok
     (globalThis as any).fetch = async () => ({
