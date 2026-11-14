@@ -132,7 +132,8 @@ export function setRelayKey(key: string): void {
 }
 
 export const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzetL8maCClf180cEMTVUYrxTSQH8pCX969eUxkuDeW6lmpb8HmVAWCs4Y3iSQZbRvY4g/exec';
-export const DEFAULT_RELAY_KEY = 'st_gorge_secret_token_2026';
+// No relay secret is embedded in source code or shipped inside the APK.
+export const DEFAULT_RELAY_KEY = '';
 
 export function getEffectiveAppsScriptUrl(): string {
   const configured = getAppsScriptUrl();
@@ -141,9 +142,9 @@ export function getEffectiveAppsScriptUrl(): string {
 }
 
 export function getEffectiveRelayKey(): string {
-  const configured = getRelayKey();
-  if (configured) return configured;
-  return DEFAULT_RELAY_KEY;
+  // The owner must configure the same 32+ character key in Apps Script
+  // Script Properties and in the app's Sync Details screen.
+  return getRelayKey();
 }
 
 export function hasConfiguredRemoteBackend(): boolean {
