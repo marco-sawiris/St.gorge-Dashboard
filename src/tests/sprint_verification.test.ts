@@ -155,10 +155,10 @@ async function runSprintTests() {
   let recordedError: string | null = null;
 
   (globalThis as any).fetch = async (url: string) => {
-    if (String(url).includes('script.google.com/macros/s/')) {
-      return { ok: true, status: 200, json: async () => ({ status: 'ok' }) } as any;
-    }
-    if (String(url).includes('action=getStudents')) {
+    const requestUrl = String(url);
+    // Match the data action before the generic Apps Script host check:
+    // both requests share the same deployment URL.
+    if (requestUrl.includes('action=getStudents')) {
       return {
         ok: true,
         status: 200,
@@ -170,6 +170,9 @@ async function runSprintTests() {
           students: [serverStudent]
         })
       } as any;
+    }
+    if (requestUrl.includes('script.google.com/macros/s/')) {
+      return { ok: true, status: 200, json: async () => ({ status: 'ok' }) } as any;
     }
     return { ok: false, status: 404 } as any;
   };
