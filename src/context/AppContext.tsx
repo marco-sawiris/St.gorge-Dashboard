@@ -202,6 +202,20 @@ export async function executeProcessOfflineQueue(
   }
 
   const appsScriptUrl = getEffectiveAppsScriptUrl();
+  const relayKey = getEffectiveRelayKey();
+
+  // Never attempt a private Apps Script relay with an empty client key.
+  // Keep every queued mutation locally and expose the actual configuration error.
+  if (appsScriptUrl && !relayKey) {
+    const pending = await idbGetPendingMutations();
+    const error = 'مفتاح RELAY_KEY غير محفوظ على هذا الجهاز. أدخل مفتاح الربط في تفاصيل المزامنة، وتأكد أنه مطابق لقيمة Script Properties في Apps Script.';
+    for (const mutation of pending) {
+      await idbUpdateMutationError(mutation.id, error, 'failed');
+    }
+    onNotify?.('مفتاح المزامنة غير مضبوط', error, 'danger');
+    return { success: false, sentCount: 0, remainingCount: pending.length };
+  }
+
   if (!appsScriptUrl && !hasConfiguredRemoteBackend() && isNativeCapacitorRuntime()) {
     onNotify?.('مطلوب رابط المزامنة', 'يرجى ضبط رابط Google Apps Script في تفاصيل المزامنة. العمليات محفوظة محلياً بأمان.', 'warn');
     const pending = await idbGetPendingMutations();
@@ -377,6 +391,14 @@ export async function executeSyncData(
 
     const appsScriptUrl = getEffectiveAppsScriptUrl();
     const relayKey = getEffectiveRelayKey();
+
+    if (appsScriptUrl && !relayKey) {
+      const error = 'مفتاح RELAY_KEY غير محفوظ على هذا الجهاز. أدخل مفتاح الربط في تفاصيل المزامنة، وتأكد أنه مطابق لقيمة Script Properties في Apps Script.';
+      onRecordError?.(error);
+      onNotify?.('مفتاح المزامنة غير مضبوط', error, 'danger');
+      return false;
+    }
+
     const hasExpressCredentials = Boolean(user?.token || relayKey || buildApiUrl('/api/sheets/data').startsWith('https://'));
 
     let data: any;
@@ -548,13 +570,15 @@ export async function executeSyncData(
         onNotify?.('تم التحديث بنجاح', 'تم تحديث جميع الفصول بنجاح دون المساس بأي بيانات محلية', 'success');
         return true;
       } else {
-        onRecordError?.(null);
+        const queueError = remainingMutations.find((mutation) => mutation.lastError)?.lastError;
+        const partialError = queueError || `تم سحب البيانات، لكن ما زالت هناك ${remainingMutations.length} عملية معلقة لم يتم تأكيد إرسالها إلى Google Sheets.`;
+        onRecordError?.(partialError);
         onNotify?.(
-          'تم التحديث مع حفظ المعلق',
-          `تم تحديث الفصول بنجاح مع الحفاظ الكامل على العمليات المحلية غير المرسلة (${remainingMutations.length} معلقة)`,
-          'info'
+          'المزامنة غير مكتملة',
+          `تم سحب بيانات الفصول، لكن فشل تأكيد إرسال العمليات المعلقة (${remainingMutations.length}). لم يتم حذف أي عملية محلية.`,
+          'warn'
         );
-        return true;
+        return false;
       }
     } else {
       // Single sheet handling
@@ -588,13 +612,15 @@ export async function executeSyncData(
         onUpdateStudents?.(finalStudents);
         const nowIso = new Date().toISOString();
         onRecordTimes?.(nowIso);
-        onRecordError?.(null);
+        const queueError = remainingMutations.find((mutation) => mutation.lastError)?.lastError;
+        const partialError = queueError || `تم سحب البيانات، لكن ما زالت هناك ${remainingMutations.length} عملية معلقة لم يتم تأكيد إرسالها إلى Google Sheets.`;
+        onRecordError?.(partialError);
         onNotify?.(
-          'تم التحديث مع حفظ المعلق',
-          `تم جلب بيانات الفصل بنجاح مع الحفاظ الكامل على العمليات المحلية غير المرسلة (${remainingMutations.length} معلقة)`,
-          'info'
+          'المزامنة غير مكتملة',
+          `تم سحب بيانات الفصل، لكن فشل تأكيد إرسال العمليات المعلقة (${remainingMutations.length}). لم يتم حذف أي عملية.`,
+          'warn'
         );
-        return true;
+        return false;
       } else {
         await idbSaveStudents(data.students, targetSheet, isTargetSheetConfirmedComplete);
         finalStudents = await idbGetStudents();
