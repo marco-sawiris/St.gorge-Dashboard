@@ -344,7 +344,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
         )}
 
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-w-0 gap-2 text-xs">
-          <div className="col-span-2">
+          <div className="col-span-1 min-[420px]:col-span-2">
             <label className="block text-[10.5px] font-bold text-[var(--text-secondary)] mb-0.5">الاسم *</label>
             <input
               type="text"
