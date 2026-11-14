@@ -293,7 +293,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
       <form
         onSubmit={handleInlineSave}
         aria-label={`تعديل بيانات ${student.name}`}
-        className="w-full min-w-0 max-w-full p-4 rounded-3xl glass-strong ring-2 ring-[#20C7E8] border-[#20C7E8] shadow-[0_0_28px_rgba(32,199,232,0.35)] flex flex-col gap-2.5 select-none animate-wordIn"
+        className="box-border w-full min-w-0 max-w-full overflow-x-clip p-3 sm:p-4 rounded-3xl glass-strong ring-2 ring-[#20C7E8] border-[#20C7E8] shadow-[0_0_28px_rgba(32,199,232,0.35)] flex flex-col gap-2.5 select-none animate-wordIn"
       >
         <div className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2 min-w-0">
@@ -343,15 +343,15 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-w-0 gap-2 text-xs">
+          <div className="col-span-1 min-[420px]:col-span-2">
             <label className="block text-[10.5px] font-bold text-[var(--text-secondary)] mb-0.5">الاسم *</label>
             <input
               type="text"
               required
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="w-full h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -362,7 +362,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               required
               value={editServant}
               onChange={(e) => setEditServant(e.target.value)}
-              className="w-full h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -372,7 +372,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               type="text"
               value={editCode}
               onChange={(e) => setEditCode(e.target.value)}
-              className="w-full h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs font-bold text-[#20C7E8] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs font-bold text-[#20C7E8] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -381,7 +381,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
             <select
               value={editSheet}
               onChange={(e) => setEditSheet(e.target.value)}
-              className="w-full h-8 px-2 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             >
               {APPROVED_SHEETS.map((s) => (
                 <option key={s} value={s} className="bg-[var(--surface-primary)] text-[var(--text-primary)]">
@@ -397,7 +397,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               type="text"
               value={editArea}
               onChange={(e) => setEditArea(e.target.value)}
-              className="w-full h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -407,7 +407,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               type="tel"
               value={editPhoneStudent}
               onChange={(e) => setEditPhoneStudent(e.target.value)}
-              className="w-full h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -417,7 +417,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               type="tel"
               value={editPhoneParent1}
               onChange={(e) => setEditPhoneParent1(e.target.value)}
-              className="w-full h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -428,7 +428,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               value={editBirthDate}
               onChange={(e) => setEditBirthDate(e.target.value)}
               placeholder="YYYY-MM-DD"
-              className="w-full h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -438,17 +438,17 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               type="text"
               value={editAddress}
               onChange={(e) => setEditAddress(e.target.value)}
-              className="w-full h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
-          <div className="col-span-2">
+          <div className="col-span-1 min-[420px]:col-span-2">
             <label className="block text-[10.5px] font-bold text-[var(--text-secondary)] mb-0.5">ملاحظات</label>
             <textarea
               rows={2}
               value={editNotes}
               onChange={(e) => setEditNotes(e.target.value)}
-              className="w-full p-2 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] resize-none"
+              className="box-border w-full min-w-0 p-2 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] resize-none"
             />
           </div>
         </div>
@@ -475,17 +475,17 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   }
 
   return (
-    <div className="perspective-1000 w-full min-w-0 max-w-full select-none">
+    <div className="perspective-1000 box-border w-full min-w-0 max-w-full overflow-x-clip select-none">
       {/* CSS Grid Stacking ensures ZERO clipping and ZERO internal scrollbar across any viewport */}
       <div
-        className={`grid w-full min-w-0 max-w-full duration-500 ease-[var(--ease-spring)] transform-style-preserve-3d transition-transform ${
+        className={`grid box-border w-full min-w-0 max-w-full duration-500 ease-[var(--ease-spring)] transform-style-preserve-3d transition-transform ${
           isFlipped ? 'rotate-y-180' : ''
         }`}
       >
         {/* ==================================================== */}
         {/* FRONT OF CARD (Liquid Glass)                         */}
         {/* ==================================================== */}
-        <div className="col-start-1 row-start-1 backface-hidden p-3.5 sm:p-4 rounded-3xl glass shadow-[0_12px_32px_0_rgba(3,7,17,0.7)] flex flex-col justify-between gap-2.5 transition-all duration-300 hover:border-[var(--glass-border-2)] hover:shadow-[0_14px_40px_rgba(32,199,232,0.25)]">
+        <div className="col-start-1 row-start-1 backface-hidden box-border w-full min-w-0 max-w-full p-3.5 sm:p-4 rounded-3xl glass shadow-[0_12px_32px_0_rgba(3,7,17,0.7)] flex flex-col justify-between gap-2.5 transition-all duration-300 hover:border-[var(--glass-border-2)] hover:shadow-[0_14px_40px_rgba(32,199,232,0.25)]">
           <div className="min-w-0 space-y-2.5">
             {/* Top Row: Full Name, Servant, Code & Sheet (No Initials Avatar) */}
             <div className="flex items-start justify-between gap-2">

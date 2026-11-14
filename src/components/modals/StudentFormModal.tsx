@@ -196,8 +196,8 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none">
-      <div className="w-full max-w-lg glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none overflow-x-clip box-border">
+      <div className="box-border w-full min-w-0 max-w-[min(100%,32rem)] glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--surface-primary)]/40">
           <div className="flex items-center gap-2.5">
@@ -248,7 +248,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
         )}
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <form onSubmit={handleSubmit} className="box-border w-full min-w-0 p-4 sm:p-5 overflow-y-auto overflow-x-clip space-y-4 text-xs sm:text-sm">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 flex items-center gap-2 text-xs font-bold">
               <AlertCircle className="w-4 h-4 shrink-0" />

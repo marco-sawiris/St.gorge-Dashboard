@@ -328,7 +328,7 @@ function doPost(e) {
           }
           setIfFound(sheet, rowNum, headers, ['آخر افتقاد', 'اخر افتقاد'], fuDate);
         }
-        setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'ملاحظات الافتقاد', 'followupStatus'], fuMethod);
+        setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'followupStatus'], fuMethod);
         appendFollowupLogRow(ss, targetSheetName, headers, values[rowIndex], fuDate, fuMethod, payload.notes || '', idempotencyKey);
       } else if (mutation.action === 'update') {
         setIfFound(sheet, rowNum, headers, ['الاسم', 'name'], payload.name);

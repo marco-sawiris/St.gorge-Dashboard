@@ -1322,6 +1322,11 @@ async function runSprintTests() {
       appsScriptSrc.includes(".createTextFinder(String(mutationId))"),
     'Test 31k: Follow-up log appends are deduplicated using a durable mutation ID'
   );
+  assert(
+    appsScriptSrc.includes("setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'followupStatus'], fuMethod);") &&
+      !appsScriptSrc.includes("setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'ملاحظات الافتقاد', 'followupStatus'], fuMethod);"),
+    'Test 31l: Apps Script follow-up status updates never overwrite the student notes column'
+  );
   console.log('✅ Test 31 Passed: Weekly Cairo DST notifications, Apps Script attendance guards, deduplication, no-past guard & Settings UI verified');
 
   // --------------------------------------------------------------------------
