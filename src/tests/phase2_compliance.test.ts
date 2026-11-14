@@ -678,7 +678,7 @@ async function runPhase2Tests() {
         // Simulate network failure when attempting to push, so mutation remains in queue
         return { ok: false, status: 503, json: async () => ({ error: 'Sheets Service Temporarily Unavailable' }) };
       }
-      if (url.includes('/api/sheets/data')) {
+      if (url.includes('script.google.com/macros/s/')) {
         return {
           ok: true,
           status: 200,
@@ -1012,8 +1012,7 @@ async function runPhase2Tests() {
     // 14c: executeSyncData with unconfirmed empty server response (isComplete missing or false)
     const syncLock = { current: false };
     (globalThis as any).fetch = async (url: string) => {
-      if (url.includes('/api/health')) return { ok: true, status: 200 };
-      if (url.includes('/api/sheets/data')) {
+      if (url.includes('script.google.com/macros/s/')) {
         return {
           ok: true,
           status: 200,
@@ -1070,8 +1069,7 @@ async function runPhase2Tests() {
     // 2. Scenario A: Syncing targetSheet = 'نشط', but server returns empty students with confirmation
     // tied explicitly to a DIFFERENT sheet ('غير حاضر') or generic confirmation without 'نشط'
     (globalThis as any).fetch = async (url: string) => {
-      if (url.includes('/api/health')) return { ok: true, status: 200 };
-      if (url.includes('/api/sheets/data')) {
+      if (url.includes('script.google.com/macros/s/')) {
         return {
           ok: true,
           status: 200,
@@ -1098,8 +1096,7 @@ async function runPhase2Tests() {
 
     // 3. Scenario B: Syncing targetSheet = 'نشط', with confirmation explicitly matching 'نشط'
     (globalThis as any).fetch = async (url: string) => {
-      if (url.includes('/api/health')) return { ok: true, status: 200 };
-      if (url.includes('/api/sheets/data')) {
+      if (url.includes('script.google.com/macros/s/')) {
         return {
           ok: true,
           status: 200,
@@ -1157,8 +1154,7 @@ async function runPhase2Tests() {
     // - confirmedEmptySheets: ['نشط'] (ONLY 'نشط' is confirmed empty!)
     // - 'غير حاضر' and 'فصل البابا شنودة' are UNCONFIRMED empty
     (globalThis as any).fetch = async (url: string) => {
-      if (url.includes('/api/health')) return { ok: true, status: 200 };
-      if (url.includes('/api/sheets/data')) {
+      if (url.includes('script.google.com/macros/s/')) {
         return {
           ok: true,
           status: 200,
