@@ -38,7 +38,7 @@ export const SyncDetailsModal: React.FC = () => {
 
   const handleSaveConnection = () => {
     const cleanedUrl = appsScriptUrl.trim();
-    if (!/^https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[^\\s]+\\/exec(?:\\?.*)?$/i.test(cleanedUrl)) {
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec(?:\?.*)?$/i.test(cleanedUrl)) {
       setConfigSaved(false);
       setConfigMessage('رابط Apps Script لازم يكون رابط Web App وينتهي بـ /exec.');
       return;
