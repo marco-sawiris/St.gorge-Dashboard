@@ -18,6 +18,13 @@
    - **Execute as:** `Me (Owner)`
    - **Who has access:** `Anyone` (the script checks `RELAY_KEY`; note that a key embedded in a client app can be extracted).
 5. Grant Google Drive / Google Sheets OAuth scope (`https://www.googleapis.com/auth/spreadsheets`) once under your owner account.
+6. After deploying, configure the Android app without exposing technical fields in the normal Sync Details screen. In a locally inspected/debug WebView console, run the following after replacing the two values locally (never paste the key into GitHub or a chat):
+   ```js
+   localStorage.setItem('stgorge_apps_script_url', 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec');
+   localStorage.setItem('stgorge_relay_key', 'YOUR_RELAY_KEY');
+   location.reload();
+   ```
+   The endpoint and key are stored in this app's local WebView storage. This avoids adding secret-entry controls to the public sync status UI, but does not make the shared key extraction-proof.
 
 ### Alternative Option: Hosted Express Backend (`server.ts`)
 - Host `server.ts` on Render / Cloud Run / Fly.io with PostgreSQL + `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY`.
