@@ -55,3 +55,10 @@ No keystore is pre-generated or committed. To produce a signed Release APK (`./g
    npm run android:sync
    cd android && ./gradlew assembleRelease
    ```
+
+### Important: Verify browser/WebView CORS before enabling live sync
+- Apps Script `ContentService` responses are delivered through a different `script.googleusercontent.com` URL for security reasons. A successful direct browser visit does **not** prove that the app's cross-origin `fetch()` calls can read the JSON response.
+- Before relying on this relay, test both authenticated `GET action=getStudents` and a harmless, explicitly approved `POST` from the actual Android WebView. Confirm that JavaScript can read and parse the response, not merely that the Apps Script execution appears in its logs.
+- If WebView CORS blocks the response, this direct client-to-Apps-Script design is not ready for production. Use a CORS-capable server-side proxy or redesign the transport. Do **not** switch writes to `mode: 'no-cors'`: an opaque response cannot provide the acknowledgement required before removing an operation from IndexedDB.
+- Until this test passes, treat Apps Script push/pull as **unverified** and keep all pending IndexedDB operations intact.
+- Reference: [Google Apps Script Content Service](https://developers.google.com/apps-script/reference/content/content-service).
