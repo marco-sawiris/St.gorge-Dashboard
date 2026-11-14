@@ -1,11 +1,12 @@
 # St. George Church Dashboard — Google Sheets, Auth & Android APK Guide
 
-## 1. Google Sheets & Google Drive Architecture (Zero Secrets in APK)
+## 1. Google Sheets & Google Drive Architecture (No Google service-account private key in APK)
 - **Authoritative Spreadsheet ID:** `15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0`
 - **Approved Tabs (Sheets):** `نشط`, `غير حاضر`, `فصل البابا شنودة`, `غير نشط`
 - **Why Private Relay is Mandatory:**
   - Never embed Google Service Account private keys (`GOOGLE_PRIVATE_KEY`) or JWT secrets inside an Android `.apk` (anyone can unpack APK assets).
   - Never mark the church Google Sheet as "Anyone with the link can view/edit".
+- `RELAY_KEY` is still sent by the client app and can be extracted by a determined user; it is a shared access gate, not a secret that can be guaranteed safe inside an APK. Rotate it if exposed, and use a server-side authenticated backend for stronger security.
 
 ### Recommended Zero-Cost Option ($0/month): Google Apps Script Web App (`docs/google-apps-script/Code.gs`)
 1. Open the Google Sheet on your Google Drive (`mmalgy@gmail.com`).
