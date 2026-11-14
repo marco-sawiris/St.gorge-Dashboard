@@ -442,7 +442,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
             />
           </div>
 
-          <div className="col-span-2">
+          <div className="col-span-1 min-[420px]:col-span-2">
             <label className="block text-[10.5px] font-bold text-[var(--text-secondary)] mb-0.5">ملاحظات</label>
             <textarea
               rows={2}
