@@ -1,13 +1,10 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { useTheme } from '../../context/ThemeContext';
-import { Church, Heart, X, Sparkles, CloudMoon } from 'lucide-react';
-import { ThemeSwitcher } from '../glass/ThemeSwitcher';
+import { Church, Heart, X, Sparkles } from 'lucide-react';
 const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
 
 export const AboutModal: React.FC = () => {
   const { isAboutModalOpen, setIsAboutModalOpen } = useApp();
-  const { theme, setTheme } = useTheme();
 
   if (!isAboutModalOpen) return null;
 
@@ -91,12 +88,6 @@ export const AboutModal: React.FC = () => {
                 <span>تبديل السمات ثلاثي الحالات: داكن، خافت، فاتح.</span>
               </li>
             </ul>
-          </div>
-
-          {/* Theme Appearance Control */}
-          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5">
-            <span className="text-xs font-extrabold text-[var(--text-primary)]">مظهر وسِمة التطبيق</span>
-            <ThemeSwitcher />
           </div>
 
           {/* Mission Quote */}

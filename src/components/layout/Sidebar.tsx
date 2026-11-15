@@ -18,7 +18,8 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Bot,
-  ChevronLeft
+  ChevronLeft,
+  Palette
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -30,6 +31,7 @@ export const Sidebar: React.FC = () => {
     activeView,
     setActiveView,
     setIsAboutModalOpen,
+    setIsAppearanceModalOpen,
     setIsAreaModalOpen,
     setIsSyncModalOpen,
     setIsAssistantOpen,
@@ -203,8 +205,8 @@ export const Sidebar: React.FC = () => {
           aria-hidden="true"
         />
 
-        {/* Compact Foreground Layer (No vertical scrollbar needed — all items fit cleanly) */}
-        <div className="relative z-10 flex flex-col h-full p-3 overflow-hidden justify-start gap-2">
+        {/* Compact Foreground Layer (Scrollable on compact/landscape viewports) */}
+        <div className="relative z-10 flex flex-col h-full p-3 overflow-y-auto overflow-x-hidden justify-start gap-2">
           <div className="flex flex-col min-h-0">
             {/* Brand Header & Collapse / Close Controls */}
             <div
@@ -392,10 +394,24 @@ export const Sidebar: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setIsSidebarOpen(false);
+                  setIsAppearanceModalOpen(true);
+                }}
+                title="مظهر وسمة التطبيق"
+                style={{ '--i': 8 } as React.CSSProperties}
+                className={navLinkClass(false)}
+              >
+                <Palette className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>مظهر وسمة التطبيق</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSidebarOpen(false);
                   setIsAboutModalOpen(true);
                 }}
                 title="عن التطبيق"
-                style={{ '--i': 8 } as React.CSSProperties}
+                style={{ '--i': 9 } as React.CSSProperties}
                 className={navLinkClass(false)}
               >
                 <Info className="w-4 h-4 shrink-0 text-[#8ecfff]" />

@@ -3,6 +3,8 @@ import { Student, SheetName, AppFilterState, APPROVED_SHEETS } from '../types/st
 import { FollowupRecord } from '../types/followup';
 import { AppNotification, OfflineMutation, AuthUser } from '../types/auth';
 import {
+  DynamicAlphabetBucket,
+  extractDynamicAlphabetBuckets,
   normalizeArabicText,
   normalizeArabicInitial,
   getNearestFridayString,
@@ -42,6 +44,14 @@ import {
   idbResetMutationRetry
 } from '../services/indexedDbService';
 import { syncWeeklyNotificationSchedules } from '../services/weeklyNotificationService';
+import {
+  clearDeliveredNativeNotificationsOnce,
+  computeNotificationDedupKey,
+  CURRENT_NOTIFICATIONS_VERSION,
+  loadAndMigrateNotifications,
+  saveNotificationsToStorage,
+  upsertDeduplicatedNotification
+} from '../services/notificationStorageService';
 import { fetchSheetStudentsViaGviz, fetchFollowupLogViaGviz } from '../services/googleSheetParser';
 import { useAuth } from './AuthContext';
 
@@ -128,6 +138,7 @@ export function evaluateSingleActiveEditLock(
 interface AppContextType {
   students: Student[];
   filteredStudents: Student[];
+  availableAlphabetBuckets: DynamicAlphabetBucket[];
   followupRecords: FollowupRecord[];
   notifications: AppNotification[];
   filters: AppFilterState;
@@ -149,8 +160,10 @@ interface AppContextType {
   isInitialLoading: boolean;
   isAssistantOpen: boolean;
   isNotificationsOpen: boolean;
+  notificationsActiveTab: 'feed' | 'settings';
   isAreaModalOpen: boolean;
   isAboutModalOpen: boolean;
+  isAppearanceModalOpen: boolean;
   isAddModalOpen: boolean;
   isSyncModalOpen: boolean;
   setFilters: React.Dispatch<React.SetStateAction<AppFilterState>>;
@@ -163,8 +176,10 @@ interface AppContextType {
   setIsSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   setIsAssistantOpen: (open: boolean) => void;
   setIsNotificationsOpen: (open: boolean) => void;
+  setNotificationsActiveTab: React.Dispatch<React.SetStateAction<'feed' | 'settings'>>;
   setIsAreaModalOpen: (open: boolean) => void;
   setIsAboutModalOpen: (open: boolean) => void;
+  setIsAppearanceModalOpen: (open: boolean) => void;
   setIsAddModalOpen: (open: boolean) => void;
   setIsSyncModalOpen: (open: boolean) => void;
   isQueueModalOpen: boolean;
@@ -177,7 +192,12 @@ interface AppContextType {
   deleteStudent: (studentId: string) => Promise<boolean>;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
-  addNotification: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void;
+  addNotification: (
+    title: string,
+    desc?: string,
+    type?: 'info' | 'warn' | 'success' | 'danger',
+    options?: { id?: string; dedupKey?: string }
+  ) => void;
   processOfflineQueue: () => Promise<{ success: boolean; sentCount: number; remainingCount: number }>;
   inFlightStudentIds: string[];
   syncedStudentIds: string[];
@@ -189,6 +209,67 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+
+export function getAvailableAlphabetBuckets(
+  students: Student[],
+  filters: Pick<AppFilterState, 'sheet' | 'servant' | 'area'>
+): DynamicAlphabetBucket[] {
+  const targetServant = filters.servant ? filters.servant.trim() : '';
+  const targetArea = filters.area ? filters.area.trim() : '';
+  const targetSheet = filters.sheet;
+
+  const scoped = students.filter((s) => {
+    if (targetSheet !== '__ALL__' && s.sourceSheet !== targetSheet) return false;
+    if (targetServant && s.servant.trim() !== targetServant) return false;
+    if (targetArea && s.area.trim() !== targetArea) return false;
+    return true;
+  });
+
+  return extractDynamicAlphabetBuckets(scoped);
+}
+
+export function resolveValidAlphabetFilter(
+  currentLetter: string | null,
+  availableBuckets: ReadonlyArray<DynamicAlphabetBucket>
+): string | null {
+  if (!currentLetter) return null;
+  return availableBuckets.some((b) => b.letter === currentLetter) ? currentLetter : null;
+}
+
+export function filterStudentsByAppFilters(students: Student[], filters: AppFilterState): Student[] {
+  const q = normalizeArabicText(filters.searchQuery);
+  const targetServant = filters.servant ? filters.servant.trim() : '';
+  const targetArea = filters.area ? filters.area.trim() : '';
+  const availableBuckets = getAvailableAlphabetBuckets(students, filters);
+  const targetLetter = resolveValidAlphabetFilter(filters.alphabetLetter, availableBuckets);
+  const targetSheet = filters.sheet;
+
+  return students.filter((s) => {
+    if (targetSheet !== '__ALL__' && s.sourceSheet !== targetSheet) {
+      return false;
+    }
+    if (targetServant && s.servant.trim() !== targetServant) {
+      return false;
+    }
+    if (targetArea && s.area.trim() !== targetArea) {
+      return false;
+    }
+    if (targetLetter) {
+      const initial = normalizeArabicInitial(s.name);
+      if (initial !== targetLetter) return false;
+    }
+    if (q) {
+      const nameMatch = normalizeArabicText(s.name).includes(q);
+      const codeMatch = normalizeArabicText(s.code).includes(q);
+      const notesMatch = normalizeArabicText(s.notes).includes(q);
+      const areaMatch = normalizeArabicText(s.area).includes(q);
+      if (!nameMatch && !codeMatch && !notesMatch && !areaMatch) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
 
 // ============================================================================
 // Core Production Engines for Queue and Sync (Exported for Direct Verification)
@@ -755,14 +836,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [students, setStudents] = useState<Student[]>([]);
   const [followupRecords, setFollowupRecords] = useState<FollowupRecord[]>([]);
+  const didMigrateNotificationsRef = useRef<boolean>(false);
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = safeGetLocalStorage('stgorge_notifications');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {}
-    }
-    return [];
+    const migration = loadAndMigrateNotifications();
+    didMigrateNotificationsRef.current = migration.didMigrate;
+    return migration.notifications;
   });
 
   const [filters, setFilters] = useState<AppFilterState>({
@@ -861,8 +939,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notificationsActiveTab, setNotificationsActiveTab] = useState<'feed' | 'settings'>('feed');
   const [isAreaModalOpen, setIsAreaModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+  const [isAppearanceModalOpen, setIsAppearanceModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpenState] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
@@ -925,7 +1005,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Keep Weekly Local Notifications synced cleanly with Africa/Cairo clock & DST (no past missed triggers)
+  // On upgrade migration, clear stale already-delivered shade items once while preserving channels/permissions.
   useEffect(() => {
+    if (didMigrateNotificationsRef.current) {
+      didMigrateNotificationsRef.current = false;
+      void clearDeliveredNativeNotificationsOnce();
+    }
     void syncWeeklyNotificationSchedules().catch(() => {});
     if (typeof document === 'undefined') return;
     const handleVisibility = () => {
@@ -1045,13 +1130,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Sync notifications to localStorage
+  // Sync notifications to localStorage (deduplicated)
   useEffect(() => {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('stgorge_notifications', JSON.stringify(notifications));
-      }
-    } catch {}
+    saveNotificationsToStorage(notifications);
   }, [notifications]);
 
   const dismissToast = useCallback(() => {
@@ -1063,16 +1144,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const addNotification = useCallback(
-    (title: string, desc?: string, type: 'info' | 'warn' | 'success' | 'danger' = 'info') => {
+    (
+      title: string,
+      desc?: string,
+      type: 'info' | 'warn' | 'success' | 'danger' = 'info',
+      options?: { id?: string; dedupKey?: string }
+    ) => {
+      const dedupKey = computeNotificationDedupKey(title, desc, type, options?.dedupKey);
       const newNotif: AppNotification = {
-        id: generateUUID(),
+        id: options?.id?.trim() || generateUUID(),
+        dedupKey,
         title,
         desc,
         type,
         timestamp: Date.now(),
-        unread: true
+        unread: true,
+        appVersion: CURRENT_NOTIFICATIONS_VERSION
       };
-      setNotifications((prev) => [newNotif, ...prev.slice(0, 29)]);
+      setNotifications((prev) => upsertDeduplicatedNotification(prev, newNotif));
       setActiveToast(newNotif);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       toastTimerRef.current = setTimeout(() => {
@@ -1153,39 +1242,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [isAddModalOpen, addNotification]
   );
 
+  const availableAlphabetBuckets = useMemo(() => {
+    return getAvailableAlphabetBuckets(students, filters);
+  }, [students, filters.sheet, filters.servant, filters.area]);
+
+  // Automatically reset selected letter to All (null) if the last matching student disappears
+  useEffect(() => {
+    if (!filters.alphabetLetter) return;
+    const stillExists = availableAlphabetBuckets.some((b) => b.letter === filters.alphabetLetter);
+    if (!stillExists) {
+      setFilters((prev) => (prev.alphabetLetter === filters.alphabetLetter ? { ...prev, alphabetLetter: null } : prev));
+    }
+  }, [filters.alphabetLetter, availableAlphabetBuckets]);
+
   // Filtered Students logic
   const filteredStudents = useMemo(() => {
-    const q = normalizeArabicText(filters.searchQuery);
-    const targetServant = filters.servant ? filters.servant.trim() : '';
-    const targetArea = filters.area ? filters.area.trim() : '';
-    const targetLetter = filters.alphabetLetter;
-    const targetSheet = filters.sheet;
-
-    return students.filter((s) => {
-      if (targetSheet !== '__ALL__' && s.sourceSheet !== targetSheet) {
-        return false;
-      }
-      if (targetServant && s.servant.trim() !== targetServant) {
-        return false;
-      }
-      if (targetArea && s.area.trim() !== targetArea) {
-        return false;
-      }
-      if (targetLetter) {
-        const initial = normalizeArabicInitial(s.name);
-        if (initial !== targetLetter) return false;
-      }
-      if (q) {
-        const nameMatch = normalizeArabicText(s.name).includes(q);
-        const codeMatch = normalizeArabicText(s.code).includes(q);
-        const notesMatch = normalizeArabicText(s.notes).includes(q);
-        const areaMatch = normalizeArabicText(s.area).includes(q);
-        if (!nameMatch && !codeMatch && !notesMatch && !areaMatch) {
-          return false;
-        }
-      }
-      return true;
-    });
+    return filterStudentsByAppFilters(students, filters);
   }, [students, filters]);
 
   // 1. Automatic Real-Time Queue Processor with Mutex & FIFO Guarantee
@@ -1698,6 +1770,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         students,
         filteredStudents,
+        availableAlphabetBuckets,
         followupRecords,
         notifications,
         filters,
@@ -1723,8 +1796,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isInitialLoading,
         isAssistantOpen,
         isNotificationsOpen,
+        notificationsActiveTab,
         isAreaModalOpen,
         isAboutModalOpen,
+        isAppearanceModalOpen,
         isAddModalOpen,
         isSyncModalOpen,
         isQueueModalOpen,
@@ -1738,8 +1813,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsSidebarCollapsed,
         setIsAssistantOpen,
         setIsNotificationsOpen,
+        setNotificationsActiveTab,
         setIsAreaModalOpen,
         setIsAboutModalOpen,
+        setIsAppearanceModalOpen,
         setIsAddModalOpen,
         setIsSyncModalOpen,
         setIsQueueModalOpen,

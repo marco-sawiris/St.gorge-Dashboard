@@ -10,15 +10,16 @@ export const TopBar: React.FC = () => {
     setIsSidebarOpen,
     isSidebarCollapsed,
     setIsSidebarCollapsed,
-    setIsNotificationsOpen
+    setIsNotificationsOpen,
+    setNotificationsActiveTab
   } = useApp();
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
   return (
-    <header className="pointer-events-auto w-full max-w-6xl mx-auto h-16 glass-strong px-2.5 sm:px-4 flex items-center justify-between shadow-[var(--shadow-lg)] transition-all duration-300">
+    <header className="pointer-events-auto w-full max-w-6xl mx-auto h-16 glass-strong px-2.5 sm:px-4 flex items-center justify-between gap-2 shadow-[var(--shadow-lg)] transition-all duration-300">
       {/* Brand & Menu Trigger (Start / Right side in RTL) */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
         {/* Mobile RTL Drawer Trigger */}
         <button
           type="button"
@@ -41,34 +42,37 @@ export const TopBar: React.FC = () => {
           <Menu className="w-5 h-5 text-[var(--text-primary)]" />
         </button>
 
-        <div className="flex items-center gap-2 select-none">
+        <div className="flex items-center gap-2 select-none shrink-0">
           <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full p-0.5 bg-gradient-to-tr from-[var(--primary)] to-[var(--accent-secondary)] shadow-xs shrink-0">
             <img
               src={stGeorgeIcon}
-              alt="St.Gorge Icon"
+              alt="StGeorge Dashboard Icon"
               className="w-full h-full rounded-full object-cover"
             />
           </div>
-          <div>
-            <h1 className="font-extrabold text-sm sm:text-base leading-tight text-[var(--text-primary)] m-0 whitespace-nowrap">
-              St.Gorge
+          <div className="flex flex-col justify-center leading-none">
+            <h1 className="font-extrabold text-[15px] sm:text-[17px] leading-[1.08] tracking-tight text-[var(--text-primary)] m-0 whitespace-nowrap">
+              StGeorge
             </h1>
-            <p className="text-[10px] text-[var(--accent-secondary)] font-bold m-0 hidden md:block whitespace-nowrap">
-              فصل الشهيد مارجرجس بالزيتون
-            </p>
+            <span className="text-[10px] sm:text-[11px] font-medium leading-[1.1] tracking-wide text-[var(--accent-secondary)] mt-0.5 whitespace-nowrap">
+              Dashboard
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Action Items Group: 1. Last Successful Sync Status, 2. Notification Bell */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* 1. Sync Status Indicator (Shows connection + last successful sync date & time, or لم تتم مزامنة بعد) */}
+      {/* Action Items Group: 1. Compact Sync Status, 2. Notification Bell */}
+      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink">
+        {/* 1. Sync Status Indicator (Compact pill so it never crowds StGeorge branding) */}
         <SyncStatusIndicator />
 
         {/* 2. Notification Bell with Internal Numeric Badge */}
         <button
           type="button"
-          onClick={() => setIsNotificationsOpen(true)}
+          onClick={() => {
+            setNotificationsActiveTab('feed');
+            setIsNotificationsOpen(true);
+          }}
           className="glass-btn relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
           aria-label="التنبيهات"
           title={unreadCount > 0 ? `التنبيهات (${unreadCount} غير مقروء)` : 'التنبيهات'}

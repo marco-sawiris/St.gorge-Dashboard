@@ -1532,7 +1532,7 @@ async function runSprintTests() {
     att: { [assistantFriday]: true }
   });
   const presentAnswer = processAssistantQuery('هاتلي عدد الأولاد اللي حضرت النهارده', [assistantStudent]);
-  assert(presentAnswer.text.includes('الحضور المسجل') && presentAnswer.text.includes('بيشوي عماد صموئيل'), 'Test 37a: Assistant answers natural-language present query from latest held Friday');
+  assert(presentAnswer.text.includes('الحاضرون آخر جمعة') && presentAnswer.text.includes('بيشوي عماد صموئيل'), 'Test 37a: Assistant answers natural-language present query from latest held Friday');
 
   const nextMonthAnswer = processAssistantQuery(
     'هات أعياد الميلاد الشهر القادم',
@@ -1581,7 +1581,7 @@ async function runSprintTests() {
   assert(weeklyMissing.text.includes('الأشبن: ماركو') && weeklyMissing.text.includes('مارتن فايز') && !weeklyMissing.text.includes('مينا عادل'), 'Test 38e: Weekly missing-follow-up report is scoped to the assigned servant');
   const alreadyFollowed = makeStudent({ id: 'assistant_fu_done', name: 'بيشوي سمير', servant: 'ماركو', fu: { [followupFriday]: 'واتساب' } });
   const weeklyDone = processAssistantQuery('مين نسيت افتقدهم الأسبوع ده؟', [alreadyFollowed], { referenceDate: new Date(), servantName: 'ماركو' });
-  assert(weeklyDone.text.includes('كل المخدومين') && weeklyDone.text.includes('لديهم افتقاد مسجل'), 'Test 38f: Current-week follow-up records are excluded from the missing list');
+  assert(weeklyDone.text.includes('(0)') && weeklyDone.text.includes('لا يوجد'), 'Test 38f: Current-week follow-up records are excluded from the missing list');
   const weakAttendance = processAssistantQuery('اديني عدد الأولاد اللي حضورهم مش قوي عشان أفتقدهم', [makeStudent({ id: 'weak_1', name: 'مينا', attendanceMonth: 1, attendanceTotal: 6 }), makeStudent({ id: 'weak_2', name: 'مارك', attendanceMonth: 4, attendanceTotal: 10 })]);
   assert(weakAttendance.text.includes('مينا') && !weakAttendance.text.includes('مارك'), 'Test 38g: Weak attendance report uses current-month attendance, not lifetime total');
   console.log('✅ Test 38 Passed: Batch follow-up, method detection, weekly gaps, servant scope & weak attendance verified\\n');

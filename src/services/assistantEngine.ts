@@ -1,4 +1,5 @@
 import { Student } from '../types/student';
+import { FollowupRecord } from '../types/followup';
 import { getLatestHeldFridayString, getNearestFridayString, normalizeArabicText } from '../utils/arabicUtils';
 
 export interface AssistantAction {
@@ -88,7 +89,7 @@ export const ASSISTANT_FAQ: AssistantFaqItem[] = [
   {
     keys: ['ثيم', 'مظهر', 'داكن', 'فاتح', 'الوان'],
     answer:
-      'لتغيير المظهر: اضغط على أيقونة المظهر في أعلى الشريط العلوي أو القائمة الجانبية للتبديل بين الثيم الداكن، الهافتون المتوسط (Dim)، والفاتح الزجاجي.'
+      'لتغيير المظهر: افتح القائمة الجانبية واضغط على «مظهر وسمة التطبيق» للتبديل بين الثيم الداكن، الخافت (Dim)، والفاتح الزجاجي.'
   },
   {
     keys: ['لوحة الحروف', 'حروف', 'ابجدي'],
@@ -277,16 +278,97 @@ export function detectAssistantIntent(query: string): AssistantIntent {
     return 'message';
   }
 
-  // Attendance queries for the latest held Friday (not the next upcoming Friday).
-  if ((q.includes('حضر') || q.includes('حاضرين') || q.includes('الحضور')) &&
-      (q.includes('مين') || q.includes('عدد') || q.includes('كام') || q.includes('النهارده') || q.includes('اليوم'))) {
+  // 1. Follow-up gaps for the current service week (checked BEFORE absent/present so queries like
+  // "مين اللي محتاج أفتقده" or "مين لسه ما اتفتقدش" or "مين باقي في الافتقاد" route cleanly here).
+  const mentionsFollowup =
+    q.includes('افتقاد') ||
+    q.includes('افتقد') ||
+    q.includes('اتفتقد') ||
+    q.includes('يفتقد') ||
+    q.includes('تفتقد') ||
+    q.includes('فتقد') ||
+    q.includes('اتكلم') ||
+    q.includes('مكلمتش') ||
+    q.includes('كلمتهوش');
+
+  const isNegativeOrRemainingFollowup =
+    q.includes('نسي') ||
+    q.includes('باقي') ||
+    q.includes('فاضل') ||
+    q.includes('متبقي') ||
+    q.includes('لسه') ||
+    q.includes('محتاج') ||
+    q.includes('ما اتفتقد') ||
+    q.includes('متفتقدش') ||
+    q.includes('ماتفتقد') ||
+    q.includes('ما افتقد') ||
+    q.includes('مفتقدتش') ||
+    q.includes('ما اتعمل') ||
+    q.includes('معملهمش') ||
+    q.includes('ما اتعملهمش') ||
+    q.includes('لم يتم') ||
+    q.includes('لم يفتقد') ||
+    q.includes('بدون افتقاد') ||
+    q.includes('مش متفتقد') ||
+    q.includes('لم يتفتقد') ||
+    q.includes('ما كلم') ||
+    q.includes('مكلمت') ||
+    q.includes('كلمتهوش');
+
+  if (mentionsFollowup && isNegativeOrRemainingFollowup) {
+    return 'missingFollowup';
+  }
+
+  // 2. Weak attendance requests (checked before generic attendance queries)
+  if (
+    q.includes('ضعيف') ||
+    q.includes('اقل حضور') ||
+    q.includes('منقطع') ||
+    q.includes('مقصر') ||
+    q.includes('حضورهم مش قوي') ||
+    q.includes('حضورهم ضعيف') ||
+    (q.includes('حضور') && q.includes('مش قوي'))
+  ) {
+    return 'lowAttendance';
+  }
+
+  // 3. Absence queries for the latest held Friday (checked BEFORE presence because "محضرش" contains "حضر").
+  const isAbsenceQuery =
+    q.includes('غاب') ||
+    q.includes('غائب') ||
+    q.includes('غايب') ||
+    q.includes('متغيب') ||
+    q.includes('تغيب') ||
+    q.includes('محضرش') ||
+    q.includes('محضرتش') ||
+    q.includes('محضروش') ||
+    q.includes('ما حضر') ||
+    q.includes('ماحضر') ||
+    q.includes('مش حاضر') ||
+    q.includes('لم يحضر') ||
+    q.includes('لم تحضر') ||
+    q.includes('لم يحضروا');
+
+  if (isAbsenceQuery && !q.includes('كيف') && !q.includes('ازاي')) {
+    return 'absent';
+  }
+
+  // 4. Attendance / Present queries for the latest held Friday (not next upcoming Friday).
+  const isPresentQuery =
+    ((q.includes('حضر') ||
+      q.includes('حاضرين') ||
+      q.includes('حاضرون') ||
+      q.includes('الحضور') ||
+      (q.includes('موجود') && (q.includes('مين') || q.includes('اسماء') || q.includes('جمعه')))) &&
+      !q.includes('كيف') &&
+      !q.includes('ازاي') &&
+      !q.includes('طريقه تسجيل'));
+
+  if (isPresentQuery) {
     return 'present';
   }
 
-  // Weak attendance requests should return the low-attendance list, even when phrased as a count.
-  if (q.includes('حضور') && (q.includes('مش قوي') || q.includes('ضعيف') || q.includes('اقل'))) return 'lowAttendance';
-
-  // Stats & Analytics
+  // 5. Stats & Analytics
   if (
     q.includes('احصائي') ||
     q.includes('نسبه') ||
@@ -299,17 +381,7 @@ export function detectAssistantIntent(query: string): AssistantIntent {
     return 'stats';
   }
 
-  // Follow-up gaps for the current service week.
-  if ((q.includes('افتقاد') || q.includes('افتقد') || q.includes('كلم')) &&
-      (q.includes('الاسبوع ده') || q.includes('هذا الاسبوع') || q.includes('نسي') || q.includes('ما افتقد') || q.includes('مفتقدتش') || q.includes('ما كلم'))) return 'missingFollowup';
-
-  // Attendance tiers
-  if (q.includes('غائب') || q.includes('غايب') || q.includes('لم يحضر') || q.includes('محتاجين افتقاد')) {
-    return 'absent';
-  }
-  if (q.includes('ضعيف') || q.includes('اقل حضور') || q.includes('منقطع') || q.includes('مقصر') || q.includes('حضورهم مش قوي') || q.includes('حضورهم ضعيف') || (q.includes('حضور') && q.includes('مش قوي'))) {
-    return 'lowAttendance';
-  }
+  // 6. Top Attendance
   if (q.includes('افضل') || q.includes('اعلي حضور') || q.includes('منتظم') || q.includes('اكثر حضور')) {
     return 'topAttendance';
   }
@@ -453,7 +525,12 @@ export function parseAssistantCommand(
   const q = normalizeArabicText(query);
   if (!q) return null;
 
-  const followupMatch = query.match(/(?:كلمت|اتصلت(?:\s+ب)?|بعت(?:\s+رساله)?\s+واتساب\s+لـ?|بعت\s+واتساب\s+لـ?|زرت|عملت\s+زياره\s+منزليه\s+لـ?)\s*(.+)$/i);
+  const isQuestionOrNegatedFollowup =
+    /^(?:مين|من|اعرض|هات|كم|كام|هل)\b/.test(q) ||
+    /(?:ما\s*كلم|مكلمت|كلمتهوش|نسيت|لسه)/.test(q);
+  const followupMatch = !isQuestionOrNegatedFollowup
+    ? query.match(/(?:^|\s)(?:كلمت|اتصلت(?:\s+ب)?|بعت(?:\s+رساله)?\s+واتساب\s+لـ?|بعت\s+واتساب\s+لـ?|زرت|عملت\s+زياره\s+منزليه\s+لـ?)\s+(.+)$/i)
+    : null;
   if (followupMatch) {
     const rawTail = followupMatch[1].replace(/[.!؟?]+$/g, '').replace(/^(?:مثلاً|مثلا|أنا|انا|النهارده|النهاردة)\s+/i, '').trim();
     const method: 'تم تليفونياً' | 'واتساب' | 'تم بزيارة' = /واتساب/i.test(query) ? 'واتساب' : /زرت|زياره\s+منزليه/i.test(query) ? 'تم بزيارة' : 'تم تليفونياً';
@@ -532,6 +609,9 @@ export function parseAssistantCommand(
 export interface AssistantQueryContext {
   referenceDate?: Date;
   lastSyncLabel?: string | null;
+  lastSyncError?: string | null;
+  isSyncing?: boolean;
+  followupRecords?: FollowupRecord[];
   servantName?: string | null;
   sessionId?: string;
   sessionMessages?: AssistantMessage[];
@@ -545,6 +625,11 @@ export interface AssistantQueryContext {
   }>;
 }
 
+function isEmptyFollowupStatus(value: unknown): boolean {
+  const s = String(value || '').trim();
+  return !s || s === 'بدون' || s === '-' || s === 'لم يتم' || s === 'لم يتفتقد';
+}
+
 export function processAssistantQuery(
   query: string,
   students: Student[],
@@ -553,7 +638,7 @@ export function processAssistantQuery(
   const trimmed = String(query || '').trim();
   const intent = detectAssistantIntent(trimmed);
   const referenceDate = options?.referenceDate || new Date();
-  const currentFriday = getLatestHeldFridayString();
+  const currentFriday = getLatestHeldFridayString(referenceDate);
 
   const command = parseAssistantCommand(trimmed, students, currentFriday);
   if (command) return command;
@@ -571,11 +656,22 @@ export function processAssistantQuery(
     'search'
   ];
 
-  // If no loaded real student data yet, be 100% honest (even if FAQ also might apply, for data intents block and ask for sync)
+  // If no loaded real student data yet, honestly report state (never invent names or misleading 0 results)
   if (students.length === 0 && dataIntents.includes(intent)) {
     const faqFallback = intent === 'search' ? matchFaq(trimmed) : null;
     if (faqFallback) {
       return { text: faqFallback.answer };
+    }
+    if (options?.isSyncing) {
+      return {
+        text: 'جاري تحميل بيانات المخدومين من Google Sheets الآن. انتظر لحظة ثم أعد الاستعلام.'
+      };
+    }
+    if (options?.lastSyncError) {
+      return {
+        text: `تعذر عرض النتائج لأن المزامنة فشلت ولم يتم تحميل بيانات المخدومين (${options.lastSyncError}). اضغط «مزامنة الآن» لإعادة المحاولة.`,
+        actions: [{ label: '🔄 مزامنة الآن', type: 'sync', payload: '' }]
+      };
     }
     return {
       text: 'لا توجد بيانات مخدومين محملة حالياً في التطبيق. اضغط «مزامنة الآن» للاتصال بملف Google Sheets وجلب البيانات الحقيقية أولاً.',
@@ -700,52 +796,102 @@ export function processAssistantQuery(
     }
 
     case 'present': {
-      const presentList = students.filter((s) => s.att?.[currentFriday] === true);
-      const unrecorded = students.filter((s) => typeof s.att?.[currentFriday] !== 'boolean').length;
+      const explicitServant = options?.servantName?.trim();
+      const scopedStudents = explicitServant
+        ? students.filter((s) => s.servant?.trim() === explicitServant)
+        : students;
+      const presentList = scopedStudents.filter((s) => s.att?.[currentFriday] === true);
+      const unrecorded = scopedStudents.filter((s) => typeof s.att?.[currentFriday] !== 'boolean').length;
+      const syncWarning = options?.lastSyncError
+        ? `\n\n⚠️ المزامنة الأخيرة غير مكتملة؛ النتائج من البيانات المحلية.`
+        : '';
+
+      if (presentList.length === 0) {
+        return {
+          text:
+            `الحاضرون آخر جمعة (0): لا يوجد` +
+            (unrecorded > 0 ? `\n• لم يُسجل بعد: ${unrecorded}` : '') +
+            syncWarning
+        };
+      }
+
+      const namesList = presentList.map((s, i) => `${i + 1}. ${s.name}`).join('\n');
       return {
-        text: `✅ الحضور المسجل لآخر جمعة انعقدت (${currentFriday}): ${presentList.length} مخدوم من إجمالي ${students.length}.\n\n${presentList.length ? presentList.map((s, i) => `${i + 1}. ${s.name} (${s.code}) — الأشبين: ${s.servant || 'غير محدد'}`).join('\n') : 'لا يوجد حضور مسجل.'}\n\nعدد السجلات التي لم يُسجل لها حضور أو غياب: ${unrecorded}.`,
-        copyText: presentList.map((s) => `${s.name} (${s.code})`).join('\n'),
-        actions: [{ label: '⚠️ عرض الغائبين', type: 'prompt', payload: 'الغائبون' }]
+        text: `الحاضرون آخر جمعة (${presentList.length}):\n${namesList}${unrecorded > 0 ? `\n\n• لم يُسجل بعد: ${unrecorded}` : ''}${syncWarning}`,
+        copyText: presentList.map((s) => s.name).join('\n'),
+        actions: [{ label: '⚠️ الغائبون', type: 'prompt', payload: 'مين غاب آخر جمعة؟' }]
       };
     }
 
     case 'absent': {
-      const absentList = students.filter((s) => s.att?.[currentFriday] === false);
-      const unrecorded = students.filter((s) => typeof s.att?.[currentFriday] !== 'boolean').length;
+      const explicitServant = options?.servantName?.trim();
+      const scopedStudents = explicitServant
+        ? students.filter((s) => s.servant?.trim() === explicitServant)
+        : students;
+      const absentList = scopedStudents.filter((s) => s.att?.[currentFriday] === false);
+      const unrecorded = scopedStudents.filter((s) => typeof s.att?.[currentFriday] !== 'boolean').length;
+      const syncWarning = options?.lastSyncError
+        ? `\n\n⚠️ المزامنة الأخيرة غير مكتملة؛ النتائج من البيانات المحلية.`
+        : '';
+
       if (absentList.length === 0) {
         return {
-          text: `🎉 لا يوجد أي مخدوم مسجل كغائب لآخر جمعة انعقدت (${currentFriday}). يوجد ${unrecorded} سجل لم يُسجل له حضور أو غياب.`
+          text:
+            `الغائبون آخر جمعة (0): لا يوجد` +
+            (unrecorded > 0 ? `\n• لم يُسجل بعد: ${unrecorded}` : '') +
+            syncWarning
         };
       }
-      const preview = absentList.slice(0, 12).map((s, idx) => {
-        const phone = s.phoneStudent || s.phoneParent1 || 'بدون هاتف';
-        const fu = s.followupStatus && s.followupStatus !== 'بدون' ? s.followupStatus : 'بحاجة لافتقاد';
-        return `${idx + 1}. ${s.name} (${s.code}) — الأشبين: ${s.servant || '-'} • 📞 ${phone} • ${fu}`;
-      });
-      const extra = absentList.length > 12 ? `\n...وعدد ${absentList.length - 12} آخرين.` : '';
+
+      const namesList = absentList.map((s, idx) => `${idx + 1}. ${s.name}`).join('\n');
       return {
-        text: `⚠️ الغياب المسجل عن آخر جمعة انعقدت (${currentFriday}) — الإجمالي (${absentList.length}):\n\n${preview.join('\n')}${extra}\n\nسجلات بدون تسجيل حضور/غياب: ${unrecorded}.`,
-        copyText: preview.join('\n'),
+        text: `الغائبون آخر جمعة (${absentList.length}):\n${namesList}${unrecorded > 0 ? `\n\n• لم يُسجل بعد: ${unrecorded}` : ''}${syncWarning}`,
+        copyText: absentList.map((s) => s.name).join('\n'),
         actions: [{ label: '💙 رسالة افتقاد جاهزة', type: 'prompt', payload: 'رسالة افتقاد' }]
       };
     }
 
     case 'missingFollowup': {
       const explicitServant = trimmed.match(/(?:للأشبين|للأشبن|بالنسبة للأشبين|بالنسبة للأشبن)\s+(.+)$/);
-      const servantName = options?.servantName?.trim() || explicitServant?.[1]?.trim();
       const allServantsRequested = normalizeArabicText(trimmed).includes('كل الاشابين');
-      if (!servantName && !allServantsRequested) {
-        return { text: 'علشان أطلع لك الأسماء اللي تخصك بدقة، اختار اسمك من فلتر «أشابين وخدام الفصل» في القائمة الجانبية، وبعدها اسألني تاني. أو قل «كل الأشابين» لعرض تقرير شامل.' };
-      }
+      const servantName = allServantsRequested
+        ? undefined
+        : (options?.servantName?.trim() || explicitServant?.[1]?.trim() || undefined);
+
       const weekFridayDate = getNearestFridayString(referenceDate);
-      const assigned = students.filter((s) => allServantsRequested || s.servant?.trim() === servantName);
-      const missing = assigned.filter((s) => !s.fu?.[weekFridayDate]);
-      const scope = allServantsRequested ? 'كل الأشابين' : 'الأشبن: ' + servantName;
-      const lines = missing.slice(0, 30).map((s, i) => (i + 1) + '. ' + s.name + ' (' + s.code + ') — ' + (s.servant || 'غير مسند') + ' — آخر افتقاد: ' + (s.lastFollowup || 'غير مسجل'));
+      const assigned = servantName
+        ? students.filter((s) => s.servant?.trim() === servantName)
+        : students;
+
+      // Cross-check both Student.fu[weekFridayDate] and persisted FollowupRecord items for this week.
+      // Never infer absence from missing follow-up records.
+      const followedUpIdsFromLog = new Set<string>(
+        (options?.followupRecords || [])
+          .filter((r) => r && r.fridayDate === weekFridayDate && !isEmptyFollowupStatus(r.type))
+          .map((r) => r.studentId)
+      );
+
+      const missing = assigned.filter((s) => {
+        const hasSheetFu = !isEmptyFollowupStatus(s.fu?.[weekFridayDate]);
+        const hasLogFu = followedUpIdsFromLog.has(s.id);
+        return !hasSheetFu && !hasLogFu;
+      });
+
+      const titleScope = servantName ? ` — الأشبن: ${servantName}` : '';
+      const syncWarning = options?.lastSyncError
+        ? `\n\n⚠️ المزامنة الأخيرة غير مكتملة؛ النتائج من البيانات المحلية.`
+        : '';
+
+      if (missing.length === 0) {
+        return {
+          text: `المتبقون في الافتقاد هذا الأسبوع${titleScope} (0): لا يوجد${syncWarning}`
+        };
+      }
+
+      const namesList = missing.map((s, i) => `${i + 1}. ${s.name}`).join('\n');
       return {
-        text: missing.length
-          ? '📋 مخدومون لم يظهر لهم افتقاد مسجل هذا الأسبوع (أسبوع ' + weekFridayDate + ')\nالنطاق: ' + scope + '\nالعدد: ' + missing.length + ' من ' + assigned.length + '\n\n' + lines.join('\n') + (missing.length > 30 ? '\n... و' + (missing.length - 30) + ' أسماء أخرى.' : '') + '\n\nتنبيه: القائمة مبنية على سجلات الافتقاد المحفوظة في التطبيق، وليست إثباتًا أن مكالمة لم تحدث خارج التطبيق.'
-          : 'ممتاز، كل المخدومين ضمن النطاق المحدد لديهم افتقاد مسجل هذا الأسبوع (' + weekFridayDate + ').\nالنطاق: ' + scope + '.'
+        text: `المتبقون في الافتقاد هذا الأسبوع${titleScope} (${missing.length}):\n${namesList}${syncWarning}`,
+        copyText: missing.map((s) => s.name).join('\n')
       };
     }
     case 'lowAttendance': {

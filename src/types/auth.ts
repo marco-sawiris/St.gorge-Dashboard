@@ -11,11 +11,13 @@ export interface AuthUser {
 
 export interface AppNotification {
   id: string;
+  dedupKey?: string;
   title: string;
   desc?: string;
   type: 'info' | 'warn' | 'success' | 'danger';
   timestamp: number;
   unread: boolean;
+  appVersion?: string;
 }
 
 export interface OfflineMutation {

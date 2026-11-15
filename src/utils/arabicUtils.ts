@@ -16,22 +16,40 @@ export function normalizeArabicText(value: string | undefined | null): string {
 }
 
 export function normalizeArabicInitial(value: string | undefined | null): string {
-  const raw = String(value ?? '').trim().replace(/[\u064b-\u065f\u0670\u0640]/g, '');
-  const ch = raw.charAt(0);
-  if (!ch) return '';
+  const cleaned = String(value ?? '')
+    .replace(/[\u200B-\u200F\uFEFF\u064b-\u065f\u0670\u0640]/g, '')
+    .trim();
+  const letterMatch = cleaned.match(/\p{L}/u);
+  if (!letterMatch) return '';
+  const ch = letterMatch[0];
   if (/[أإآٱ]/.test(ch)) return 'ا';
   if (ch === 'ى') return 'ي';
   if (ch === 'ة') return 'ه';
   if (ch === 'ئ' || ch === 'ؤ') return 'ء';
+  if (/[a-z]/.test(ch)) return ch.toUpperCase();
   return ch;
 }
 
-export const ARABIC_ALPHABET = [
-  'ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ',
-  'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص',
-  'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق',
-  'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'
-];
+export interface DynamicAlphabetBucket {
+  letter: string;
+  count: number;
+}
+
+const arabicAlphabetCollator = new Intl.Collator('ar', { sensitivity: 'base' });
+
+export function extractDynamicAlphabetBuckets(
+  students: ReadonlyArray<{ name?: string | null }>
+): DynamicAlphabetBucket[] {
+  const counts = new Map<string, number>();
+  for (const student of students) {
+    const initial = normalizeArabicInitial(student?.name);
+    if (!initial) continue;
+    counts.set(initial, (counts.get(initial) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort(([a], [b]) => arabicAlphabetCollator.compare(a, b))
+    .map(([letter, count]) => ({ letter, count }));
+}
 
 export interface CairoDateParts {
   year: number;

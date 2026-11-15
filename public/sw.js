@@ -6,7 +6,7 @@
 // 4. Scoped cache cleanup: only clean caches created by this specific application prefix.
 
 const APP_CACHE_PREFIX = 'stgorge-app-shell-';
-const CURRENT_CACHE_VERSION = 'v7';
+const CURRENT_CACHE_VERSION = 'v8';
 const CACHE_NAME = `${APP_CACHE_PREFIX}${CURRENT_CACHE_VERSION}`;
 
 // Dynamically extract repository base path (e.g. '/' or '/st-george-service/')

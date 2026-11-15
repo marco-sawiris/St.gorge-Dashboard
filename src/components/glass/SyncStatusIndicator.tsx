@@ -24,7 +24,7 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
   const config = {
     connected: {
       label: 'متصل • لم تتم مزامنة بعد',
-      mobileLabel: 'متصل • لم تتم مزامنة بعد',
+      mobileLabel: 'متصل',
       icon: Wifi,
       colorClass: 'text-[var(--accent-secondary)]',
       bgClass: 'bg-[var(--accent-secondary)]/10 border-[var(--accent-secondary)]/30',
@@ -40,7 +40,7 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
     },
     synced: {
       label: lastSuccessfulSyncTime ? `متصل • ${lastSuccessfulSyncTime}` : 'متصل • تمت المزامنة',
-      mobileLabel: lastSuccessfulSyncCompact ? `متصل • ${lastSuccessfulSyncCompact}` : 'متصل',
+      mobileLabel: 'متصل',
       icon: CheckCircle2,
       colorClass: 'text-[var(--accent-secondary)]',
       bgClass: 'bg-[var(--accent-secondary)]/10 border-[var(--accent-secondary)]/30',
@@ -48,7 +48,7 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
     },
     failed: {
       label: lastSuccessfulSyncCompact ? `فشلت المزامنة • آخر نجاح ${lastSuccessfulSyncCompact}` : 'فشلت المزامنة',
-      mobileLabel: lastSuccessfulSyncCompact ? `فشل • ${lastSuccessfulSyncCompact}` : 'فشل',
+      mobileLabel: 'فشل',
       icon: AlertCircle,
       colorClass: 'text-[var(--danger)]',
       bgClass: 'bg-red-500/15 border-red-500/30',
@@ -56,7 +56,7 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
     },
     offline: {
       label: lastSuccessfulSyncCompact ? `أوفلاين • آخر نجاح ${lastSuccessfulSyncCompact}` : 'غير متصل',
-      mobileLabel: lastSuccessfulSyncCompact ? `أوفلاين • ${lastSuccessfulSyncCompact}` : 'أوفلاين',
+      mobileLabel: 'أوفلاين',
       icon: WifiOff,
       colorClass: 'text-[var(--text-muted)]',
       bgClass: 'bg-[var(--glass-bg)] border-[var(--border-color)]',
@@ -78,7 +78,7 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
     <button
       type="button"
       onClick={() => setIsSyncModalOpen(true)}
-      className={`relative inline-flex items-center gap-1.5 px-2.5 sm:px-3 h-9 sm:h-10 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer select-none active:scale-95 shadow-xs border shrink-0 max-w-[235px] sm:max-w-none ${config.bgClass} ${config.colorClass} ${className}`}
+      className={`relative inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 h-7 sm:h-8 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-semibold transition-all duration-200 cursor-pointer select-none active:scale-95 shadow-xs border min-w-0 max-w-[116px] sm:max-w-[230px] md:max-w-none overflow-hidden ${config.bgClass} ${config.colorClass} ${className}`}
       title={
         lastSuccessfulSyncTime
           ? `آخر مزامنة ناجحة: ${lastSuccessfulSyncTime} — اضغط للتفاصيل`
@@ -87,12 +87,12 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
       aria-label={`حالة المزامنة: ${config.label}`}
     >
       <IconComponent
-        className={`w-3.5 h-3.5 shrink-0 ${isSyncing || syncState === 'syncing' ? 'animate-spin' : ''}`}
+        className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${isSyncing || syncState === 'syncing' ? 'animate-spin' : ''}`}
       />
 
-      {/* Text Label: full date & time on desktop, compact on mobile */}
-      <span className="hidden sm:inline whitespace-nowrap truncate">{config.label}</span>
-      <span className="inline sm:hidden whitespace-nowrap text-[10px] truncate">{config.mobileLabel}</span>
+      {/* Text Label: compact 1-word status on small screens, full status on >= sm */}
+      <span className="hidden sm:inline whitespace-nowrap truncate leading-none">{config.label}</span>
+      <span className="inline sm:hidden whitespace-nowrap text-[10px] font-semibold leading-none truncate">{config.mobileLabel}</span>
 
       {/* Indicator status light dot */}
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${config.dotClass}`} />

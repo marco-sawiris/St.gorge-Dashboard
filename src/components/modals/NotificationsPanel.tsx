@@ -30,19 +30,21 @@ import {
   ShieldAlert,
   CalendarClock
 } from 'lucide-react';
-import { ThemeSwitcher } from '../glass/ThemeSwitcher';
 
 export const NotificationsPanel: React.FC = () => {
   const {
     isNotificationsOpen,
     setIsNotificationsOpen,
+    notificationsActiveTab,
+    setNotificationsActiveTab,
     notifications,
     markNotificationRead,
     markAllNotificationsRead,
     addNotification
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'feed' | 'settings'>('feed');
+  const activeTab = notificationsActiveTab;
+  const setActiveTab = setNotificationsActiveTab;
   const [settings, setSettings] = useState<WeeklyNotificationSettings>(() =>
     loadWeeklyNotificationSettings()
   );
@@ -404,20 +406,6 @@ export const NotificationsPanel: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
-            {/* Theme Appearance Selector */}
-            <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 shadow-xs">
-              <div>
-                <h4 className="text-xs sm:text-sm font-extrabold text-[var(--text-primary)] m-0 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[var(--accent-secondary)]" />
-                  <span>مظهر وسِمة التطبيق</span>
-                </h4>
-                <p className="text-[11px] text-[var(--text-muted)] m-0 mt-0.5">
-                  التبديل الفوري بين المظهر الداكن، الخافت، أو الفاتح
-                </p>
-              </div>
-              <ThemeSwitcher />
-            </div>
-
             {/* Master Switch Card */}
             <div className="p-3 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -428,15 +416,24 @@ export const NotificationsPanel: React.FC = () => {
                   جدولة تلقائية بتوقيت القاهرة بدون تكرار عند إعادة التشغيل
                 </p>
               </div>
-              <LiquidToggle
-                size="sm"
-                checked={settings.masterEnabled}
-                loading={isUpdatingSchedule}
-                onChange={handleToggleMaster}
-                label="تفعيل التذكيرات الأسبوعية"
-                onLabel="مفعل"
-                offLabel="متوقف"
-              />
+              <div className="flex flex-col items-center justify-center gap-1.5 shrink-0 min-w-[74px]">
+                <span
+                  className={`text-[11px] font-extrabold leading-none whitespace-nowrap ${
+                    settings.masterEnabled
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  {settings.masterEnabled ? 'مفعّل' : 'غير مفعّل'}
+                </span>
+                <LiquidToggle
+                  size="sm"
+                  checked={settings.masterEnabled}
+                  loading={isUpdatingSchedule}
+                  onChange={handleToggleMaster}
+                  label="تفعيل التذكيرات الأسبوعية"
+                />
+              </div>
             </div>
 
             {/* Android / Browser Notification Permission Banner */}
@@ -509,7 +506,16 @@ export const NotificationsPanel: React.FC = () => {
                       </p>
                     </div>
 
-                    <div className="shrink-0 pt-1">
+                    <div className="flex flex-col items-center justify-center gap-1.5 shrink-0 min-w-[74px] pt-0.5">
+                      <span
+                        className={`text-[11px] font-extrabold leading-none whitespace-nowrap ${
+                          isRuleEnabled
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {isRuleEnabled ? 'مفعّل' : 'غير مفعّل'}
+                      </span>
                       <LiquidToggle
                         size="sm"
                         checked={isRuleEnabled}

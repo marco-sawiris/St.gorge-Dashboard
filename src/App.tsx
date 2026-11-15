@@ -11,6 +11,7 @@ import { SearchFilterBar } from './components/common/SearchFilterBar';
 import { NotificationsPanel } from './components/modals/NotificationsPanel';
 import { AreaFilterModal } from './components/modals/AreaFilterModal';
 import { AboutModal } from './components/modals/AboutModal';
+import { AppearanceModal } from './components/modals/AppearanceModal';
 import { SyncDetailsModal } from './components/modals/SyncDetailsModal';
 import { QueueDetailsModal } from './components/modals/QueueDetailsModal';
 import { StudentCard } from './components/cards/StudentCard';
@@ -81,6 +82,7 @@ export default function App() {
         <NotificationsPanel />
         <AreaFilterModal />
         <AboutModal />
+        <AppearanceModal />
         <SyncDetailsModal />
         <QueueDetailsModal />
 

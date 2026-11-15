@@ -25,6 +25,7 @@ import { SyncDetailsModal } from '../components/modals/SyncDetailsModal';
 import { SplashScreen } from '../components/layout/SplashScreen';
 import { ThemeSwitcher } from '../components/glass/ThemeSwitcher';
 import { NotificationsPanel } from '../components/modals/NotificationsPanel';
+import { AppearanceModal } from '../components/modals/AppearanceModal';
 import { StudentCard } from '../components/cards/StudentCard';
 import { Student } from '../types/student';
 import { OfflineMutation } from '../types/auth';
@@ -156,11 +157,38 @@ async function runConsolidatedTests() {
 
     const notifPanelPath = path.resolve(process.cwd(), 'src/components/modals/NotificationsPanel.tsx');
     const notifPanelSrc = fs.readFileSync(notifPanelPath, 'utf-8');
+    const aboutModalPath = path.resolve(process.cwd(), 'src/components/modals/AboutModal.tsx');
+    const aboutModalSrc = fs.readFileSync(aboutModalPath, 'utf-8');
+    const appearanceModalPath = path.resolve(process.cwd(), 'src/components/modals/AppearanceModal.tsx');
+    const appearanceModalSrc = fs.readFileSync(appearanceModalPath, 'utf-8');
+    const sidebarPath = path.resolve(process.cwd(), 'src/components/layout/Sidebar.tsx');
+    const sidebarSrc = fs.readFileSync(sidebarPath, 'utf-8');
     assert(
-      notifPanelSrc.includes('ThemeSwitcher') && notifPanelSrc.includes('مظهر وسِمة التطبيق'),
-      'Task 3f: NotificationsPanel settings tab includes ThemeSwitcher and Arabic description'
+      !notifPanelSrc.includes('ThemeSwitcher') &&
+      !notifPanelSrc.includes('مظهر وسِمة التطبيق') &&
+      !notifPanelSrc.includes('مظهر وسمة التطبيق'),
+      'Task 3f: NotificationsPanel no longer embeds ThemeSwitcher or appearance shortcut'
     );
-    console.log('✅ Task 3 Passed: 3-State Theme Selector restored in Settings and About modals');
+    assert(
+      !aboutModalSrc.includes('ThemeSwitcher') &&
+      !aboutModalSrc.includes('مظهر وسمة التطبيق'),
+      'Task 3g: AboutModal no longer embeds duplicate ThemeSwitcher'
+    );
+    assert(
+      sidebarSrc.includes('مظهر وسمة التطبيق') &&
+      sidebarSrc.includes('setIsAppearanceModalOpen(true)'),
+      'Task 3h: Sidebar links appearance option directly to independent AppearanceModal'
+    );
+    assert(
+      appearanceModalSrc.includes('<ThemeSwitcher />') &&
+      appearanceModalSrc.includes('مظهر وسمة التطبيق') &&
+      appearanceModalSrc.includes('داكن') &&
+      appearanceModalSrc.includes('خافت') &&
+      appearanceModalSrc.includes('فاتح'),
+      'Task 3i: AppearanceModal renders ThemeSwitcher for all 3 themes'
+    );
+    void AppearanceModal;
+    console.log('✅ Task 3 Passed: 3-State Theme Selector hosted cleanly in independent Sidebar -> AppearanceModal destination');
 
     // --------------------------------------------------------------------------
     // 4. Task 4 Verification: Strict Single Active Edit Mode
