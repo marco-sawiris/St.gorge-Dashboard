@@ -248,6 +248,7 @@ export type AssistantIntent =
   | 'lowAttendance'
   | 'topAttendance'
   | 'faq'
+  | 'chatHistory'
   | 'search'
   | 'help';
 
@@ -311,6 +312,21 @@ export function detectAssistantIntent(query: string): AssistantIntent {
   }
   if (q.includes('افضل') || q.includes('اعلي حضور') || q.includes('منتظم') || q.includes('اكثر حضور')) {
     return 'topAttendance';
+  }
+
+  // Chat History Intent (only if user explicitly asks for past chats/history)
+  if (
+    q.includes('محادثات سابقه') ||
+    q.includes('محادثه سابقه') ||
+    q.includes('جلسات سابقه') ||
+    q.includes('جلسه سابقه') ||
+    q.includes('سجل المحادثات') ||
+    q.includes('تاريخ المحادثات') ||
+    q.includes('سجل الشات') ||
+    q.includes('شات قديم') ||
+    q.includes('محادثات قديمه')
+  ) {
+    return 'chatHistory';
   }
 
   // Help / How-to
@@ -513,10 +529,26 @@ export function parseAssistantCommand(
   };
 }
 
+export interface AssistantQueryContext {
+  referenceDate?: Date;
+  lastSyncLabel?: string | null;
+  servantName?: string | null;
+  sessionId?: string;
+  sessionMessages?: AssistantMessage[];
+  includePastHistory?: boolean;
+  pastSessions?: Array<{
+    id: string;
+    title: string;
+    createdAt: number;
+    updatedAt: number;
+    messages: AssistantMessage[];
+  }>;
+}
+
 export function processAssistantQuery(
   query: string,
   students: Student[],
-  options?: { referenceDate?: Date; lastSyncLabel?: string | null; servantName?: string | null }
+  options?: AssistantQueryContext
 ): AssistantResponse {
   const trimmed = String(query || '').trim();
   const intent = detectAssistantIntent(trimmed);
@@ -810,6 +842,34 @@ export function processAssistantQuery(
           { label: '📊 إحصائيات', type: 'prompt', payload: 'إحصائيات' },
           { label: '⚠️ الغائبون', type: 'prompt', payload: 'الغائبون' },
           { label: '🎂 أعياد الميلاد', type: 'prompt', payload: 'أعياد الميلاد' }
+        ]
+      };
+    }
+
+    case 'chatHistory': {
+      const pastSessions = options?.pastSessions || [];
+      if (pastSessions.length === 0) {
+        return {
+          text: 'لا توجد محادثات سابقة مؤرشفة حتى الآن. كل مرة تفتح فيها المساعد الذكي تبدأ جلسة جديدة ومستقلة، وتُحفظ الجلسة في السجل تلقائياً عند احتوائها على أسئلة وإغلاقها.',
+          actions: [
+            { label: '📊 إحصائيات', type: 'prompt', payload: 'إحصائيات' },
+            { label: '🎂 أعياد الميلاد', type: 'prompt', payload: 'أعياد الميلاد' }
+          ]
+        };
+      }
+
+      const historyList = pastSessions.slice(0, 5).map((s, idx) => {
+        const d = new Date(s.updatedAt || s.createdAt);
+        const dateStr = d.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const userCount = (s.messages || []).filter((m) => m.role === 'user').length;
+        return `${idx + 1}. «${s.title}» (${dateStr} • ${userCount} أسئلة)`;
+      }).join('\n');
+
+      return {
+        text: `📂 لديك ${pastSessions.length} جلسة سابقة محفوظة في سجل المحادثات:\n\n${historyList}\n\nيمكنك استعراض أي جلسة سابقة بالضغط على أيقونة «سجل المحادثات» 🕒 في أعلى النافذة دون التأثير على الجلسة الحالية.`,
+        actions: [
+          { label: '🔄 محادثة جديدة', type: 'prompt', payload: 'محادثة جديدة' },
+          { label: '📊 إحصائيات', type: 'prompt', payload: 'إحصائيات' }
         ]
       };
     }

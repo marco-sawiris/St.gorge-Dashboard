@@ -30,6 +30,7 @@ import {
   ShieldAlert,
   CalendarClock
 } from 'lucide-react';
+import { ThemeSwitcher } from '../glass/ThemeSwitcher';
 
 export const NotificationsPanel: React.FC = () => {
   const {
@@ -403,6 +404,20 @@ export const NotificationsPanel: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
+            {/* Theme Appearance Selector */}
+            <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 shadow-xs">
+              <div>
+                <h4 className="text-xs sm:text-sm font-extrabold text-[var(--text-primary)] m-0 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-[var(--accent-secondary)]" />
+                  <span>مظهر وسِمة التطبيق</span>
+                </h4>
+                <p className="text-[11px] text-[var(--text-muted)] m-0 mt-0.5">
+                  التبديل الفوري بين المظهر الداكن، الخافت، أو الفاتح
+                </p>
+              </div>
+              <ThemeSwitcher />
+            </div>
+
             {/* Master Switch Card */}
             <div className="p-3 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between gap-3">
               <div className="min-w-0">

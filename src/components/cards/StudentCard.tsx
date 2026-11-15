@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { Student, APPROVED_SHEETS } from '../../types/student';
 import { useApp } from '../../context/AppContext';
-import { LiquidToggle } from '../glass/LiquidToggle';
 import {
   CheckCircle2,
   XCircle,
@@ -16,7 +15,10 @@ import {
   HeartHandshake,
   Save,
   X,
-  AlertCircle
+  AlertCircle,
+  Loader2,
+  Check,
+  CloudOff
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -45,8 +47,15 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     followupRecords,
     updateStudent,
     cancelEditing,
-    setHasUnsavedEditChanges
+    setHasUnsavedEditChanges,
+    inFlightStudentIds,
+    syncedStudentIds,
+    pendingStudentIds
   } = useApp();
+
+  const isStudentInFlight = inFlightStudentIds?.includes(student.id) || false;
+  const isStudentSynced = syncedStudentIds?.includes(student.id) || false;
+  const isStudentPending = pendingStudentIds?.includes(student.id) || false;
 
   const isThisCardEditing = activeEditingId === student.id;
   const isAnotherCardEditing = Boolean(activeEditingId && activeEditingId !== student.id);
@@ -142,7 +151,9 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   }, [isThisCardEditing, isInlineDirty, setHasUnsavedEditChanges]);
 
   const latestHeldFriday = getLatestHeldFridayString();
-  const isPresentToday = student.att?.[latestHeldFriday] === true;
+  const currentFridayStatus = student.att?.[latestHeldFriday];
+  const isPresentToday = currentFridayStatus === true;
+  const isAbsentToday = currentFridayStatus === false;
 
   const cleanFollowupStatus = String(student.followupStatus || '').trim();
   const hasFollowup = Boolean(
@@ -509,45 +520,88 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               </div>
             </div>
 
-            {/* Quick Attendance Toggle Row (LiquidToggle Switch + Status Badge, Zero Green) */}
-            <div
-              className={`w-full py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-between gap-2 transition-all duration-300 border ${
-                isPresentToday
-                  ? 'bg-gradient-to-r from-[#123FCE]/45 to-[#20C7E8]/25 text-white border-[#20C7E8]/60 shadow-[0_0_16px_rgba(32,199,232,0.35)]'
-                  : 'bg-[var(--navy)]/60 border-[var(--glass-border)] text-[var(--text-secondary)]'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleAttendanceToggle(!isPresentToday);
-                }}
-                disabled={isAttendanceLoading}
-                className="flex items-center gap-1.5 min-w-0 text-right cursor-pointer disabled:opacity-50"
-              >
-                {isPresentToday ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-[#20C7E8] shrink-0 drop-shadow-[0_0_6px_rgba(32,199,232,0.8)]" />
-                    <span className="truncate font-extrabold text-[var(--text-primary)]">
-                      حاضر الجمعة ({latestHeldFriday})
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="truncate">تسجيل حضور الجمعة ({latestHeldFriday})</span>
-                  </>
-                )}
-              </button>
+            {/* Quick Attendance Selector (Single-Click Present / Absent, Zero Ambiguity + Real-Time Sync Indicator) */}
+            <div className="w-full p-2 rounded-2xl bg-[var(--navy)]/60 border border-[var(--glass-border)] flex flex-col gap-1.5 shadow-xs">
+              <div className="flex items-center justify-between gap-2 px-0.5">
+                <div className="flex items-center gap-1.5 min-w-0 pr-0.5 text-right">
+                  <Calendar className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+                  <span className="text-[11px] font-bold text-[var(--text-secondary)] truncate">
+                    الجمعة ({latestHeldFriday}):
+                  </span>
+                </div>
 
-              <LiquidToggle
-                size="sm"
-                checked={isPresentToday}
-                loading={isAttendanceLoading}
-                onChange={(next) => handleAttendanceToggle(next, latestHeldFriday)}
-                label={`تسجيل حضور ${student.name}`}
-              />
+                {/* Real-time Automatic Sync Badge */}
+                {isStudentInFlight ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--accent)] bg-[var(--accent)]/15 px-2 py-0.5 rounded-full border border-[var(--accent)]/30 animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                    <span>مزامنة للشيت...</span>
+                  </span>
+                ) : isStudentSynced ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/40">
+                    <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span>تم الحفظ في الشيت ✓</span>
+                  </span>
+                ) : isStudentPending ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40" title="العملية محفوظة محلياً وسيتم إرسالها تلقائياً للشيت فور توفر الإنترنت">
+                    <CloudOff className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span>محفوظ محلياً (معلق)</span>
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="flex items-center justify-end gap-1.5 shrink-0" role="group" aria-label={`تسجيل حضور وغياب ${student.name}`}>
+                {/* Present Button (حاضر) */}
+                <button
+                  type="button"
+                  disabled={isAttendanceLoading || isStudentInFlight}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isPresentToday || isAttendanceLoading) return;
+                    if (isStudentInFlight) return;
+                    void handleAttendanceToggle(true, latestHeldFriday);
+                  }}
+                  aria-pressed={isPresentToday}
+                  className={`px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
+                    isPresentToday
+                      ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.35)] font-black'
+                      : 'bg-[var(--navy)]/70 border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-emerald-300 hover:border-emerald-500/40'
+                  }`}
+                  title={isPresentToday ? 'حاضر مسجل' : 'تسجيل حضور المخدوم'}
+                >
+                  {isStudentInFlight && isPresentToday ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-300" />
+                  ) : (
+                    <CheckCircle2 className={`w-3.5 h-3.5 ${isPresentToday ? 'text-emerald-300' : 'opacity-60'}`} />
+                  )}
+                  <span>حاضر</span>
+                </button>
+
+                {/* Absent Button (غائب) */}
+                <button
+                  type="button"
+                  disabled={isAttendanceLoading || isStudentInFlight}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isAbsentToday || isAttendanceLoading) return;
+                    if (isStudentInFlight) return;
+                    void handleAttendanceToggle(false, latestHeldFriday);
+                  }}
+                  aria-pressed={isAbsentToday}
+                  className={`px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
+                    isAbsentToday
+                      ? 'bg-rose-500/25 border border-rose-400 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.35)] font-black'
+                      : 'bg-[var(--navy)]/70 border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-rose-300 hover:border-rose-500/40'
+                  }`}
+                  title={isAbsentToday ? 'غائب مسجل' : 'تسجيل غياب المخدوم'}
+                >
+                  {isStudentInFlight && isAbsentToday ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-300" />
+                  ) : (
+                    <XCircle className={`w-3.5 h-3.5 ${isAbsentToday ? 'text-rose-300' : 'opacity-60'}`} />
+                  )}
+                  <span>غائب</span>
+                </button>
+              </div>
             </div>
 
             {/* Compact Metrics Row */}
@@ -774,12 +828,14 @@ export const StudentCard: React.FC<StudentCardProps> = ({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                disabled={isAnotherCardEditing}
+                aria-disabled={isAnotherCardEditing}
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenEdit(student);
                 }}
-                className="glass-btn p-2 rounded-xl text-[var(--text)] cursor-pointer"
+                className={`glass-btn p-2 rounded-xl text-[var(--text)] cursor-pointer ${
+                  isAnotherCardEditing ? 'opacity-50' : ''
+                }`}
                 title={isAnotherCardEditing ? 'يوجد كارت آخر قيد التعديل حالياً' : 'تعديل مباشر'}
                 aria-label={`تعديل ${student.name}`}
               >
@@ -788,9 +844,10 @@ export const StudentCard: React.FC<StudentCardProps> = ({
 
               <button
                 type="button"
-                disabled={isAnotherCardEditing}
                 onClick={() => setIsFlipped(true)}
                 className="glass-btn--primary btn--lens px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"
+                title="عرض تفاصيل المخدوم"
+                aria-label={`عرض تفاصيل ${student.name}`}
               >
                 <RotateCw className="w-3 h-3" />
                 <span>تفاصيل أكثر</span>

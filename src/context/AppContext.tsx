@@ -179,6 +179,11 @@ interface AppContextType {
   markAllNotificationsRead: () => void;
   addNotification: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void;
   processOfflineQueue: () => Promise<{ success: boolean; sentCount: number; remainingCount: number }>;
+  inFlightStudentIds: string[];
+  syncedStudentIds: string[];
+  pendingStudentIds: string[];
+  isQueueProcessing: boolean;
+  triggerAutoProcessQueue: (isImmediateUserAction?: boolean) => Promise<void>;
   activeToast: AppNotification | null;
   dismissToast: () => void;
 }
@@ -193,7 +198,13 @@ export async function executeProcessOfflineQueue(
   user: AuthUser | null,
   _isPreviewMode: boolean = false,
   onNotify?: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void,
-  onRecordPushTime?: (pushIso: string) => void
+  onRecordPushTime?: (pushIso: string) => void,
+  callbacks?: {
+    onMutationStart?: (mutation: OfflineMutation) => void;
+    onMutationSuccess?: (mutation: OfflineMutation) => void;
+    onMutationError?: (mutation: OfflineMutation, error: string) => void;
+    silent?: boolean;
+  }
 ): Promise<{ success: boolean; sentCount: number; remainingCount: number }> {
   if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
     onNotify?.('وضع عدم الاتصال', 'لا يوجد اتصال بالإنترنت لإرسال العمليات المعلقة', 'warn');
@@ -203,18 +214,6 @@ export async function executeProcessOfflineQueue(
 
   const appsScriptUrl = getEffectiveAppsScriptUrl();
   const relayKey = getEffectiveRelayKey();
-
-  // Never attempt a private Apps Script relay with an empty client key.
-  // Keep every queued mutation locally and expose the actual configuration error.
-  if (appsScriptUrl && !relayKey) {
-    const pending = await idbGetPendingMutations();
-    const error = 'مفتاح RELAY_KEY غير محفوظ على هذا الجهاز. أدخل مفتاح الربط في تفاصيل المزامنة، وتأكد أنه مطابق لقيمة Script Properties في Apps Script.';
-    for (const mutation of pending) {
-      await idbUpdateMutationError(mutation.id, error, 'failed');
-    }
-    onNotify?.('مفتاح المزامنة غير مضبوط', error, 'danger');
-    return { success: false, sentCount: 0, remainingCount: pending.length };
-  }
 
   if (!appsScriptUrl && !hasConfiguredRemoteBackend() && isNativeCapacitorRuntime()) {
     onNotify?.('مطلوب رابط المزامنة', 'يرجى ضبط رابط Google Apps Script في تفاصيل المزامنة. العمليات محفوظة محلياً بأمان.', 'warn');
@@ -233,12 +232,28 @@ export async function executeProcessOfflineQueue(
   let sentCount = 0;
 
   for (const mutation of pending) {
+    callbacks?.onMutationStart?.(mutation);
     try {
       let response: Response;
       if (appsScriptUrl) {
         const relayKey = getEffectiveRelayKey();
         const payloadDate = String(mutation.payload?.friday || mutation.payload?.date || '').trim();
         const payloadPresent = mutation.payload?.isPresent ?? mutation.payload?.present ?? false;
+        const followupStatus = mutation.payload?.status || mutation.payload?.method || mutation.payload?.type;
+        const fields = mutation.payload?.fields || {
+          name: mutation.studentName || '',
+          servant: mutation.payload?.servant || '',
+          code: mutation.studentCode || mutation.payload?.code || '',
+          phoneStudent: mutation.payload?.phoneStudent || '',
+          phoneParent1: mutation.payload?.phoneParent1 || '',
+          phoneParent2: mutation.payload?.phoneParent2 || '',
+          birthDate: mutation.payload?.birthDate || '',
+          area: mutation.payload?.area || '',
+          address: mutation.payload?.address || '',
+          notes: mutation.payload?.notes || '',
+          status: followupStatus || 'بدون',
+          ...(typeof mutation.payload === 'object' && mutation.payload !== null ? mutation.payload : {})
+        };
 
         const appsScriptBody = {
           // Legacy Google Apps Script contract (deployed web app)
@@ -259,26 +274,40 @@ export async function executeProcessOfflineQueue(
           id: mutation.id,
           expectedVersion: mutation.expectedVersion || 1,
           payload: mutation.payload || {},
-          type: mutation.payload?.method || mutation.payload?.type,
-          notes: mutation.payload?.notes,
-          fields: mutation.payload?.fields,
+          type: followupStatus,
+          status: followupStatus,
+          followupStatus: followupStatus,
+          notes: mutation.payload?.notes || '',
+          fields: fields,
           // Modern Code.gs envelope
           mutation: {
             ...mutation,
             id: mutation.id,
             sourceSheet: mutation.sourceSheet || 'نشط',
             studentName: mutation.studentName || '',
-            payload: mutation.payload || {}
+            payload: {
+              ...(mutation.payload || {}),
+              status: followupStatus,
+              method: followupStatus,
+              fields: fields
+            }
           }
         };
 
-        response = await fetch(appsScriptUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
-          },
-          body: JSON.stringify(appsScriptBody)
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        try {
+          response = await fetch(appsScriptUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify(appsScriptBody),
+            signal: controller.signal
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
       } else {
         const mutateUrl = buildApiUrl('/api/sheets/mutate');
         const headers: Record<string, string> = {
@@ -286,11 +315,18 @@ export async function executeProcessOfflineQueue(
           'X-Idempotency-Key': toSafeHeaderAscii(mutation.id)
         };
 
-        response = await fetch(mutateUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(mutation)
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        try {
+          response = await fetch(mutateUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(mutation),
+            signal: controller.signal
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
       }
 
       if (response.status === 409) {
@@ -299,6 +335,7 @@ export async function executeProcessOfflineQueue(
         const conflictMsg = result?.error || 'تعارض في التعديل المتزامن (HTTP 409)';
         await idbMarkMutationConflict(mutation.id, conflictMsg);
         onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة أمين الخدمة: ${conflictMsg}`, 'danger');
+        callbacks?.onMutationError?.(mutation, conflictMsg);
         break; // Crucial: Do NOT skip past a conflict to send dependent operations!
       }
 
@@ -308,6 +345,7 @@ export async function executeProcessOfflineQueue(
           const conflictMsg = result?.error || 'تعارض في التعديل المتزامن (409)';
           await idbMarkMutationConflict(mutation.id, conflictMsg);
           onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة: ${conflictMsg}`, 'danger');
+          callbacks?.onMutationError?.(mutation, conflictMsg);
           break;
         }
         if (result && result.ok) {
@@ -322,10 +360,12 @@ export async function executeProcessOfflineQueue(
             localStorage.setItem('stgorge_last_successful_push_iso', nowIso);
           } catch {}
           onRecordPushTime?.(nowIso);
+          callbacks?.onMutationSuccess?.(mutation);
         } else {
           const errMsg = result?.error || 'رفض Google Sheets العملية';
           console.warn(`Server rejected mutation ${mutation.id}:`, errMsg);
           await idbUpdateMutationError(mutation.id, errMsg, 'failed');
+          callbacks?.onMutationError?.(mutation, errMsg);
           break; // Stop loop on rejection
         }
       } else {
@@ -340,13 +380,17 @@ export async function executeProcessOfflineQueue(
         }
         console.warn(`Failed to sync mutation ${mutation.id}, HTTP status: ${response.status}`);
         await idbUpdateMutationError(mutation.id, errDetail, 'failed');
+        callbacks?.onMutationError?.(mutation, errDetail);
         break;
       }
     } catch (networkError: any) {
       // Network timeout / connection dropped: preserve in queue and STOP loop
-      const errMsg = `تعذر الاتصال بالشبكة لإرسال العملية: ${networkError?.message || 'انقطع الاتصال'}`;
+      const errMsg = networkError?.name === 'AbortError'
+        ? 'انتهت مهلة الاتصال بالخادم (Timeout)، تم حفظ العملية محلياً بأمان وستتم إعادة الإرسال تلقائياً.'
+        : `تعذر الاتصال بالشبكة لإرسال العملية: ${networkError?.message || 'انقطع الاتصال'}`;
       console.warn(`Network failure syncing mutation ${mutation.id}:`, networkError);
       await idbUpdateMutationError(mutation.id, errMsg, 'failed');
+      callbacks?.onMutationError?.(mutation, errMsg);
       break;
     }
   }
@@ -354,10 +398,14 @@ export async function executeProcessOfflineQueue(
   const remaining = await idbGetPendingMutations();
 
   if (sentCount > 0 && remaining.length === 0) {
-    onNotify?.('اكتمل إرسال العمليات', `تم تأكيد إرسال ${sentCount} عملية بنجاح للشيت`, 'success');
+    if (!callbacks?.silent) {
+      onNotify?.('اكتمل إرسال العمليات', `تم تأكيد إرسال ${sentCount} عملية بنجاح للشيت`, 'success');
+    }
     return { success: true, sentCount, remainingCount: 0 };
   } else if (sentCount > 0) {
-    onNotify?.('مزامنة جزئية', `تم إرسال ${sentCount} عملية بنجاح، ومتبقي ${remaining.length} عملية بالطابور`, 'warn');
+    if (!callbacks?.silent) {
+      onNotify?.('مزامنة جزئية', `تم إرسال ${sentCount} عملية بنجاح، ومتبقي ${remaining.length} عملية بالطابور`, 'warn');
+    }
     return { success: false, sentCount, remainingCount: remaining.length };
   } else {
     return { success: false, sentCount: 0, remainingCount: remaining.length };
@@ -717,6 +765,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [latestSyncIso]);
 
   const [pendingMutationsCount, setPendingMutationsCount] = useState<number>(0);
+  const [inFlightStudentIds, setInFlightStudentIds] = useState<string[]>([]);
+  const [syncedStudentIds, setSyncedStudentIds] = useState<string[]>([]);
+  const [pendingStudentIds, setPendingStudentIds] = useState<string[]>([]);
+  const [isQueueProcessing, setIsQueueProcessing] = useState<boolean>(false);
+  const queueLockRef = useRef<boolean>(false);
+  const queueNeedsRerunRef = useRef<boolean>(false);
+  const triggerAutoProcessQueueRef = useRef<((isImmediateUserAction?: boolean) => Promise<void>) | null>(null);
+
+  const refreshPendingState = useCallback(async () => {
+    try {
+      const pending = await idbGetPendingMutations();
+      setPendingMutationsCount(pending.length);
+      const studentIds = Array.from(new Set(pending.map((m) => m.studentId).filter(Boolean)));
+      setPendingStudentIds(studentIds);
+      return pending;
+    } catch (e) {
+      console.warn('Could not refresh pending list:', e);
+      return [];
+    }
+  }, []);
+
   const [activeEditingId, setActiveEditingId] = useState<string | null>(null);
   const [hasUnsavedEditChanges, setHasUnsavedEditChanges] = useState<boolean>(false);
   const activeEditingIdRef = useRef<string | null>(null);
@@ -762,18 +831,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Computed Sync Status reflecting 6 real states
   const syncState = useMemo<'connected' | 'syncing' | 'synced' | 'failed' | 'offline' | 'pending'>(() => {
     if (!isOnline) return 'offline';
-    if (isSyncing) return 'syncing';
+    if (isSyncing || isQueueProcessing) return 'syncing';
     if (lastSyncError) return 'failed';
     if (pendingMutationsCount > 0) return 'pending';
     if (lastSuccessfulSyncTime) return 'synced';
     return 'connected';
-  }, [isOnline, isSyncing, lastSyncError, pendingMutationsCount, lastSuccessfulSyncTime]);
+  }, [isOnline, isSyncing, isQueueProcessing, lastSyncError, pendingMutationsCount, lastSuccessfulSyncTime]);
 
-  // Online / Offline window listeners
+  // Online / Offline window listeners & auto-drain
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
       setLastSyncError(null);
+      void triggerAutoProcessQueueRef.current?.(false);
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -782,9 +852,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void triggerAutoProcessQueueRef.current?.(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const interval = setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        idbGetPendingMutations().then((pending) => {
+          if (pending.length > 0) {
+            void triggerAutoProcessQueueRef.current?.(false);
+          }
+        }).catch(() => {});
+      }
+    }, 20000);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
     };
   }, []);
 
@@ -843,13 +932,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (mounted && cachedFollowup.length > 0) {
           setFollowupRecords(cachedFollowup);
         }
-        const pending = await idbGetPendingMutations();
-        if (mounted) {
-          setPendingMutationsCount(pending.length);
-        }
+        const pending = await refreshPendingState();
 
         // Pull authoritative real data from Google Sheets when online (never invent mock data on failure)
         const onlineNow = typeof navigator === 'undefined' || navigator.onLine !== false;
+        if (mounted && onlineNow && pending.length > 0) {
+          void triggerAutoProcessQueueRef.current?.(false);
+        }
         if (mounted && onlineNow) {
           setIsSyncing(true);
           setLastSyncAttemptTime(new Date().toISOString());
@@ -1052,24 +1141,113 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [students, filters]);
 
-  // 1. Process Offline Queue: Delegates to production engine
+  // 1. Automatic Real-Time Queue Processor with Mutex & FIFO Guarantee
+  const triggerAutoProcessQueue = useCallback(
+    async (isImmediateUserAction: boolean = false): Promise<void> => {
+      // If browser is explicitly offline
+      if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
+        setIsOnline(false);
+        await refreshPendingState();
+        if (isImmediateUserAction) {
+          addNotification(
+            'محفوظة في الانتظار',
+            'تم تسجيل العملية محلياً بأمان، وستتم المزامنة تلقائياً مع Google Sheets فور توفر الاتصال بالإنترنت.',
+            'info'
+          );
+        }
+        return;
+      }
+
+      // Mutex locking: prevent concurrent queue runs while maintaining FIFO
+      if (queueLockRef.current) {
+        queueNeedsRerunRef.current = true;
+        return;
+      }
+
+      queueLockRef.current = true;
+      setIsQueueProcessing(true);
+
+      try {
+        do {
+          queueNeedsRerunRef.current = false;
+          const pending = await refreshPendingState();
+          if (pending.length === 0) break;
+
+          await executeProcessOfflineQueue(
+            user,
+            isPreviewMode,
+            addNotification,
+            (pushIso) => {
+              setLastSuccessfulPushTime(pushIso);
+            },
+            {
+              silent: isImmediateUserAction && pending.length === 1,
+              onMutationStart: (mut) => {
+                if (mut.studentId) {
+                  setInFlightStudentIds((prev) => Array.from(new Set([...prev, mut.studentId])));
+                }
+              },
+              onMutationSuccess: (mut) => {
+                if (mut.studentId) {
+                  setInFlightStudentIds((prev) => prev.filter((id) => id !== mut.studentId));
+                  setSyncedStudentIds((prev) => Array.from(new Set([...prev, mut.studentId])));
+                  setTimeout(() => {
+                    setSyncedStudentIds((prev) => prev.filter((id) => id !== mut.studentId));
+                  }, 3500);
+                }
+              },
+              onMutationError: (mut, err) => {
+                if (mut.studentId) {
+                  setInFlightStudentIds((prev) => prev.filter((id) => id !== mut.studentId));
+                }
+                if (isImmediateUserAction) {
+                  addNotification(
+                    'محفوظة في الانتظار',
+                    `تعذر إرسال العملية للشيت حالياً (${err})، تم حفظها محلياً بأمان وستتم المزامنة تلقائياً.`,
+                    'warn'
+                  );
+                }
+              }
+            }
+          );
+
+          await refreshPendingState();
+        } while (queueNeedsRerunRef.current);
+      } catch (err) {
+        console.warn('Auto queue execution error:', err);
+      } finally {
+        queueLockRef.current = false;
+        setIsQueueProcessing(false);
+        setInFlightStudentIds([]);
+        await refreshPendingState();
+      }
+    },
+    [user, isPreviewMode, addNotification, refreshPendingState]
+  );
+  triggerAutoProcessQueueRef.current = triggerAutoProcessQueue;
+
+  // Manual trigger from Modals / UI
   const processOfflineQueue = useCallback(async (): Promise<{
     success: boolean;
     sentCount: number;
     remainingCount: number;
   }> => {
-    const res = await executeProcessOfflineQueue(
-      user,
-      isPreviewMode,
-      addNotification,
-      (pushIso) => {
-        setLastSuccessfulPushTime(pushIso);
-      }
-    );
-    const pending = await idbGetPendingMutations();
-    setPendingMutationsCount(pending.length);
-    return res;
-  }, [user, isPreviewMode, addNotification]);
+    setIsQueueProcessing(true);
+    try {
+      const res = await executeProcessOfflineQueue(
+        user,
+        isPreviewMode,
+        addNotification,
+        (pushIso) => {
+          setLastSuccessfulPushTime(pushIso);
+        }
+      );
+      await refreshPendingState();
+      return res;
+    } finally {
+      setIsQueueProcessing(false);
+    }
+  }, [user, isPreviewMode, addNotification, refreshPendingState]);
 
   // 2. Sync Data: Delegates to production engine + protects open edit session
   const syncData = useCallback(async (overrideSheet?: SheetName): Promise<boolean> => {
@@ -1159,15 +1337,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const monthlySummary = computeMonthlyAttendanceSummary(nextAtt);
       const totalDelta = isPresent ? (prevVal === true ? 0 : 1) : (prevVal === true ? -1 : 0);
 
+      // Compute most accurate lastAttendance date
+      let computedLastAttendance = student.lastAttendance;
+      if (isPresent) {
+        if (!student.lastAttendance || friday >= student.lastAttendance) {
+          computedLastAttendance = friday;
+        }
+      } else if (student.lastAttendance === friday) {
+        const priorAttDates = Object.keys(nextAtt)
+          .filter((d) => nextAtt[d] === true && d <= cairoTodayIso)
+          .sort();
+        computedLastAttendance = priorAttDates.length > 0 ? priorAttDates[priorAttDates.length - 1] : '';
+      }
+
       const updatedStudent: Student = {
         ...student,
         att: nextAtt,
         attendanceStatus: isPresent ? 'حاضر' : 'غائب',
         attendanceTotal: Math.max(0, student.attendanceTotal + totalDelta),
         attendanceMonth: monthlySummary.presentCount,
-        ...(isPresent && (!student.lastAttendance || friday >= student.lastAttendance)
-          ? { lastAttendance: friday }
-          : {}),
+        lastAttendance: computedLastAttendance,
         version: (student.version || 1) + 1
       };
 
@@ -1200,15 +1389,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await idbAtomicRecordAttendanceWithMutation(updatedStudent, historyRecord, mutation);
         setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
 
-        // Refreshing the pending counter is secondary UI work. If this read fails
-        // after the atomic attendance+queue transaction committed, do not roll back
-        // the visible attendance state or report the saved attendance as failed.
-        try {
-          const pending = await idbGetPendingMutations();
-          setPendingMutationsCount(pending.length);
-        } catch (counterError) {
-          console.warn('Attendance saved, but pending mutation count could not refresh:', counterError);
-        }
+        await refreshPendingState();
+        void triggerAutoProcessQueue(true);
 
         return true;
       } catch (err: any) {
@@ -1217,7 +1399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
     },
-    [students, isPreviewMode, canPerformAction, addNotification]
+    [students, isPreviewMode, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
   );
 
   // 4. Record Followup: Atomic multi-store transaction (Students + Followup + Mutations)
@@ -1281,9 +1463,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
         setFollowupRecords((prev) => [newRecord, ...prev]);
-        const pending = await idbGetPendingMutations();
-        setPendingMutationsCount(pending.length);
+        await refreshPendingState();
         addNotification('تم تسجيل الافتقاد', `${student.name}: ${method}`, 'success');
+        void triggerAutoProcessQueue(true);
         return true;
       } catch (err: any) {
         setStudents(priorStudents);
@@ -1292,7 +1474,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
     },
-    [students, followupRecords, isPreviewMode, canPerformAction, addNotification]
+    [students, followupRecords, isPreviewMode, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
   );
 
   // 5. Update Student: Single atomic transaction with UUID mutation
@@ -1333,9 +1515,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         await idbAtomicUpdateStudentWithMutation(updatedStudent, mutation);
         setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
-        const pending = await idbGetPendingMutations();
-        setPendingMutationsCount(pending.length);
+        await refreshPendingState();
         addNotification('تم تحديث البيانات', `تم تعديل بيانات ${student.name}`, 'success');
+        void triggerAutoProcessQueue(true);
         return true;
       } catch (err: any) {
         setStudents(priorStudents);
@@ -1343,7 +1525,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
     },
-    [students, isPreviewMode, canPerformAction, addNotification]
+    [students, isPreviewMode, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
   );
 
   // 6. Add New Student: UUID student ID & mutation ID
@@ -1398,9 +1580,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         await idbAtomicAddStudentWithMutation(newStudent, mutation);
         setStudents((prev) => [newStudent, ...prev]);
-        const pending = await idbGetPendingMutations();
-        setPendingMutationsCount(pending.length);
+        await refreshPendingState();
         addNotification('تمت إضافة المخدوم', `تم تسجيل ${newStudent.name} بنجاح`, 'success');
+        void triggerAutoProcessQueue(true);
         return true;
       } catch (err: any) {
         setStudents(priorStudents);
@@ -1408,7 +1590,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
     },
-    [students, filters.sheet, isPreviewMode, canPerformAction, addNotification]
+    [students, filters.sheet, isPreviewMode, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
   );
 
   // 7. Delete Student: Admin only, formally typed delete action without 'as any'
@@ -1447,9 +1629,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         await idbAtomicDeleteStudentWithMutation(studentId, mutation);
         setStudents((prev) => prev.filter((s) => s.id !== studentId));
-        const pending = await idbGetPendingMutations();
-        setPendingMutationsCount(pending.length);
+        await refreshPendingState();
         addNotification('تم الحذف', `تم حذف سجل ${student.name}`, 'info');
+        void triggerAutoProcessQueue(true);
         return true;
       } catch (err: any) {
         setStudents(priorStudents);
@@ -1457,7 +1639,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
     },
-    [students, isPreviewMode, canPerformAction, addNotification]
+    [students, isPreviewMode, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
   );
 
   return (
@@ -1479,6 +1661,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastSuccessfulSyncTime,
         lastSuccessfulSyncCompact,
         pendingMutationsCount,
+        inFlightStudentIds,
+        syncedStudentIds,
+        pendingStudentIds,
+        isQueueProcessing,
         activeEditingId,
         hasUnsavedEditChanges,
         isSidebarOpen,
@@ -1516,6 +1702,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markAllNotificationsRead,
         addNotification,
         processOfflineQueue,
+        triggerAutoProcessQueue,
         activeToast,
         dismissToast
       }}

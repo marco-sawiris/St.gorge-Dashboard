@@ -87,7 +87,7 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
       aria-label={`حالة المزامنة: ${config.label}`}
     >
       <IconComponent
-        className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`}
+        className={`w-3.5 h-3.5 shrink-0 ${isSyncing || syncState === 'syncing' ? 'animate-spin' : ''}`}
       />
 
       {/* Text Label: full date & time on desktop, compact on mobile */}

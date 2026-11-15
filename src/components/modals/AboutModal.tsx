@@ -93,23 +93,10 @@ export const AboutModal: React.FC = () => {
             </ul>
           </div>
 
-          {/* Theme Appearance Control (Moved out of Sidebar for compact clutter-free nav) */}
+          {/* Theme Appearance Control */}
           <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5">
-            <span className="text-xs font-extrabold text-[var(--text-primary)]">مظهر التطبيق</span>
-            <div className="flex items-center gap-2">
-              <ThemeSwitcher />
-              <button
-                type="button"
-                onClick={() => setTheme('dim')}
-                aria-pressed={theme === 'dim'}
-                className={`glass-btn px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 cursor-pointer ${
-                  theme === 'dim' ? 'glass-btn--active' : ''
-                }`}
-              >
-                <CloudMoon className="w-3.5 h-3.5 text-[#8ecfff]" />
-                <span>خافت</span>
-              </button>
-            </div>
+            <span className="text-xs font-extrabold text-[var(--text-primary)]">مظهر وسِمة التطبيق</span>
+            <ThemeSwitcher />
           </div>
 
           {/* Mission Quote */}

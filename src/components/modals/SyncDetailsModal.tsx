@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { getRelayKey, setRelayKey } from '../../services/apiConfig';
 import {
   X,
   RefreshCw,
@@ -16,10 +15,6 @@ import {
 } from 'lucide-react';
 
 export const SyncDetailsModal: React.FC = () => {
-  const [relayKeyInput, setRelayKeyInput] = useState(() => getRelayKey());
-  const [relayKeySaved, setRelayKeySaved] = useState(Boolean(getRelayKey()));
-  const [relayKeyError, setRelayKeyError] = useState('');
-
   const {
     isSyncModalOpen,
     setIsSyncModalOpen,
@@ -43,19 +38,6 @@ export const SyncDetailsModal: React.FC = () => {
 
   const handleFlushQueue = async () => {
     await processOfflineQueue();
-  };
-
-  const handleSaveRelayKey = () => {
-    const cleaned = relayKeyInput.trim();
-    if (cleaned.length < 32) {
-      setRelayKeyError('مفتاح الأمان لازم يكون 32 حرف على الأقل.');
-      setRelayKeySaved(false);
-      return;
-    }
-    setRelayKey(cleaned);
-    setRelayKeyInput('');
-    setRelayKeySaved(true);
-    setRelayKeyError('');
   };
 
   const statusDescriptions = {
@@ -168,35 +150,6 @@ export const SyncDetailsModal: React.FC = () => {
               </p>
             </div>
           )}
-
-          {/* Apps Script Relay Security Configuration */}
-          <div className="p-4 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] space-y-3">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[var(--accent-secondary)]" />
-              <h4 className="font-extrabold text-sm text-[var(--text-primary)] m-0">مفتاح تأمين Google Apps Script</h4>
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] leading-relaxed m-0">
-              أدخل نفس المفتاح الموجود في Apps Script داخل Script Properties باسم RELAY_KEY. المفتاح لا يُضمَّن في ملفات GitHub أو APK كمفتاح افتراضي.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="password"
-                value={relayKeyInput}
-                onChange={(event) => { setRelayKeyInput(event.target.value); setRelayKeySaved(false); setRelayKeyError(''); }}
-                placeholder="أدخل مفتاح الأمان (32 حرفاً على الأقل)"
-                autoComplete="new-password"
-                aria-label="مفتاح تأمين Google Apps Script"
-                className="min-w-0 flex-1 px-3 py-2.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs outline-none focus:border-[var(--accent-secondary)]"
-              />
-              <button
-                type="button"
-                onClick={handleSaveRelayKey}
-                className="glass-btn--primary px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer"
-              >حفظ المفتاح</button>
-            </div>
-            {relayKeyError && <p className="text-xs text-red-500 m-0">{relayKeyError}</p>}
-            {relayKeySaved && <p className="text-xs text-[var(--accent-secondary)] m-0">تم حفظ مفتاح الربط على هذا الجهاز.</p>}
-          </div>
 
           {/* Metrics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

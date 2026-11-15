@@ -1075,12 +1075,11 @@ async function runSprintTests() {
       !syncModalSrc.includes('apiBaseInput') &&
       !syncModalSrc.includes('إعدادات رابط المزامنة') &&
       !syncModalSrc.includes('ضبط الرابط') &&
-      syncModalSrc.includes('type="password"') &&
-      syncModalSrc.includes('setRelayKey(cleaned)') &&
-      syncModalSrc.includes('cleaned.length < 32') &&
-      syncModalSrc.includes('autoComplete="new-password"') &&
-      syncModalSrc.includes('مفتاح تأمين Google Apps Script'),
-    'Test 28a: SyncDetailsModal hides endpoint configuration and only permits masked, length-validated relay-key setup'
+      !syncModalSrc.includes('type="password"') &&
+      !syncModalSrc.includes('<input') &&
+      !syncModalSrc.includes('setRelayKey') &&
+      !syncModalSrc.includes('مفتاح تأمين Google Apps Script'),
+    'Test 28a: SyncDetailsModal hides endpoint configuration and removes all password/relay-key inputs completely'
   );
   assert(
     syncModalSrc.includes('مزامنة فورية الآن') &&

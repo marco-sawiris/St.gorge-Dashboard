@@ -108,13 +108,8 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
         className="relative z-10 flex flex-col items-center text-center max-w-md w-full"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Crisp Crest Card */}
-        <div
-          className="blurry-splash-bg relative mb-6"
-          style={{
-            filter: `blur(${Math.max(0, phase.blurPx * 0.35)}px)`
-          }}
-        >
+        {/* 100% Crisp Crest Card (Razor sharp from first frame) */}
+        <div className="relative mb-6">
           <div className="relative w-44 sm:w-52 p-2 rounded-3xl glass-strong border border-[#20C7E8]/35 shadow-[0_0_55px_rgba(32,199,232,0.28)]">
             <img
               src={stGeorgeIcon}
