@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -51,14 +51,26 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
     };
   }, [isInitialLoading, isSyncing, students.length, lastSyncError, isOnline]);
 
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleDismiss = () => {
     if (isExiting) return;
     setIsExiting(true);
-    setTimeout(() => {
+    if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+    dismissTimerRef.current = setTimeout(() => {
       setIsVisible(false);
       onDismiss();
     }, 360);
   };
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current) {
+        clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Auto-dissolve shortly after real initialization finishes
   useEffect(() => {

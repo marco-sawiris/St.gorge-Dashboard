@@ -43,6 +43,17 @@ async function startServer() {
   // Production must never start with volatile in-memory auth/session storage.
   await dbManager.ensureProductionReady();
   const app = express();
+  app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+
+  // Security Response Headers
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
 
   // Basic Middlewares
   app.use(cors({
@@ -63,14 +74,18 @@ async function startServer() {
   app.use('/api/sheets', sheetsRouter);
 
   // Direct APK Download Route (avoids putting APK inside dist/public where Capacitor would nest it)
-  app.get('/download/st-george-dashboard-debug.apk', (_req: Request, res: Response) => {
-    const apkPath = path.resolve(process.cwd(), 'android/app/build/outputs/apk/debug/app-debug.apk');
+  const handleApkDownload = (_req: Request, res: Response) => {
+    const finalApkPath = path.resolve(process.cwd(), 'APP Final/StGeorge-Dashboard.apk');
+    const debugApkPath = path.resolve(process.cwd(), 'android/app/build/outputs/apk/debug/app-debug.apk');
+    const apkPath = fs.existsSync(finalApkPath) ? finalApkPath : debugApkPath;
     if (!fs.existsSync(apkPath)) {
       res.status(404).json({ ok: false, error: 'APK file not built yet' });
       return;
     }
-    res.download(apkPath, 'st-george-dashboard-debug.apk');
-  });
+    res.download(apkPath, 'StGeorge-Dashboard.apk');
+  };
+  app.get('/download/StGeorge-Dashboard.apk', handleApkDownload);
+  app.get('/download/st-george-dashboard-debug.apk', handleApkDownload);
 
   // Vite Integration
   if (ENV.NODE_ENV !== 'production') {

@@ -13,11 +13,11 @@ import {
   AlertCircle,
   Activity
 } from 'lucide-react';
-import { getNearestFridayString } from '../../utils/arabicUtils';
+import { getLatestHeldFridayString } from '../../utils/arabicUtils';
 
 export const DashboardChartsView: React.FC = () => {
   const { students, followupRecords } = useApp();
-  const currentFriday = getNearestFridayString();
+  const currentFriday = getLatestHeldFridayString();
 
   // 1. KPI Calculations
   const totalStudents = students.length;

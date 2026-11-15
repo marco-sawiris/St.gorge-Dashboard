@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   HeartHandshake,
@@ -13,17 +13,28 @@ import {
   Download,
   Printer
 } from 'lucide-react';
-import { getNearestFridayString } from '../../utils/arabicUtils';
+import { getLatestHeldFridayString, getNearestFridayString, formatTelHref, formatWhatsAppUrl } from '../../utils/arabicUtils';
 import { downloadCsvReport, downloadPrintableHtmlReport } from '../../utils/exportUtils';
 
 export const FollowupLogView: React.FC = () => {
   const { followupRecords, students } = useApp();
   const currentFriday = getNearestFridayString();
+  const attendanceFriday = getLatestHeldFridayString();
 
   const [selectedServant, setSelectedServant] = useState<string>('');
   const [selectedType, setSelectedType] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedSuccess, setCopiedSuccess] = useState<boolean>(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Servants list
   const servantsList = useMemo(() => {
@@ -60,7 +71,7 @@ export const FollowupLogView: React.FC = () => {
         if (!grouped.has(key)) grouped.set(key, { total: 0, present: 0, absent: 0, calls: 0, visits: 0 });
         const row = grouped.get(key)!;
         row.total++;
-        if (s.att && s.att[currentFriday]) row.present++;
+        if (s.att && s.att[attendanceFriday]) row.present++;
         else row.absent++;
       });
       followupRecords.forEach((r) => {
@@ -76,7 +87,7 @@ export const FollowupLogView: React.FC = () => {
       const totalVisits = followupRecords.filter((r) => r.type === 'تم بزيارة').length;
 
       let text = `✝️ *تقرير الافتقاد الشامل — كل الأشابين*\n`;
-      text += `📅 جمعة: ${currentFriday}\n`;
+      text += `📅 جمعة الحضور: ${attendanceFriday} | أسبوع المتابعة: ${currentFriday}\n`;
       text += `• إجمالي المخدومين: ${students.length} | سجلات الافتقاد: ${followupRecords.length} (${distinctStudents} مخدوم)\n`;
       text += `• اتصالات تليفونية: ${totalCalls} | زيارات منزلية: ${totalVisits}\n\n`;
       text += `📋 *ملخص حسب الأشبين:*\n`;
@@ -88,13 +99,13 @@ export const FollowupLogView: React.FC = () => {
     }
 
     const servantStudents = students.filter((s) => s.servant === selectedServant);
-    const attended = servantStudents.filter((s) => s.att && s.att[currentFriday]);
-    const absent = servantStudents.filter((s) => !s.att || !s.att[currentFriday]);
+    const attended = servantStudents.filter((s) => s.att && s.att[attendanceFriday]);
+    const absent = servantStudents.filter((s) => !s.att || !s.att[attendanceFriday]);
     const servantLogs = followupRecords.filter((r) => r.servant === selectedServant);
 
     let text = `✝️ *فصل الشهيد مارجرجس - كنيسة العذراء بالزيتون*\n`;
     text += `سلام ونعمة يا أ/ ${selectedServant}،\n`;
-    text += `إليك كشف متابعة وافتقاد مخدوميك لجمعة (${currentFriday}):\n\n`;
+    text += `إليك كشف متابعة وافتقاد مخدوميك لجمعة (${attendanceFriday}):\n\n`;
 
     // Strict zero-green: Use Blue / Cyan symbol
     text += `🔹 *المخدومين الحاضرين (${attended.length}):*\n`;
@@ -117,14 +128,15 @@ export const FollowupLogView: React.FC = () => {
 
     text += `\nصلواتكم للخدمة والخدام 🙏`;
     return text;
-  }, [selectedServant, students, followupRecords, currentFriday]);
+  }, [selectedServant, students, followupRecords, currentFriday, attendanceFriday]);
 
   const handleCopyReport = async () => {
     if (!generatedWhatsAppReport) return;
     try {
       await navigator.clipboard.writeText(generatedWhatsAppReport);
       setCopiedSuccess(true);
-      setTimeout(() => setCopiedSuccess(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopiedSuccess(false), 2000);
     } catch {}
   };
 
@@ -368,26 +380,35 @@ export const FollowupLogView: React.FC = () => {
                   )}
                 </div>
 
-                {studentMatch?.phoneStudent && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <a
-                      href={`tel:${studentMatch.phoneStudent}`}
-                      className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--text-primary)] hover:text-[var(--accent-secondary)] flex items-center gap-1.5"
-                    >
-                      <Phone className="w-3.5 h-3.5 text-[var(--accent-secondary)]" />
-                      <span>اتصال</span>
-                    </a>
-                    <a
-                      href={`https://wa.me/2${studentMatch.phoneStudent.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--accent-secondary)] flex items-center gap-1.5"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>واتساب</span>
-                    </a>
-                  </div>
-                )}
+                {(() => {
+                  const telHref = formatTelHref(studentMatch?.phoneStudent);
+                  const waHref = formatWhatsAppUrl(studentMatch?.phoneStudent);
+                  if (!telHref && !waHref) return null;
+                  return (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {telHref && (
+                        <a
+                          href={telHref}
+                          className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--text-primary)] hover:text-[var(--accent-secondary)] flex items-center gap-1.5"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-[var(--accent-secondary)]" />
+                          <span>اتصال</span>
+                        </a>
+                      )}
+                      {waHref && (
+                        <a
+                          href={waHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--accent-secondary)] flex items-center gap-1.5"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>واتساب</span>
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })

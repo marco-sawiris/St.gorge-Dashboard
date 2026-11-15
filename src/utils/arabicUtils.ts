@@ -244,3 +244,41 @@ export function formatArabicDate(dateStr: string | undefined | null): string {
     return dateStr;
   }
 }
+
+function toAsciiDigits(value: string): string {
+  return value
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0));
+}
+
+export function formatTelHref(rawPhone: string | undefined | null): string | null {
+  const ascii = toAsciiDigits(String(rawPhone ?? '').trim());
+  const cleaned = ascii.replace(/(?!^\+)[^\d]/g, '');
+  const digitsOnly = cleaned.replace(/\D/g, '');
+  if (digitsOnly.length < 5) return null;
+  return `tel:${cleaned}`;
+}
+
+export function formatWhatsAppUrl(
+  rawPhone: string | undefined | null,
+  text?: string
+): string | null {
+  const ascii = toAsciiDigits(String(rawPhone ?? '').trim());
+  let digits = ascii.replace(/\D/g, '');
+  if (!digits) {
+    return text ? `https://wa.me/?text=${encodeURIComponent(text)}` : null;
+  }
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+  if (digits.startsWith('0')) {
+    digits = `2${digits}`;
+  } else if (/^1[0-25]\d{8}$/.test(digits)) {
+    digits = `20${digits}`;
+  }
+  if (digits.length < 8) {
+    return text ? `https://wa.me/?text=${encodeURIComponent(text)}` : null;
+  }
+  const query = text ? `?text=${encodeURIComponent(text)}` : '';
+  return `https://wa.me/${digits}${query}`;
+}

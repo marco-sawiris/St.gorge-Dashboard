@@ -10,9 +10,10 @@ import {
   HeartHandshake,
   CheckCircle2,
   XCircle,
-  ArrowUpDown
+  ArrowUpDown,
+  Loader2
 } from 'lucide-react';
-import { getNearestFridayString } from '../../utils/arabicUtils';
+import { getLatestHeldFridayString, formatTelHref, formatWhatsAppUrl } from '../../utils/arabicUtils';
 import { downloadCsvReport, downloadPrintableHtmlReport } from '../../utils/exportUtils';
 
 interface StudentsTableViewProps {
@@ -27,8 +28,8 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
   onOpenFollowup,
   onOpenEdit
 }) => {
-  const { filteredStudents, markAttendance, activeEditingId } = useApp();
-  const currentFriday = getNearestFridayString();
+  const { filteredStudents, markAttendance, activeEditingId, inFlightStudentIds } = useApp();
+  const currentFriday = getLatestHeldFridayString();
 
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
@@ -241,6 +242,9 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
           sortedStudents.map((s, idx) => {
             const isPresent = Boolean(s.att && s.att[currentFriday]);
             const isAnotherCardEditing = Boolean(activeEditingId && activeEditingId !== s.id);
+            const isInFlight = Boolean(inFlightStudentIds?.includes(s.id));
+            const telHref = formatTelHref(s.phoneStudent);
+            const waHref = formatWhatsAppUrl(s.phoneStudent || s.phoneParent1);
             return (
               <article
                 key={s.id}
@@ -288,21 +292,31 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                 <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border-color)] pt-2">
                   <button
                     type="button"
-                    onClick={() => markAttendance(s.id, !isPresent)}
+                    disabled={isInFlight}
+                    onClick={() => {
+                      if (isInFlight) return;
+                      void markAttendance(s.id, !isPresent);
+                    }}
                     aria-pressed={isPresent}
-                    className={`glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold inline-flex items-center gap-1 ${isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-muted)]'}`}
+                    className={`glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold inline-flex items-center gap-1 disabled:opacity-60 ${isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-muted)]'}`}
                   >
-                    {isPresent ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                    {isInFlight ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : isPresent ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5" />
+                    )}
                     {isPresent ? 'حاضر' : 'تسجيل حضور'}
                   </button>
-                  {s.phoneStudent && (
-                    <a href={`tel:${s.phoneStudent}`} className="glass-btn p-2 rounded-lg" aria-label={`اتصال بـ ${s.name}`}>
+                  {telHref && (
+                    <a href={telHref} className="glass-btn p-2 rounded-lg" aria-label={`اتصال بـ ${s.name}`}>
                       <Phone className="w-3.5 h-3.5" />
                     </a>
                   )}
-                  {(s.phoneStudent || s.phoneParent1) && (
+                  {waHref && (
                     <a
-                      href={`https://wa.me/2${(s.phoneStudent || s.phoneParent1)?.replace(/\D/g, '')}`}
+                      href={waHref}
                       target="_blank"
                       rel="noreferrer"
                       className="glass-btn p-2 rounded-lg"
@@ -396,6 +410,9 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
             ) : (
               sortedStudents.map((s, idx) => {
                 const isPresent = Boolean(s.att && s.att[currentFriday]);
+                const isInFlight = Boolean(inFlightStudentIds?.includes(s.id));
+                const telHref = formatTelHref(s.phoneStudent);
+                const waHref = formatWhatsAppUrl(s.phoneStudent || s.phoneParent1);
                 return (
                   <tr
                     key={s.id}
@@ -431,13 +448,22 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                     <td className="py-3.5 px-3.5 text-center break-words">
                       <button
                         type="button"
-                        onClick={() => markAttendance(s.id, !isPresent)}
+                        disabled={isInFlight}
+                        onClick={() => {
+                          if (isInFlight) return;
+                          void markAttendance(s.id, !isPresent);
+                        }}
                         aria-pressed={isPresent}
-                        className={`glass-btn px-3 py-1 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 ${
+                        className={`glass-btn px-3 py-1 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-60 ${
                           isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-muted)]'
                         }`}
                       >
-                        {isPresent ? (
+                        {isInFlight ? (
+                          <span key="l" className="badge-pop inline-flex items-center gap-1.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>{isPresent ? 'حاضر' : 'غائب'}</span>
+                          </span>
+                        ) : isPresent ? (
                           <span key="p" className="badge-pop inline-flex items-center gap-1.5">
                             <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                             <span>حاضر</span>
@@ -455,18 +481,18 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                     </td>
                     <td className="py-3.5 px-3.5 text-center break-words">
                       <div className="flex items-center justify-center gap-1.5">
-                        {s.phoneStudent && (
+                        {telHref && (
                           <a
-                            href={`tel:${s.phoneStudent}`}
+                            href={telHref}
                             className="glass-btn p-1.5 rounded-lg text-[var(--text)] hover:text-[var(--accent)]"
                             title="اتصال"
                           >
                             <Phone className="w-3.5 h-3.5" />
                           </a>
                         )}
-                        {(s.phoneStudent || s.phoneParent1) && (
+                        {waHref && (
                           <a
-                            href={`https://wa.me/2${(s.phoneStudent || s.phoneParent1)?.replace(/\D/g, '')}`}
+                            href={waHref}
                             target="_blank"
                             rel="noreferrer"
                             className="glass-btn p-1.5 rounded-lg text-[var(--text)] hover:text-[var(--accent)]"

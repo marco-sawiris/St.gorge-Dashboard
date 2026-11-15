@@ -29,6 +29,7 @@ import {
   Clock
 } from 'lucide-react';
 import { generateUUID } from '../../utils/uuid';
+import { formatWhatsAppUrl } from '../../utils/arabicUtils';
 
 const QUICK_PROMPTS = [
   { label: '🎂 أعياد الميلاد', query: 'أعياد الميلاد' },
@@ -81,6 +82,15 @@ export const AssistantModal: React.FC = () => {
   const prevOpenRef = useRef<boolean>(false);
   const currentSessionRef = useRef<AssistantSession>(session);
   const messagesRef = useRef<AssistantMessage[]>(messages);
+  const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     currentSessionRef.current = session;
@@ -135,9 +145,10 @@ export const AssistantModal: React.FC = () => {
 
   useEffect(() => {
     if (isAssistantOpen && !showHistory) {
-      setTimeout(() => {
+      const scrollTimer = setTimeout(() => {
         listEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 60);
+      return () => clearTimeout(scrollTimer);
     }
   }, [isAssistantOpen, messages, isTyping, showHistory]);
 
@@ -271,7 +282,8 @@ export const AssistantModal: React.FC = () => {
     setSession(activeSession);
     currentSessionRef.current = activeSession;
 
-    setTimeout(() => {
+    if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
+    submitTimerRef.current = setTimeout(() => {
       void (async () => {
         const explicitHistory = isExplicitHistoryRequest(clean);
 
@@ -425,7 +437,8 @@ export const AssistantModal: React.FC = () => {
     try {
       await navigator.clipboard.writeText(textToCopy);
       setCopiedId(id);
-      setTimeout(() => setCopiedId((curr) => (curr === id ? null : curr)), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopiedId((curr) => (curr === id ? null : curr)), 2000);
     } catch {}
   };
 
@@ -610,9 +623,7 @@ export const AssistantModal: React.FC = () => {
             {messages.map((msg) => {
               const isBot = msg.role === 'bot';
               const waUrl = msg.whatsappText
-                ? msg.whatsappPhone
-                  ? `https://wa.me/2${msg.whatsappPhone}?text=${encodeURIComponent(msg.whatsappText)}`
-                  : `https://wa.me/?text=${encodeURIComponent(msg.whatsappText)}`
+                ? formatWhatsAppUrl(msg.whatsappPhone, msg.whatsappText)
                 : null;
 
               return (

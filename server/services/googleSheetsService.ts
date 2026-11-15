@@ -250,22 +250,30 @@ export class GoogleSheetsService {
     const rowValues = existingRow;
     while (rowValues.length < Math.max(headers.length, 12)) rowValues.push('');
 
+    const sanitizeSheetCell = (val: unknown): string => {
+      const str = String(val ?? '');
+      if (/^[=+\-@\t\r]/.test(str)) {
+        return `'${str}`;
+      }
+      return str;
+    };
+
     // Stable base columns A:L.
     const baseValues = [
-      student.code,
-      student.name,
-      student.servant,
-      student.phoneStudent || '',
-      student.phoneParent1 || '',
-      student.phoneParent2 || '',
-      student.birthDate || '',
-      student.area || '',
-      student.address || '',
-      student.notes || '',
-      student.lastAttendance || '',
-      student.lastFollowup || ''
+      sanitizeSheetCell(student.code),
+      sanitizeSheetCell(student.name),
+      sanitizeSheetCell(student.servant),
+      sanitizeSheetCell(student.phoneStudent || ''),
+      sanitizeSheetCell(student.phoneParent1 || ''),
+      sanitizeSheetCell(student.phoneParent2 || ''),
+      sanitizeSheetCell(student.birthDate || ''),
+      sanitizeSheetCell(student.area || ''),
+      sanitizeSheetCell(student.address || ''),
+      sanitizeSheetCell(student.notes || ''),
+      sanitizeSheetCell(student.lastAttendance || ''),
+      sanitizeSheetCell(student.lastFollowup || '')
     ];
-    baseValues.forEach((value, index) => { rowValues[index] = String(value ?? ''); });
+    baseValues.forEach((value, index) => { rowValues[index] = value; });
 
     // Preserve the dynamic Friday attendance and follow-up columns. These are
     // essential: updating only A:L would make the UI appear saved while the
@@ -273,24 +281,24 @@ export class GoogleSheetsService {
     for (let columnIndex = 0; columnIndex < headers.length; columnIndex++) {
       const header = headers[columnIndex];
       const normalizedHeader = header.toLowerCase().trim();
-      if (/^\\d{4}-\\d{2}-\\d{2}$/.test(header) &&
+      if (/^\d{4}-\d{2}-\d{2}$/.test(header) &&
           Object.prototype.hasOwnProperty.call(student.att || {}, header)) {
         rowValues[columnIndex] = student.att[header] ? '1' : '0';
         continue;
       }
 
-      const followupMatch = header.match(/^افتقاد\\s+(\\d{4}-\\d{2}-\\d{2})$/);
+      const followupMatch = header.match(/^افتقاد\s+(\d{4}-\d{2}-\d{2})$/);
       if (followupMatch && Object.prototype.hasOwnProperty.call(student.fu || {}, followupMatch[1])) {
-        rowValues[columnIndex] = String(student.fu[followupMatch[1]] ?? '');
+        rowValues[columnIndex] = sanitizeSheetCell(student.fu[followupMatch[1]] ?? '');
         continue;
       }
 
-      if (normalizedHeader === 'id') rowValues[columnIndex] = student.id;
+      if (normalizedHeader === 'id') rowValues[columnIndex] = sanitizeSheetCell(student.id);
       else if (normalizedHeader === 'version' || header === 'الإصدار') rowValues[columnIndex] = String(student.version || 1);
       else if (['إجمالي الحضور', 'اجمالي الحضور', 'attendancetotal'].includes(normalizedHeader)) rowValues[columnIndex] = String(student.attendanceTotal || 0);
       else if (['حضور الشهر', 'attendancemonth'].includes(normalizedHeader)) rowValues[columnIndex] = String(student.attendanceMonth || 0);
-      else if (['الحالة', 'attendancestatus'].includes(normalizedHeader)) rowValues[columnIndex] = student.attendanceStatus || '';
-      else if (['حالة الافتقاد', 'followupstatus'].includes(normalizedHeader)) rowValues[columnIndex] = student.followupStatus || '';
+      else if (['الحالة', 'attendancestatus'].includes(normalizedHeader)) rowValues[columnIndex] = sanitizeSheetCell(student.attendanceStatus || '');
+      else if (['حالة الافتقاد', 'followupstatus'].includes(normalizedHeader)) rowValues[columnIndex] = sanitizeSheetCell(student.followupStatus || '');
     }
 
     const columnName = (index: number): string => {

@@ -12,13 +12,13 @@ export interface TokenPayload {
 
 export function signAccessToken(payload: TokenPayload): string {
   return jwt.sign(payload, ENV.JWT_SECRET, {
-    expiresIn: '15m'
+    expiresIn: ENV.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn']
   });
 }
 
 export function signRefreshToken(payload: TokenPayload): string {
   return jwt.sign(payload, ENV.JWT_REFRESH_SECRET, {
-    expiresIn: '7d'
+    expiresIn: ENV.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions['expiresIn']
   });
 }
 

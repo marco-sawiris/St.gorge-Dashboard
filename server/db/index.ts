@@ -261,13 +261,16 @@ class DatabaseManager {
           );
 
           CREATE TABLE IF NOT EXISTS idempotency_keys (
-            key VARCHAR(128) PRIMARY KEY,
+            key VARCHAR(512) PRIMARY KEY,
             action VARCHAR(64) NOT NULL,
-            student_id VARCHAR(64) NOT NULL,
+            student_id VARCHAR(255) NOT NULL,
             status VARCHAR(32) NOT NULL,
             response_body JSONB NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
+
+          ALTER TABLE idempotency_keys ALTER COLUMN key TYPE VARCHAR(512);
+          ALTER TABLE idempotency_keys ALTER COLUMN student_id TYPE VARCHAR(255);
 
           CREATE TABLE IF NOT EXISTS audit_logs (
             id SERIAL PRIMARY KEY,

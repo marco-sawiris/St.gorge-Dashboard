@@ -3,6 +3,7 @@ import { Student } from '../../types/student';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { X, HeartHandshake, Phone, MessageSquare, Home, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { formatTelHref, formatWhatsAppUrl } from '../../utils/arabicUtils';
 
 interface QuickFollowupModalProps {
   student: Student | null;
@@ -133,28 +134,36 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
           </div>
 
           {/* Quick Direct Link helpers */}
-          {student.phoneStudent && (
-            <div className="p-3 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between text-xs">
-              <span className="text-[var(--text-secondary)] font-medium">رقم المخدوم: {student.phoneStudent}</span>
-              <div className="flex items-center gap-2">
-                <a
-                  href={`tel:${student.phoneStudent}`}
-                  className="px-2.5 py-1 rounded-lg bg-[var(--surface-secondary)] border border-[var(--border-color)] text-[#20c7e8] font-bold hover:brightness-110 transition-colors"
-                >
-                  اتصال الآن
-                </a>
-                {/* ZERO GREEN: WhatsApp link in cyan & blue */}
-                <a
-                  href={`https://wa.me/2${student.phoneStudent.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-2.5 py-1 rounded-lg bg-[#20c7e8]/15 border border-[#20c7e8]/30 text-[#20c7e8] font-bold hover:bg-[#20c7e8] hover:text-[#030711] transition-all"
-                >
-                  فتح واتساب
-                </a>
+          {(() => {
+            const telHref = formatTelHref(student.phoneStudent);
+            const waHref = formatWhatsAppUrl(student.phoneStudent);
+            if (!student.phoneStudent || (!telHref && !waHref)) return null;
+            return (
+              <div className="p-3 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between text-xs">
+                <span className="text-[var(--text-secondary)] font-medium">رقم المخدوم: {student.phoneStudent}</span>
+                <div className="flex items-center gap-2">
+                  {telHref && (
+                    <a
+                      href={telHref}
+                      className="px-2.5 py-1 rounded-lg bg-[var(--surface-secondary)] border border-[var(--border-color)] text-[#20c7e8] font-bold hover:brightness-110 transition-colors"
+                    >
+                      اتصال الآن
+                    </a>
+                  )}
+                  {waHref && (
+                    <a
+                      href={waHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1 rounded-lg bg-[#20c7e8]/15 border border-[#20c7e8]/30 text-[#20c7e8] font-bold hover:bg-[#20c7e8] hover:text-[#030711] transition-all"
+                    >
+                      فتح واتساب
+                    </a>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Actions */}
           <div className="pt-2 border-t border-[var(--border-color)] flex items-center justify-end gap-2.5">

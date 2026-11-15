@@ -6,9 +6,12 @@ on:
       - main
       - "fix/**"
       - "feature/**"
+    paths-ignore:
+      - "APP Final/**"
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -32,7 +35,12 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
 
       - name: TypeScript validation
         run: npm run lint
@@ -44,12 +52,18 @@ jobs:
         run: npm run build
 
   android-debug-build:
-    name: Capacitor sync and Android debug build
+    name: Capacitor sync, verify and deliver Android APK
+    needs: web-validation
+    if: github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip ci]') && github.actor != 'github-actions[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -71,7 +85,12 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
 
       - name: Build web assets
         run: npm run build
@@ -82,10 +101,34 @@ jobs:
       - name: Assemble Android debug APK
         run: cd android && bash ./gradlew assembleDebug --no-daemon
 
-      - name: Upload Android debug APK artifact
+      - name: Verify APK and deliver to APP Final
+        run: |
+          APK_SRC="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK_SRC"
+          mkdir -p "APP Final"
+          cp "$APK_SRC" "APP Final/StGeorge-Dashboard.apk"
+          ls -lh "APP Final/StGeorge-Dashboard.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "APP Final/StGeorge-Dashboard.apk" | grep -E "package:|sdkVersion:|targetSdkVersion:|application-label:"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "APP Final/StGeorge-Dashboard.apk"
+
+      - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: st-george-dashboard-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: st-george-dashboard-final-apk
+          path: APP Final/StGeorge-Dashboard.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
+
+      - name: Commit and push APP Final APK to main
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "APP Final/StGeorge-Dashboard.apk"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): build and update APP Final/StGeorge-Dashboard.apk [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          else
+            echo "APP Final/StGeorge-Dashboard.apk is already up to date."
+          fi

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { useApp } from './context/AppContext';
 import { Student } from './types/student';
@@ -20,6 +20,7 @@ import { FollowupLogView } from './components/followup/FollowupLogView';
 import { StudentFormModal } from './components/modals/StudentFormModal';
 import { QuickFollowupModal } from './components/modals/QuickFollowupModal';
 import { AssistantModal } from './components/modals/AssistantModal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Filter, X, UserPlus, Users, AlertTriangle, RefreshCw, Activity, CheckCircle2, Info } from 'lucide-react';
 
 const SPRING_EASE = [0.34, 1.56, 0.64, 1] as const;
@@ -53,12 +54,17 @@ export default function App() {
   // Strict Single Active Edit: source of truth is activeEditingId in AppContext
   const currentEditingStudent = activeEditingId ? students.find((s) => s.id === activeEditingId) || null : null;
 
-  const handleOpenEditStudent = (student: Student) => {
+  const handleOpenEditStudent = useCallback((student: Student) => {
     requestEditStudent(student.id);
-  };
+  }, [requestEditStudent]);
+
+  const handleOpenFollowup = useCallback((student: Student) => {
+    setFollowupStudent(student);
+  }, []);
 
   return (
-    <MotionConfig reducedMotion="user">
+    <ErrorBoundary>
+      <MotionConfig reducedMotion="user">
       <div className="min-h-screen bg-[var(--app-bg)] text-[var(--text-primary)] flex flex-col font-sans transition-colors duration-300 relative overflow-x-clip">
         {/* Liquid Glass Background Orbs (Soft, adaptive) */}
         <div className="fixed -top-40 -right-40 w-96 h-96 rounded-full bg-radial from-[var(--primary)]/15 via-transparent to-transparent blur-3xl pointer-events-none" />
@@ -284,7 +290,7 @@ export default function App() {
                             >
                               <StudentCard
                                 student={student}
-                                onOpenFollowup={(s) => setFollowupStudent(s)}
+                                onOpenFollowup={handleOpenFollowup}
                                 onOpenEdit={handleOpenEditStudent}
                               />
                             </div>
@@ -303,7 +309,7 @@ export default function App() {
                       transition={{ duration: 0.34, ease: SPRING_EASE }}
                     >
                       <StudentsTableView
-                        onOpenFollowup={(s) => setFollowupStudent(s)}
+                        onOpenFollowup={handleOpenFollowup}
                         onOpenEdit={handleOpenEditStudent}
                       />
                     </motion.div>
@@ -341,6 +347,7 @@ export default function App() {
         {/* Alphabet Keyboard Dock fixed at bottom */}
         <BottomKeyboardDock />
       </div>
-    </MotionConfig>
+      </MotionConfig>
+    </ErrorBoundary>
   );
 }

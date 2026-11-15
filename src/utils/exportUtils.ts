@@ -8,8 +8,10 @@ function escapeHtml(value: unknown): string {
 }
 
 function escapeCsvCell(value: unknown): string {
-  const str = String(value ?? '').replace(/"/g, '""');
-  return `"${str}"`;
+  const raw = String(value ?? '');
+  const neutralized = raw !== '-' && /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  const escaped = neutralized.replace(/"/g, '""');
+  return `"${escaped}"`;
 }
 
 export function triggerBlobDownload(blob: Blob, filename: string): boolean {

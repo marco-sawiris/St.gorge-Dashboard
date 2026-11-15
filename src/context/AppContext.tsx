@@ -194,7 +194,42 @@ const AppContext = createContext<AppContextType | null>(null);
 // Core Production Engines for Queue and Sync (Exported for Direct Verification)
 // ============================================================================
 
+let queueExecutionTail: Promise<void> = Promise.resolve();
+
 export async function executeProcessOfflineQueue(
+  user: AuthUser | null,
+  _isPreviewMode: boolean = false,
+  onNotify?: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void,
+  onRecordPushTime?: (pushIso: string) => void,
+  callbacks?: {
+    onMutationStart?: (mutation: OfflineMutation) => void;
+    onMutationSuccess?: (mutation: OfflineMutation) => void;
+    onMutationError?: (mutation: OfflineMutation, error: string) => void;
+    silent?: boolean;
+  }
+): Promise<{ success: boolean; sentCount: number; remainingCount: number }> {
+  let releaseLock!: () => void;
+  const nextLock = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  const prevLock = queueExecutionTail;
+  queueExecutionTail = prevLock.then(() => nextLock, () => nextLock);
+  await prevLock;
+
+  try {
+    return await runProcessOfflineQueueSerial(
+      user,
+      _isPreviewMode,
+      onNotify,
+      onRecordPushTime,
+      callbacks
+    );
+  } finally {
+    releaseLock();
+  }
+}
+
+async function runProcessOfflineQueueSerial(
   user: AuthUser | null,
   _isPreviewMode: boolean = false,
   onNotify?: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void,
@@ -795,6 +830,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeToast, setActiveToast] = useState<AppNotification | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncedTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+      syncedTimersRef.current.forEach((timer) => clearTimeout(timer));
+      syncedTimersRef.current.clear();
+    };
+  }, []);
 
   // Online status detection
   const [isOnline, setIsOnline] = useState<boolean>(() => {
@@ -1191,9 +1238,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (mut.studentId) {
                   setInFlightStudentIds((prev) => prev.filter((id) => id !== mut.studentId));
                   setSyncedStudentIds((prev) => Array.from(new Set([...prev, mut.studentId])));
-                  setTimeout(() => {
+                  const prevTimer = syncedTimersRef.current.get(mut.studentId);
+                  if (prevTimer) clearTimeout(prevTimer);
+                  const timer = setTimeout(() => {
+                    syncedTimersRef.current.delete(mut.studentId);
                     setSyncedStudentIds((prev) => prev.filter((id) => id !== mut.studentId));
                   }, 3500);
+                  syncedTimersRef.current.set(mut.studentId, timer);
                 }
               },
               onMutationError: (mut, err) => {

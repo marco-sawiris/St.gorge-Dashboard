@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 );
 
 CREATE TABLE IF NOT EXISTS idempotency_keys (
-    key VARCHAR(128) PRIMARY KEY,
+    key VARCHAR(512) PRIMARY KEY,
     action VARCHAR(50) NOT NULL,
-    student_id VARCHAR(128) NOT NULL,
+    student_id VARCHAR(255) NOT NULL,
     request_hash VARCHAR(64) NOT NULL,
     response_status INTEGER NOT NULL,
     response_body JSONB NOT NULL,

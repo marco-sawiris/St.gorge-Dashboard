@@ -23,7 +23,9 @@ import {
 import confetti from 'canvas-confetti';
 import {
   computeMonthlyAttendanceSummary,
-  getLatestHeldFridayString
+  getLatestHeldFridayString,
+  formatTelHref,
+  formatWhatsAppUrl
 } from '../../utils/arabicUtils';
 
 interface StudentCardProps {
@@ -32,7 +34,7 @@ interface StudentCardProps {
   onOpenEdit: (student: Student) => void;
 }
 
-export const StudentCard: React.FC<StudentCardProps> = ({
+const StudentCardComponent: React.FC<StudentCardProps> = ({
   student,
   onOpenFollowup,
   onOpenEdit
@@ -790,28 +792,36 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           {/* Front Footer: Quick Actions + 3D Flip (Always visible, never clipped) */}
           <div className="border-t border-[var(--glass-border)] pt-2.5 flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1">
-              {student.phoneStudent && (
-                <a
-                  href={`tel:${student.phoneStudent}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="glass-btn p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all"
-                  title="اتصال بالطالب"
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                </a>
-              )}
-              {(student.phoneStudent || student.phoneParent1) && (
-                <a
-                  href={`https://wa.me/2${(student.phoneStudent || student.phoneParent1)?.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="glass-btn p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all"
-                  title="محادثة واتساب"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                </a>
-              )}
+              {(() => {
+                const telHref = formatTelHref(student.phoneStudent);
+                const waHref = formatWhatsAppUrl(student.phoneStudent || student.phoneParent1);
+                return (
+                  <>
+                    {telHref && (
+                      <a
+                        href={telHref}
+                        onClick={(e) => e.stopPropagation()}
+                        className="glass-btn p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all"
+                        title="اتصال بالطالب"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    {waHref && (
+                      <a
+                        href={waHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="glass-btn p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all"
+                        title="محادثة واتساب"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </>
+                );
+              })()}
               <button
                 type="button"
                 onClick={(e) => {
@@ -885,8 +895,8 @@ export const StudentCard: React.FC<StudentCardProps> = ({
                   <span className="text-[var(--text-muted)]">موبايل الطالب:</span>
                   <div className="flex items-center gap-2">
                     <strong className="font-mono text-[var(--text)]">{student.phoneStudent || 'غير مسجل'}</strong>
-                    {student.phoneStudent && (
-                      <a href={`tel:${student.phoneStudent}`} className="text-[var(--accent)] hover:underline">
+                    {formatTelHref(student.phoneStudent) && (
+                      <a href={formatTelHref(student.phoneStudent)!} className="text-[var(--accent)] hover:underline">
                         <Phone className="w-3 h-3 inline" />
                       </a>
                     )}
@@ -896,8 +906,8 @@ export const StudentCard: React.FC<StudentCardProps> = ({
                   <span className="text-[var(--text-muted)]">ولي الأمر (1):</span>
                   <div className="flex items-center gap-2">
                     <strong className="font-mono text-[var(--text)]">{student.phoneParent1 || 'غير مسجل'}</strong>
-                    {student.phoneParent1 && (
-                      <a href={`tel:${student.phoneParent1}`} className="text-[var(--accent)] hover:underline">
+                    {formatTelHref(student.phoneParent1) && (
+                      <a href={formatTelHref(student.phoneParent1)!} className="text-[var(--accent)] hover:underline">
                         <Phone className="w-3 h-3 inline" />
                       </a>
                     )}
@@ -966,3 +976,5 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     </div>
   );
 };
+
+export const StudentCard = React.memo(StudentCardComponent);

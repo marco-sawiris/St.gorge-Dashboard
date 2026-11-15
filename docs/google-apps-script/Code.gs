@@ -175,6 +175,9 @@ function doPost(e) {
 
     // Target Sheet resolution
     var targetSheetName = body.sheet || body.sourceSheet || mutation.sourceSheet || mutation.sheet || 'نشط';
+    if (APPROVED_SHEETS.indexOf(targetSheetName) === -1) {
+      return jsonResponse({ ok: false, status: 400, error: 'اسم الفصل غير معتمد: ' + targetSheetName });
+    }
     var ss = getSpreadsheet();
     var sheet = ss.getSheetByName(targetSheetName);
     if (!sheet) {
@@ -244,7 +247,7 @@ function doPost(e) {
     }
 
     if (action === 'add') {
-      var addFields = body.fields || mutation.payload?.fields || mutation.payload || {};
+      var addFields = body.fields || (mutation.payload && mutation.payload.fields) || mutation.payload || {};
       var addName = String(addFields.name || targetName || '').trim();
       if (!addName) {
         return jsonResponse({ ok: false, status: 400, error: 'الاسم مطلوب' });
@@ -254,18 +257,18 @@ function doPost(e) {
       }
 
       var newRow = headers.map(function (h) {
-        if (h === 'كود' || h.indexOf('الكود') !== -1 || h.toLowerCase() === 'code') return addFields.code || targetCode || '';
-        if (h.indexOf('الاسم') !== -1 || h.toLowerCase() === 'name') return addName;
-        if (h.indexOf('الاشبين') !== -1 || h.indexOf('الأشبين') !== -1 || h.indexOf('الخادم') !== -1 || h.toLowerCase() === 'servant') return addFields.servant || '';
-        if (h.indexOf('موبيال المخدوم') !== -1 || h.indexOf('موبايل المخدوم') !== -1 || h.indexOf('موبايل الطالب') !== -1 || h.indexOf('تليفون الطالب') !== -1) return addFields.phoneStudent || '';
-        if (h.indexOf('ولي الامر 1') !== -1 || h.indexOf('ولي الأمر 1') !== -1) return addFields.phoneParent1 || '';
-        if (h.indexOf('ولي الامر 2') !== -1 || h.indexOf('ولي الأمر 2') !== -1) return addFields.phoneParent2 || '';
-        if (h.indexOf('تاريخ الميلاد') !== -1) return addFields.birthDate || '';
-        if (h === 'منطقة' || h.indexOf('المنطقة') !== -1) return addFields.area || '';
-        if (h.indexOf('العنوان') !== -1) return addFields.address || '';
-        if (h.indexOf('ملاحظات') !== -1) return addFields.notes || '';
-        if (h.indexOf('حالة الافتقاد') !== -1) return addFields.status || addFields.followupStatus || 'بدون';
-        if (h.toLowerCase() === 'id') return targetId || '';
+        if (h === 'كود' || h.indexOf('الكود') !== -1 || h.toLowerCase() === 'code') return sanitizeFormulaValue(addFields.code || targetCode || '');
+        if (h.indexOf('الاسم') !== -1 || h.toLowerCase() === 'name') return sanitizeFormulaValue(addName);
+        if (h.indexOf('الاشبين') !== -1 || h.indexOf('الأشبين') !== -1 || h.indexOf('الخادم') !== -1 || h.toLowerCase() === 'servant') return sanitizeFormulaValue(addFields.servant || '');
+        if (h.indexOf('موبيال المخدوم') !== -1 || h.indexOf('موبايل المخدوم') !== -1 || h.indexOf('موبايل الطالب') !== -1 || h.indexOf('تليفون الطالب') !== -1) return sanitizeFormulaValue(addFields.phoneStudent || '');
+        if (h.indexOf('ولي الامر 1') !== -1 || h.indexOf('ولي الأمر 1') !== -1) return sanitizeFormulaValue(addFields.phoneParent1 || '');
+        if (h.indexOf('ولي الامر 2') !== -1 || h.indexOf('ولي الأمر 2') !== -1) return sanitizeFormulaValue(addFields.phoneParent2 || '');
+        if (h.indexOf('تاريخ الميلاد') !== -1) return sanitizeFormulaValue(addFields.birthDate || '');
+        if (h === 'منطقة' || h.indexOf('المنطقة') !== -1) return sanitizeFormulaValue(addFields.area || '');
+        if (h.indexOf('العنوان') !== -1) return sanitizeFormulaValue(addFields.address || '');
+        if (h.indexOf('ملاحظات') !== -1) return sanitizeFormulaValue(addFields.notes || '');
+        if (h.indexOf('حالة الافتقاد') !== -1) return sanitizeFormulaValue(addFields.status || addFields.followupStatus || 'بدون');
+        if (h.toLowerCase() === 'id') return sanitizeFormulaValue(targetId || '');
         if (h.toLowerCase() === 'version' || h.indexOf('الإصدار') !== -1) return 1;
         return '';
       });
@@ -467,7 +470,7 @@ function doPost(e) {
         setIfFound(sheet, rowNum, headers, ['ملاحظات الافتقاد', 'ملاحظات', 'notes'], updateNotes);
       }
 
-      var updateFields = body.fields || mutation.payload?.fields || mutation.payload || {};
+      var updateFields = body.fields || (mutation.payload && mutation.payload.fields) || mutation.payload || {};
       if (updateFields.name) setIfFound(sheet, rowNum, headers, ['الاسم', 'name'], updateFields.name);
       if (updateFields.code) setIfFound(sheet, rowNum, headers, ['كود', 'الكود', 'code'], updateFields.code);
       if (updateFields.servant) setIfFound(sheet, rowNum, headers, ['الاشبين', 'الأشبين', 'الخادم', 'servant'], updateFields.servant);
@@ -542,11 +545,18 @@ function saveDurableIdempotencyResult(ss, key, response) {
   } catch (e) {}
 }
 
+function sanitizeFormulaValue(value) {
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(value)) {
+    return "'" + value;
+  }
+  return value;
+}
+
 function setIfFound(sheet, rowNum, headers, colNames, value) {
   if (value === undefined || value === null) return;
   var col = findColIndex(headers, colNames);
   if (col >= 0) {
-    sheet.getRange(rowNum, col + 1).setValue(value);
+    sheet.getRange(rowNum, col + 1).setValue(sanitizeFormulaValue(value));
   }
 }
 
@@ -649,12 +659,12 @@ function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayD
   var newRow = [
     todayStr,
     fridayDate || todayStr,
-    sheetName,
-    codeCol >= 0 ? formatCellValue(studentRow[codeCol]) : '',
-    nameCol >= 0 ? formatCellValue(studentRow[nameCol]) : '',
-    servantCol >= 0 ? formatCellValue(studentRow[servantCol]) : '',
-    method || 'تم تليفونياً',
-    notes || ''
+    sanitizeFormulaValue(sheetName),
+    sanitizeFormulaValue(codeCol >= 0 ? formatCellValue(studentRow[codeCol]) : ''),
+    sanitizeFormulaValue(nameCol >= 0 ? formatCellValue(studentRow[nameCol]) : ''),
+    sanitizeFormulaValue(servantCol >= 0 ? formatCellValue(studentRow[servantCol]) : ''),
+    sanitizeFormulaValue(method || 'تم تليفونياً'),
+    sanitizeFormulaValue(notes || '')
   ];
   while (newRow.length <= mutationIdCol) newRow.push('');
   newRow[mutationIdCol] = mutationId || '';
