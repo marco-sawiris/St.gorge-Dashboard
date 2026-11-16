@@ -1098,6 +1098,110 @@ body::after {
   will-change: filter, transform, opacity;
 }
 
+.splash-dark-canvas {
+  background-color: #071A38;
+  background-image:
+    radial-gradient(ellipse 64% 44% at 50% 26%, rgba(18, 63, 120, 0.48) 0%, rgba(11, 40, 84, 0.24) 48%, rgba(7, 26, 56, 0) 78%),
+    radial-gradient(ellipse 70% 42% at 50% 64%, rgba(28, 92, 174, 0.28) 0%, rgba(11, 40, 84, 0.14) 55%, rgba(7, 26, 56, 0) 80%),
+    linear-gradient(180deg, #071A38 0%, #0B2854 54%, #071A38 100%);
+}
+
+/* Multi-layer Dark Frosted Glassmorphism Panel with Directional Edge Highlights & Specular Glint */
+.splash-dark-glass {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    144deg,
+    rgba(24, 74, 144, 0.32) 0%,
+    rgba(11, 40, 84, 0.42) 48%,
+    rgba(7, 26, 56, 0.54) 100%
+  );
+  backdrop-filter: blur(26px) saturate(148%);
+  -webkit-backdrop-filter: blur(26px) saturate(148%);
+  border: 1px solid rgba(130, 192, 255, 0.24);
+  box-shadow:
+    0 24px 60px rgba(2, 9, 24, 0.72),
+    0 0 34px rgba(56, 138, 245, 0.16),
+    inset 0 1.5px 1px rgba(224, 242, 255, 0.28),
+    inset 1px 0 1px rgba(147, 207, 255, 0.14),
+    inset -1px 0 1px rgba(147, 207, 255, 0.12),
+    inset 0 -1px 1px rgba(116, 178, 255, 0.18);
+}
+
+/* Directional refractive gradient rim highlight (strong top & sides, subtle bottom bounce) */
+.splash-dark-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.25px;
+  pointer-events: none;
+  background: linear-gradient(
+    162deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(147, 207, 255, 0.54) 18%,
+    rgba(96, 165, 250, 0.22) 50%,
+    rgba(59, 130, 246, 0.10) 76%,
+    rgba(147, 207, 255, 0.30) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* Angled specular glass reflection ribbon & subtle blue sheen across surface */
+.splash-dark-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      122deg,
+      transparent 14%,
+      rgba(165, 216, 255, 0.15) 28%,
+      rgba(255, 255, 255, 0.09) 34%,
+      rgba(130, 192, 255, 0.04) 42%,
+      transparent 56%
+    ),
+    radial-gradient(ellipse 80% 45% at 50% 0%, rgba(147, 207, 255, 0.14) 0%, transparent 72%),
+    radial-gradient(ellipse 60% 30% at 50% 100%, rgba(96, 165, 250, 0.10) 0%, transparent 75%);
+}
+
+.splash-status-glass {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(150deg, rgba(14, 48, 98, 0.42) 0%, rgba(7, 26, 56, 0.58) 100%);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border: 1px solid rgba(147, 207, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(210, 234, 255, 0.16),
+    inset 0 -1px 0 rgba(96, 165, 250, 0.10),
+    0 14px 36px rgba(3, 10, 26, 0.54);
+}
+
+.splash-entry-btn {
+  background: linear-gradient(135deg, rgba(24, 74, 144, 0.68) 0%, rgba(11, 40, 84, 0.86) 100%);
+  border: 1px solid rgba(214, 174, 104, 0.34);
+  color: #FFFFFF;
+  box-shadow:
+    inset 0 1px 0 rgba(224, 242, 255, 0.18),
+    0 6px 18px rgba(3, 10, 26, 0.44);
+  transition: transform 160ms var(--ease-out), border-color 180ms var(--ease-standard), background 180ms var(--ease-standard);
+}
+
+.splash-entry-btn:hover {
+  border-color: rgba(214, 174, 104, 0.58);
+  background: linear-gradient(135deg, rgba(28, 86, 166, 0.85) 0%, rgba(11, 40, 84, 0.94) 100%);
+}
+
+.splash-entry-btn:active {
+  transform: scale(0.98);
+}
+
 .glass-keyboard-key {
   position: relative;
   overflow: hidden;
