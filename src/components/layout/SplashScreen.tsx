@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
 import { CheckCircle2, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 const copticDomePortrait = new URL('../../assets/images/coptic_dome_dark_navy_port_1794829405532.jpg', import.meta.url).href;
 const copticDomeLandscape = new URL('../../assets/images/coptic_dome_dark_navy_land_1794829406178.jpg', import.meta.url).href;
+const stGeorgeSplashArtwork = new URL('../../../Aset/Stgorge.png', import.meta.url).href;
 
 /**
  * Minimalist Coptic Cross Emblem (#D6AE68 muted gold accent)
@@ -78,7 +80,7 @@ const CopticDomeFallbackBackdrop: React.FC = () => (
  * - Deep Dark Navy foundations (#071A38, #0B2854, #123F78) regardless of active dashboard theme
  * - Soft, dimmed, gently blurred Coptic Dome & Cross architectural background
  * - Dark Frosted Glassmorphic panel with directional edge highlights & subtle blue reflection
- * - Sharp StGeorge / DASHBOARD typography & minimal #D6AE68 gold Coptic accents
+ * - Crisp Stgorge.png crest artwork & minimal #D6AE68 gold Coptic accents
  * - Non-blocking real-phase initialization indicator & Android multi-screen responsive layout
  */
 export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => {
@@ -124,10 +126,32 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
   }, [isInitialLoading, isSyncing, students.length, lastSyncError, isOnline]);
 
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navBarRestoredRef = useRef(false);
+
+  const restoreSystemNavigationBar = useCallback(() => {
+    if (navBarRestoredRef.current) return;
+    navBarRestoredRef.current = true;
+    if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+      void SystemBars.show({ bar: SystemBarType.NavigationBar }).catch(() => {});
+    }
+  }, []);
+
+  // Hide only the Android system navigation bar while SplashScreen is active,
+  // then immediately restore it when transitioning into the main app.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
+    navBarRestoredRef.current = false;
+    void SystemBars.hide({ bar: SystemBarType.NavigationBar }).catch(() => {});
+
+    return () => {
+      restoreSystemNavigationBar();
+    };
+  }, [restoreSystemNavigationBar]);
 
   const handleDismiss = () => {
     if (isExiting) return;
     setIsExiting(true);
+    restoreSystemNavigationBar();
     if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
     dismissTimerRef.current = setTimeout(() => {
       setIsVisible(false);
@@ -165,7 +189,7 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
       role="dialog"
       aria-label="شاشة التحميل والتهيئة"
       onClick={handleDismiss}
-      className={`splash-dark-canvas fixed inset-0 z-50 text-white flex flex-col items-center justify-center px-5 py-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] cursor-pointer select-none overflow-hidden transition-opacity duration-350 ${
+      className={`splash-dark-canvas fixed inset-0 h-[100dvh] w-full z-50 text-white flex flex-col items-center justify-center px-5 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] cursor-pointer select-none overflow-hidden transition-opacity duration-350 ${
         isExiting ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
     >
@@ -224,41 +248,50 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
 
       {/* Vertical Composition with Generous Negative Space */}
       <div
-        className="relative z-10 flex flex-col items-center text-center w-full max-w-[360px] sm:max-w-[400px]"
+        className="relative z-10 flex flex-col items-center text-center w-full max-w-[350px] sm:max-w-[400px]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 100% Crisp Crest Card (Dark Translucent Frosted Glass Panel behind App Name — Razor sharp from frame 1) */}
+        {/* 100% Crisp Crest Card (Dark Translucent Frosted Glass Panel behind St. George Artwork — Razor sharp from frame 1) */}
         <div
           dir="ltr"
-          className="splash-dark-glass w-full rounded-[26px] px-7 py-8 sm:px-10 sm:py-10 flex flex-col items-center justify-center"
+          className="splash-dark-glass w-full rounded-[26px] px-6 py-6 sm:px-8 sm:py-7 flex flex-col items-center justify-center"
         >
           {/* Minimalist Gold Coptic Cross & Flanking Hairlines */}
-          <div className="relative z-10 flex items-center justify-center gap-3 mb-5">
+          <div className="relative z-10 flex items-center justify-center gap-3 mb-3">
             <span className="w-8 sm:w-10 h-px bg-gradient-to-r from-transparent to-[#D6AE68]/65" aria-hidden="true" />
-            <CopticCrossEmblem className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" />
+            <CopticCrossEmblem className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
             <span className="w-8 sm:w-10 h-px bg-gradient-to-l from-transparent to-[#D6AE68]/65" aria-hidden="true" />
           </div>
 
-          {/* Primary Brand Wordmark */}
-          <h1 className="relative z-10 m-0 text-[2.2rem] sm:text-[2.65rem] font-extrabold tracking-[-0.02em] leading-[1.02] text-white">
-            StGeorge
-          </h1>
-
-          {/* Secondary Tracked Descriptor */}
-          <p className="relative z-10 m-0 mt-2.5 pl-[0.36em] text-[11px] sm:text-xs font-semibold uppercase tracking-[0.36em] text-[#DCE6F7]/80">
-            DASHBOARD
-          </p>
+          {/* Primary St. George Hero Crest Artwork (Original PNG preserved with natural aspect ratio, zero blur/frame) */}
+          <div className="relative z-10 flex items-center justify-center w-full my-1">
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(circle at 50% 50%, rgba(147, 207, 255, 0.16) 0%, rgba(18, 63, 120, 0.08) 46%, transparent 72%)'
+              }}
+            />
+            <img
+              src={stGeorgeSplashArtwork}
+              alt="الشهيد العظيم مارجرجس الروماني"
+              width={1239}
+              height={1270}
+              className="relative z-10 w-[184px] sm:w-[224px] max-w-full max-h-[30vh] h-auto aspect-[1239/1270] object-contain select-none pointer-events-none drop-shadow-[0_14px_28px_rgba(3,10,26,0.65)]"
+            />
+          </div>
 
           {/* Subtle Minimal Gold Accent Line */}
           <div
             aria-hidden="true"
-            className="relative z-10 w-12 h-px mt-5 bg-gradient-to-r from-transparent via-[#D6AE68]/65 to-transparent"
+            className="relative z-10 w-14 h-px mt-3.5 bg-gradient-to-r from-transparent via-[#D6AE68]/65 to-transparent"
           />
 
           {/* Quiet Service Context Line */}
           <p
             dir="rtl"
-            className="relative z-10 m-0 mt-4 text-[11px] sm:text-xs font-semibold text-[#B6C8E6]/75 tracking-normal leading-relaxed"
+            className="relative z-10 m-0 mt-3 text-[11.5px] sm:text-xs font-semibold text-[#C6D6F0]/85 tracking-normal leading-relaxed"
           >
             فصل الشهيد العظيم مارجرجس · الزيتون
           </p>

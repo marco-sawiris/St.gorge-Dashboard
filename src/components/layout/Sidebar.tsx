@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../../context/AppContext';
 
-const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
+const appHeaderIcon = new URL('../../../Aset/Icon-2.png', import.meta.url).href;
 import {
   X,
   CreditCard,
@@ -187,13 +187,13 @@ export const Sidebar: React.FC = () => {
               } pb-2.5 border-b border-[var(--border-color)] mb-2.5 shrink-0`}
             >
               <div className={`flex items-center gap-2.5 min-w-0 ${isSidebarCollapsed ? 'lg:justify-center' : ''}`}>
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#123fce]/35 to-[#20c7e8]/35 p-0.5 border border-[#20c7e8]/45 shadow-[0_0_12px_rgba(32,199,232,0.28)] shrink-0">
-                  <img
-                    src={stGeorgeIcon}
-                    alt="St.Gorge"
-                    className="w-full h-full object-cover rounded-[10px]"
-                  />
-                </div>
+                <img
+                  src={appHeaderIcon}
+                  alt="St. George Dashboard Icon"
+                  width={331}
+                  height={331}
+                  className="w-9 h-9 object-contain shrink-0 drop-shadow-[0_2px_8px_rgba(3,7,17,0.38)]"
+                />
                 <div className={`min-w-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                   <h2 className="font-extrabold text-[13.5px] text-[var(--text-primary)] m-0 truncate">
                     St. George Dashboard

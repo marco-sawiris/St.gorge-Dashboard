@@ -204,12 +204,22 @@ async function runConsolidatedTests() {
 
     const cardPath = path.resolve(process.cwd(), 'src/components/cards/StudentCard.tsx');
     const cardSrc = fs.readFileSync(cardPath, 'utf-8');
+    const appPath = path.resolve(process.cwd(), 'src/App.tsx');
+    const appSrc = fs.readFileSync(appPath, 'utf-8');
 
-    // Verify "تفاصيل أكثر" button only sets isFlipped and does NOT call onOpenEdit
-    const detailsRegex = /onClick=\{\(\)\s*=>\s*setIsFlipped\(true\)\}/;
-    assert(detailsRegex.test(cardSrc), 'Task 4d: Details button strictly sets isFlipped(true) and never opens edit mode');
+    // Verify "تفاصيل أكثر" button only toggles independent 3D flip via handleToggleFlip / isFlipped and does NOT call onOpenEdit
+    assert(
+      cardSrc.includes('onClick={handleToggleFlip}') &&
+        cardSrc.includes('aria-expanded={isFlipped}') &&
+        cardSrc.includes('card-flip-scene') &&
+        cardSrc.includes('card-flip-inner') &&
+        !appSrc.includes('expandedCardId') &&
+        !cardSrc.includes('role="button"') &&
+        !cardSrc.includes('tabIndex'),
+      'Task 4d: Details button strictly toggles per-card 3D flip via handleToggleFlip / isFlipped and never makes card container clickable or opens edit mode'
+    );
     assert(cardSrc.includes('aria-disabled={isAnotherCardEditing}'), 'Task 4e: Edit button guarded by isAnotherCardEditing');
-    console.log('✅ Task 4 Passed: Strict Single Active Edit Mode enforced; card flip isolated from editing');
+    console.log('✅ Task 4 Passed: Strict Single Active Edit Mode & Independent 3D Flip Card verified');
 
     // --------------------------------------------------------------------------
     // 5. Task 5 Verification: Single-Click Attendance & Absence ("حاضر" / "غائب")
@@ -322,9 +332,138 @@ async function runConsolidatedTests() {
 
     console.log('✅ Task 6 Passed: Offline Queue & Sync Diagnostics verified with Zero Data Loss');
 
+    // --------------------------------------------------------------------------
+    // 7. Task 7 Verification: Restored Original Buttons & 3D Flip Card Interaction
+    // --------------------------------------------------------------------------
+    const searchBarSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/common/SearchFilterBar.tsx'), 'utf-8');
+    const indexCssSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/index.css'), 'utf-8');
+    assert(
+      !appSrc.includes('liquid-lens-btn') &&
+        !searchBarSrc.includes('liquid-lens-btn') &&
+        !indexCssSrc.includes('.liquid-lens-btn') &&
+        appSrc.includes('glass-btn--primary btn--lens px-4 py-2 rounded-xl') &&
+        searchBarSrc.includes('glass-btn--primary btn--lens flex-1 h-11 px-4 rounded-xl'),
+      'Task 7a: Original styling restored cleanly for both Add Student and Sync Server buttons'
+    );
+
+    assert(
+      indexCssSrc.includes('perspective: 1200px') &&
+        indexCssSrc.includes('transform-style: preserve-3d') &&
+        indexCssSrc.includes('backface-visibility: hidden') &&
+        indexCssSrc.includes('rotateY(180deg)') &&
+        indexCssSrc.includes('600ms') &&
+        indexCssSrc.includes('@media (prefers-reduced-motion: reduce)'),
+      'Task 7b: 3D Flip Card CSS specifies perspective, preserve-3d, backface-visibility, rotateY(180deg), 600ms transition & reduced-motion'
+    );
+
+    const studentA = { ...mockStudent, id: 'card_a', name: 'كيرلس عماد', code: 'SG-101' };
+    const studentB = { ...mockStudent, id: 'card_b', name: 'بيشوي ناجي', code: 'SG-102' };
+
+    const twoCardsHtml = renderToString(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(
+          AuthProvider,
+          null,
+          React.createElement(
+            AppProvider,
+            null,
+            React.createElement(
+              React.Fragment,
+              null,
+              React.createElement(StudentCard, {
+                student: studentA,
+                onOpenFollowup: () => {},
+                onOpenEdit: () => {},
+                initialFlipped: true
+              }),
+              React.createElement(StudentCard, {
+                student: studentB,
+                onOpenFollowup: () => {},
+                onOpenEdit: () => {},
+                initialFlipped: false
+              })
+            )
+          )
+        )
+      )
+    );
+
+    assert(
+      twoCardsHtml.includes('كيرلس عماد') &&
+        twoCardsHtml.includes('بيشوي ناجي') &&
+        twoCardsHtml.includes('card-flip-inner is-flipped') &&
+        twoCardsHtml.includes('id="student-card-back-card_a"') &&
+        twoCardsHtml.includes('id="student-card-back-card_b"') &&
+        twoCardsHtml.includes('رجوع') &&
+        twoCardsHtml.includes('العودة للتفاصيل الأساسية') &&
+        twoCardsHtml.includes('aria-expanded="true"') &&
+        twoCardsHtml.includes('aria-expanded="false"') &&
+        !cardSrc.includes('student-details-'),
+      'Task 7c: Flipping card_a rotates only card_a in 3D with back face & return CTA while card_b stays unflipped and visible'
+    );
+    console.log('✅ Task 7 Passed: Restored buttons & independent 3D Flip Card interaction verified');
+
+    // --------------------------------------------------------------------------
+    // 8. Task 8 Verification: Splash-Only System Navigation Bar Hiding & Restore
+    // --------------------------------------------------------------------------
+    const mainActivitySrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'android/app/src/main/java/org/stgeorge/zaitoun/dashboard/MainActivity.java'),
+      'utf-8'
+    );
+    const stylesXmlSrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'android/app/src/main/res/values/styles.xml'),
+      'utf-8'
+    );
+    const manifestXmlSrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'android/app/src/main/AndroidManifest.xml'),
+      'utf-8'
+    );
+
+    assert(
+      splashSrc.includes('SystemBars') &&
+        splashSrc.includes('SystemBarType.NavigationBar') &&
+        splashSrc.includes('SystemBars.hide({ bar: SystemBarType.NavigationBar })') &&
+        splashSrc.includes('SystemBars.show({ bar: SystemBarType.NavigationBar })') &&
+        splashSrc.includes('restoreSystemNavigationBar()') &&
+        splashSrc.includes('h-[100dvh] w-full'),
+      'Task 8a: SplashScreen hides only NavigationBar while active, fills 100dvh, and restores it cleanly on dismiss/unmount'
+    );
+    assert(
+      mainActivitySrc.includes('WindowInsetsCompat.Type.navigationBars()') &&
+        !mainActivitySrc.includes('WindowInsetsCompat.Type.systemBars()') &&
+        !stylesXmlSrc.includes('windowFullscreen') &&
+        !manifestXmlSrc.includes('Fullscreen'),
+      'Task 8b: Android launch splash hides only navigationBars() without altering app-wide theme or other pages'
+    );
+
+    const splashHtml = renderToString(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(
+          AuthProvider,
+          null,
+          React.createElement(
+            AppProvider,
+            null,
+            React.createElement(SplashScreen, { onDismiss: () => {} })
+          )
+        )
+      )
+    );
+    assert(
+      splashHtml.includes('h-[100dvh] w-full') &&
+        splashHtml.includes('Stgorge.png') &&
+        splashHtml.includes('دخول الآن'),
+      'Task 8c: SplashScreen renders cleanly with full-viewport layout and original artwork/CTA'
+    );
+    console.log('✅ Task 8 Passed: Splash-only navigation bar hide & restore verified without global theme side effects');
+
     await cleanAllIDB();
     console.log('\n======================================================');
-    console.log('🎉 ALL CONSOLIDATED FIXES TESTS (TASKS 1-6) PASSED!');
+    console.log('🎉 ALL CONSOLIDATED FIXES TESTS (TASKS 1-8) PASSED!');
     console.log('======================================================\n');
   } finally {
     (globalThis as any).fetch = originalFetch;

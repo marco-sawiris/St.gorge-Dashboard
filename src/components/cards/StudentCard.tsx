@@ -33,14 +33,16 @@ interface StudentCardProps {
   student: Student;
   onOpenFollowup: (student: Student) => void;
   onOpenEdit: (student: Student) => void;
+  initialFlipped?: boolean;
 }
 
 const StudentCardComponent: React.FC<StudentCardProps> = ({
   student,
   onOpenFollowup,
-  onOpenEdit
+  onOpenEdit,
+  initialFlipped = false
 }) => {
-  const [isFlipped, setIsFlipped] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(Boolean(initialFlipped));
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
   const [activeTrackTab, setActiveTrackTab] = useState<'all' | 'att' | 'fu'>('all');
 
@@ -63,10 +65,17 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
   const isThisCardEditing = activeEditingId === student.id;
   const isAnotherCardEditing = Boolean(activeEditingId && activeEditingId !== student.id);
 
-  // Any card that was showing its reverse/details face returns to the front as soon as editing starts.
+  // Reset flip state if inline editing starts on this card.
   useEffect(() => {
-    if (activeEditingId) setIsFlipped(false);
-  }, [activeEditingId]);
+    if (isThisCardEditing) {
+      setIsFlipped(false);
+    }
+  }, [isThisCardEditing]);
+
+  const handleToggleFlip = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setIsFlipped((prev) => !prev);
+  };
 
   // Inline Card Edit Form State (keeps ALL cards visible in the grid)
   const [editName, setEditName] = useState(student.name || '');
@@ -514,20 +523,19 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
   }
 
   return (
-    <div className="perspective-1000 box-border w-full min-w-0 max-w-full select-none">
-      {/* CSS Grid Stacking with explicit active-face visibility guarantees zero Android WebView blank-card compositing bugs */}
-      <div
-        className={`grid box-border w-full min-w-0 max-w-full duration-500 ease-[var(--ease-spring)] transform-style-preserve-3d transition-transform ${
-          isFlipped ? 'rotate-y-180' : ''
-        }`}
-      >
+    <article
+      aria-label={`بطاقة المخدوم ${student.name}`}
+      className="card-flip-scene box-border w-full min-w-0 max-w-full select-none relative z-10"
+    >
+      <div className={`card-flip-inner ${isFlipped ? 'is-flipped' : ''}`}>
         {/* ==================================================== */}
-        {/* FRONT OF CARD (Liquid Glass)                         */}
+        {/* FRONT FACE                                           */}
         {/* ==================================================== */}
         <div
           aria-hidden={isFlipped}
-          className={`col-start-1 row-start-1 backface-hidden box-border w-full min-w-0 max-w-full p-3.5 sm:p-4 rounded-3xl glass shadow-[var(--shadow-card)] flex flex-col justify-between gap-2.5 transition-all duration-300 hover:border-[var(--glass-border-2)] hover:shadow-[var(--shadow-accent)] ${
-            isFlipped ? 'opacity-0 pointer-events-none -z-10' : 'opacity-100 pointer-events-auto relative z-10'
+          inert={isFlipped || undefined}
+          className={`card-flip-face card-flip-face--front card-flip-surface box-border w-full min-w-0 max-w-full p-3.5 sm:p-4 rounded-3xl shadow-[var(--shadow-card)] flex flex-col justify-between gap-2.5 transition-[border-color,box-shadow] duration-300 ease-[var(--ease-spring)] hover:border-[var(--glass-border-2)] hover:shadow-[var(--shadow-accent)] ${
+            isFlipped ? 'pointer-events-none' : 'opacity-100 pointer-events-auto relative z-10'
           }`}
         >
           <div className="min-w-0 space-y-2.5">
@@ -952,12 +960,14 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
 
               <button
                 type="button"
-                onClick={() => setIsFlipped(true)}
+                onClick={handleToggleFlip}
+                aria-expanded={isFlipped}
+                aria-controls={`student-card-back-${student.id}`}
                 className="glass-btn--primary btn--lens px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"
-                title="عرض تفاصيل المخدوم"
-                aria-label={`عرض تفاصيل ${student.name}`}
+                title={isFlipped ? 'العودة للتفاصيل الأساسية' : 'عرض تفاصيل المخدوم'}
+                aria-label={`${isFlipped ? 'إخفاء' : 'عرض'} تفاصيل ${student.name}`}
               >
-                <RotateCw className="w-3 h-3" />
+                <RotateCw className={`w-3 h-3 transition-transform duration-300 ${isFlipped ? 'rotate-180' : ''}`} />
                 <span>تفاصيل أكثر</span>
               </button>
             </div>
@@ -965,118 +975,200 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
         </div>
 
         {/* ==================================================== */}
-        {/* BACK OF CARD (Liquid Glass)                          */}
+        {/* BACK FACE (3D Y-Axis Flipped Details Face)           */}
         {/* ==================================================== */}
         <div
+          id={`student-card-back-${student.id}`}
           aria-hidden={!isFlipped}
-          className={`col-start-1 row-start-1 backface-hidden rotate-y-180 p-3.5 sm:p-4 rounded-3xl glass-strong shadow-[var(--shadow-card)] flex flex-col justify-between gap-2.5 hover:border-[var(--glass-border-2)] transition-all duration-300 ${
-            isFlipped ? 'opacity-100 pointer-events-auto relative z-10' : 'opacity-0 pointer-events-none -z-10'
+          inert={!isFlipped || undefined}
+          className={`card-flip-face card-flip-face--back card-flip-surface box-border w-full h-full min-w-0 max-w-full p-3.5 sm:p-4 rounded-3xl shadow-[var(--shadow-card)] border-[var(--glass-border-2)] flex flex-col justify-between gap-2.5 ${
+            isFlipped ? 'pointer-events-auto' : 'pointer-events-none'
           }`}
         >
-          <div>
-            {/* Top Back Row: Title + Flip Back Button */}
-            <div className="flex items-center justify-between pb-2 border-b border-[var(--glass-border)] mb-2.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs font-mono font-bold text-[var(--accent)] shrink-0">{student.code}</span>
-                <h4 className="font-extrabold text-sm text-[var(--text)] m-0 truncate">{student.name}</h4>
+          {/* Back Header */}
+          <div className="flex items-start justify-between gap-2 pb-2 border-b border-[var(--glass-border)] shrink-0">
+            <div className="min-w-0 flex-1">
+              <span className="block text-[10.5px] font-extrabold text-[var(--accent)] mb-0.5">
+                التفاصيل الإضافية للمخدوم
+              </span>
+              <h3 className="font-extrabold text-sm sm:text-base text-[var(--text)] leading-snug line-clamp-1 m-0">
+                {student.name || 'مخدوم بدون اسم'}
+              </h3>
+              <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] mt-0.5">
+                <User className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+                <span className="font-semibold truncate">الأشبين: {student.servant || 'غير محدد'}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsFlipped(false)}
-                className="glass-btn px-2.5 py-1 rounded-xl text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text)] flex items-center gap-1 cursor-pointer shrink-0"
-              >
-                <RotateCw className="w-3 h-3" />
-                <span>الواجهة</span>
-              </button>
             </div>
 
-            {/* Back Details Grid */}
-            <div className="space-y-2 text-xs">
-              {/* Phones List */}
-              <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--text-muted)]">موبايل الطالب:</span>
-                  <div className="flex items-center gap-2">
-                    <strong className="font-mono text-[var(--text)]">{student.phoneStudent || 'غير مسجل'}</strong>
-                    {formatTelHref(student.phoneStudent) && (
-                      <a href={formatTelHref(student.phoneStudent)!} className="text-[var(--accent)] hover:underline">
-                        <Phone className="w-3 h-3 inline" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--text-muted)]">ولي الأمر (1):</span>
-                  <div className="flex items-center gap-2">
-                    <strong className="font-mono text-[var(--text)]">{student.phoneParent1 || 'غير مسجل'}</strong>
-                    {formatTelHref(student.phoneParent1) && (
-                      <a href={formatTelHref(student.phoneParent1)!} className="text-[var(--accent)] hover:underline">
-                        <Phone className="w-3 h-3 inline" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-                {student.phoneParent2 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[var(--text-muted)]">ولي الأمر (2):</span>
-                    <strong className="font-mono text-[var(--text)]">{student.phoneParent2}</strong>
-                  </div>
-                )}
-              </div>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-[var(--surface-inset)] border border-[var(--glass-border)] text-[var(--accent)]">
+                {student.code || '-'}
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getSheetBadge(student.sourceSheet || 'نشط')}`}>
+                {student.sourceSheet || 'نشط'}
+              </span>
+            </div>
+          </div>
 
-              {/* Last attendance & Birthdate & Address */}
+          {/* Back Body (Contained scroll inside card bounds if content is long — zero page scroll) */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2.5 text-xs pl-0.5">
+            {/* Phones List */}
+            <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[var(--text-muted)]">موبايل الطالب:</span>
+                <div className="flex items-center gap-2">
+                  <strong className="font-mono text-[var(--text)] selectable-text">
+                    {student.phoneStudent || 'غير مسجل'}
+                  </strong>
+                  {formatTelHref(student.phoneStudent) && (
+                    <a
+                      href={formatTelHref(student.phoneStudent)!}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[var(--accent)] hover:underline"
+                      aria-label={`اتصال بموبايل ${student.name}`}
+                    >
+                      <Phone className="w-3 h-3 inline" />
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[var(--text-muted)]">ولي الأمر (1):</span>
+                <div className="flex items-center gap-2">
+                  <strong className="font-mono text-[var(--text)] selectable-text">
+                    {student.phoneParent1 || 'غير مسجل'}
+                  </strong>
+                  {formatTelHref(student.phoneParent1) && (
+                    <a
+                      href={formatTelHref(student.phoneParent1)!}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[var(--accent)] hover:underline"
+                      aria-label={`اتصال بولي أمر ${student.name}`}
+                    >
+                      <Phone className="w-3 h-3 inline" />
+                    </a>
+                  )}
+                </div>
+              </div>
+              {student.phoneParent2 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[var(--text-muted)]">ولي الأمر (2):</span>
+                  <strong className="font-mono text-[var(--text)] selectable-text">{student.phoneParent2}</strong>
+                </div>
+              )}
+            </div>
+
+            {/* Attendance, Birthdate & Address */}
+            <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1.5">
               {student.lastAttendance && (
                 <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-                  <span>آخر حضور: <strong className="font-mono text-[var(--text)]">{student.lastAttendance}</strong></span>
+                  <span>
+                    آخر حضور: <strong className="font-mono text-[var(--text)]">{student.lastAttendance}</strong>
+                  </span>
                 </div>
               )}
 
               <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
                 <Calendar className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-                <span>تاريخ الميلاد: <strong className="text-[var(--text)]">{student.birthDate || 'غير مسجل'}</strong></span>
+                <span>
+                  تاريخ الميلاد: <strong className="text-[var(--text)]">{student.birthDate || 'غير مسجل'}</strong>
+                </span>
               </div>
 
               <div className="flex items-start gap-1.5 text-[var(--text-muted)]">
                 <MapPin className="w-3.5 h-3.5 text-[var(--accent)] shrink-0 mt-0.5" />
-                <span className="line-clamp-2">العنوان: <strong className="text-[var(--text)]">{student.address || 'غير مسجل'}</strong> ({student.area})</span>
+                <span className="break-words">
+                  العنوان: <strong className="text-[var(--text)]">{student.address || 'غير مسجل'}</strong>
+                  {student.area ? ` (${student.area})` : ''}
+                </span>
               </div>
+            </div>
 
-              {/* Notes */}
-              <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] text-[var(--text-muted)]">
-                <span className="block text-[10px] font-bold text-[var(--accent)] mb-0.5">ملاحظات الخادم:</span>
-                <p className="m-0 text-[11px] leading-relaxed line-clamp-2 text-[var(--text)]">
-                  {student.notes || 'لا توجد ملاحظات مسجلة للمخدوم.'}
-                </p>
-              </div>
+            {/* Followup Extra Details */}
+            <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+              <span className="text-[var(--text-secondary)] font-bold">
+                مرات الافتقاد: <strong className="font-mono text-[var(--accent)]">{studentFollowupCount}</strong>
+              </span>
+              <span className="text-[var(--text-secondary)] font-bold truncate max-w-[60%]">
+                الوسيلة:{' '}
+                <strong className={latestFollowupMethod ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}>
+                  {latestFollowupMethod || 'لم تُسجل'}
+                </strong>
+              </span>
+              {latestPhoneCallOutcome && (
+                <span className="text-[var(--text-secondary)] font-bold w-full">
+                  نتيجة الاتصال:{' '}
+                  <strong
+                    className={
+                      latestPhoneCallOutcome === 'تم التواصل'
+                        ? 'text-[var(--accent)]'
+                        : latestPhoneCallOutcome === 'لم يتم التواصل'
+                          ? 'text-rose-400'
+                          : 'text-[var(--text-muted)]'
+                    }
+                  >
+                    {latestPhoneCallOutcome}
+                  </strong>
+                </span>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] text-[var(--text-muted)]">
+              <span className="block text-[10px] font-bold text-[var(--accent)] mb-0.5">ملاحظات الخادم:</span>
+              <p className="m-0 text-[11px] leading-relaxed text-[var(--text)] break-words">
+                {student.notes || 'لا توجد ملاحظات مسجلة للمخدوم.'}
+              </p>
             </div>
           </div>
 
-          {/* Back Footer: Action Bar (Strictly NO delete button) */}
-          <div className="border-t border-[var(--glass-border)] pt-2.5 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => onOpenFollowup(student)}
-              className="glass-btn--primary flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <HeartHandshake className="w-4 h-4" />
-              <span>تسجيل افتقاد</span>
-            </button>
+          {/* Back Footer (Strictly NO delete button + Clear Return Button) */}
+          <div className="border-t border-[var(--glass-border)] pt-2.5 flex items-center justify-between gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenFollowup(student);
+                }}
+                className="glass-btn px-2.5 py-1.5 rounded-xl text-xs font-bold text-[var(--accent)] flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <HeartHandshake className="w-3.5 h-3.5" />
+                <span>تسجيل افتقاد</span>
+              </button>
+
+              <button
+                type="button"
+                aria-disabled={isAnotherCardEditing}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenEdit(student);
+                }}
+                className={`glass-btn px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
+                  isAnotherCardEditing ? 'opacity-50' : ''
+                }`}
+                title={isAnotherCardEditing ? 'يوجد كارت آخر قيد التعديل حالياً' : 'تعديل بيانات المخدوم'}
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>{isThisCardEditing ? 'جاري التعديل' : 'تعديل البيانات'}</span>
+              </button>
+            </div>
 
             <button
               type="button"
-              aria-disabled={isAnotherCardEditing}
-              onClick={() => onOpenEdit(student)}
-              className="glass-btn py-2 px-4 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              title={isAnotherCardEditing ? 'يوجد كارت آخر قيد التعديل حالياً' : 'تعديل بيانات المخدوم'}
+              onClick={handleToggleFlip}
+              aria-label={`العودة للتفاصيل الأساسية لـ ${student.name}`}
+              title="العودة للتفاصيل الأساسية"
+              className="glass-btn--primary btn--lens px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Edit3 className="w-4 h-4" />
-              <span>{isThisCardEditing ? 'جاري التعديل' : 'تعديل البيانات'}</span>
+              <RotateCw className="w-3.5 h-3.5" />
+              <span>رجوع</span>
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 };
 

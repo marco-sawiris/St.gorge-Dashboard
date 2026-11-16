@@ -461,7 +461,8 @@ async function runSprintTests() {
           React.createElement(StudentCard, {
             student: serverStudent,
             onOpenFollowup: () => {},
-            onOpenEdit: () => {}
+            onOpenEdit: () => {},
+            initialFlipped: true
           })
         )
       )
@@ -1022,9 +1023,11 @@ async function runSprintTests() {
   assert(
     !cardSrc.includes('h-[425px]') &&
       !cardSrc.includes('monthAttClamped >= idx + 1') &&
-      cardSrc.includes('col-start-1 row-start-1') &&
+      cardSrc.includes('card-flip-scene') &&
+      cardSrc.includes('card-flip-inner') &&
+      cardSrc.includes('aria-expanded={isFlipped}') &&
       cardSrc.includes('card-anchored-pill'),
-    'Test 25a: StudentCard uses CSS Grid stacked faces, no clipping height, and never guesses missing attendance as present/absent'
+    'Test 25a: StudentCard uses 3D Y-axis flip card faces, no fixed clipping height, and never guesses missing attendance as present/absent'
   );
   assert(
     trackCardHtml.includes('الحضور الشهري') &&

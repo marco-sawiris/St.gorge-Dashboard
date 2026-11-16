@@ -318,12 +318,11 @@ export default function App() {
                           )}
                         </div>
                       ) : (
-                        <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 word-in-scope overflow-x-clip box-border">
-                          {filteredStudents.map((student, idx) => (
+                        <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start box-border">
+                          {filteredStudents.map((student) => (
                             <div
                               key={student.id}
-                              className="word-in min-w-0 w-full max-w-full mx-auto box-border"
-                              style={{ '--i': Math.min(idx, 8) } as React.CSSProperties}
+                              className="min-w-0 w-full max-w-full mx-auto box-border"
                             >
                               <StudentCard
                                 student={student}

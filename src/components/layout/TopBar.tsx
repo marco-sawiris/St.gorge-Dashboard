@@ -2,7 +2,8 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { Menu, Bell } from 'lucide-react';
 import { SyncStatusIndicator } from '../glass/SyncStatusIndicator';
-const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
+
+const appHeaderIcon = new URL('../../../Aset/Icon-2.png', import.meta.url).href;
 
 export const TopBar: React.FC = () => {
   const {
@@ -42,14 +43,14 @@ export const TopBar: React.FC = () => {
           <Menu className="w-5 h-5 text-[var(--text-primary)]" />
         </button>
 
-        <div className="flex items-center gap-2 select-none shrink-0">
-          <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full p-0.5 bg-gradient-to-tr from-[var(--primary)] to-[var(--accent-secondary)] shadow-xs shrink-0">
-            <img
-              src={stGeorgeIcon}
-              alt="StGeorge Dashboard Icon"
-              className="w-full h-full rounded-full object-cover"
-            />
-          </div>
+        <div className="flex items-center gap-2 sm:gap-2.5 select-none shrink-0">
+          <img
+            src={appHeaderIcon}
+            alt="StGeorge Dashboard Icon"
+            width={331}
+            height={331}
+            className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0 drop-shadow-[0_2px_8px_rgba(3,7,17,0.38)]"
+          />
           <div className="flex flex-col justify-center leading-none">
             <h1 className="font-extrabold text-[15px] sm:text-[17px] leading-[1.08] tracking-tight text-[var(--text-primary)] m-0 whitespace-nowrap">
               StGeorge
