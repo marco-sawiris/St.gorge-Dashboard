@@ -75,7 +75,7 @@ async function startServer() {
 
   // Direct APK Download Route (avoids putting APK inside dist/public where Capacitor would nest it)
   const handleApkDownload = (_req: Request, res: Response) => {
-    const finalApkPath = path.resolve(process.cwd(), 'APP Final/StGeorge-Dashboard.apk');
+    const finalApkPath = path.resolve(process.cwd(), 'Final App/StGeorge-Dashboard.apk');
     const debugApkPath = path.resolve(process.cwd(), 'android/app/build/outputs/apk/debug/app-debug.apk');
     const apkPath = fs.existsSync(finalApkPath) ? finalApkPath : debugApkPath;
     if (!fs.existsSync(apkPath)) {

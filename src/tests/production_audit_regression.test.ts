@@ -181,10 +181,11 @@ async function runTests() {
 
   // 9. CI APK Delivery Workflow & Download Route
   const ciYaml = readProjectFile('.github/workflows/ci.yml');
-  assert(ciYaml.includes('APP Final/StGeorge-Dashboard.apk'), 'CI delivers APK to APP Final/StGeorge-Dashboard.apk');
-  assert(ciYaml.includes('paths-ignore:') && ciYaml.includes('"APP Final/**"'), 'CI ignores APP Final/** on push to avoid commit loops');
+  assert(ciYaml.includes('Final App/StGeorge-Dashboard.apk'), 'CI delivers APK to Final App/StGeorge-Dashboard.apk');
+  assert(ciYaml.includes('paths-ignore:') && ciYaml.includes('"Final App/**"'), 'CI ignores Final App/** on push to avoid commit loops');
   assert(ciYaml.includes('[skip ci]') && ciYaml.includes('contents: write'), 'CI has scoped write permission and skip-ci commit guard');
-  assert(serverSrc.includes('/download/StGeorge-Dashboard.apk'), 'Express server exposes /download/StGeorge-Dashboard.apk');
+  assert(!ciYaml.includes('git pull --rebase') && !ciYaml.includes('--force'), 'CI updates APK safely on main without force push or rebase conflicts');
+  assert(serverSrc.includes('Final App/StGeorge-Dashboard.apk') && serverSrc.includes('/download/StGeorge-Dashboard.apk'), 'Express server exposes Final App/StGeorge-Dashboard.apk via /download/StGeorge-Dashboard.apk');
   console.log('✅ Test 9 Passed: CI APK workflow loop-safety & download route verified.');
 
   // 10. TopBar Stacked Branding (StGeorge + Dashboard) & Non-Overlapping SyncStatusIndicator
