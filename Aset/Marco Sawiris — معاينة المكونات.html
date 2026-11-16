@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Marco Sawiris — معاينة المكونات</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet">
+<style>
+:root{--midnight:#030711;--navy:#071B3B;--royal:#123FCE;--primary:#267AFF;--accent:#20C7E8;--indigo:#3020A0;--violet:#6548F5;
+--text:#fff;--t2:rgba(255,255,255,.72);--bd:rgba(38,122,255,.28);--bd2:rgba(32,199,232,.45);--inset:inset 0 1px 0 rgba(32,199,232,.3);--spring:cubic-bezier(.34,1.56,.64,1)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{background:var(--midnight);color:var(--text);font-family:Cairo,'Segoe UI',Tahoma,sans-serif;min-height:100vh;overflow-x:hidden}
+.orb{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none}
+.o1{width:520px;height:520px;top:-160px;right:-120px;background:radial-gradient(circle,rgba(38,122,255,.28),transparent 70%)}
+.o2{width:480px;height:480px;bottom:-140px;left:-120px;background:radial-gradient(circle,rgba(101,72,245,.25),transparent 70%)}
+.wrap{position:relative;max-width:1000px;margin:0 auto;padding:20px 16px 60px;perspective:800px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:22px;font-weight:800;background:linear-gradient(90deg,var(--accent),var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
+h1 span{display:inline-block}
+.sub{font-size:12px;color:var(--t2)}
+.glass{background:rgba(7,27,59,.62);backdrop-filter:blur(24px) saturate(170%);-webkit-backdrop-filter:blur(24px) saturate(170%);border:1px solid var(--bd);box-shadow:0 4px 20px rgba(3,7,17,.85),var(--inset);border-radius:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.card{padding:18px;display:flex;flex-direction:column;gap:14px}
+.card h3{font-size:14px;font-weight:800;color:var(--accent);border-bottom:1px solid var(--bd);padding-bottom:10px}
+.card h3 small{display:block;font-size:11px;font-weight:400;color:var(--t2);margin-top:2px}
+.demo{min-height:150px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;width:100%}
+.mi{font-family:'Material Symbols Outlined';font-style:normal;line-height:1;display:inline-flex}
+/* option switch */
+.clay{display:flex;gap:4px;padding:4px;border-radius:20px;background:var(--navy);border:1px solid var(--bd2);box-shadow:inset 0 3px 8px rgba(3,7,17,.7)}
+.clay input{display:none}.clay label{padding:9px 18px;border-radius:16px;font:700 13px Cairo;color:var(--t2);cursor:pointer;transition:.25s}
+.clay input:checked+label{color:#fff;background:linear-gradient(135deg,var(--accent),var(--primary) 55%,var(--royal));box-shadow:0 6px 14px rgba(38,122,255,.45),inset 0 2px 3px rgba(255,255,255,.4)}
+.replay{margin-inline-start:8px;padding:9px 16px;border-radius:16px;border:1px solid var(--bd2);background:rgba(7,27,59,.62);color:var(--text);font:700 13px Cairo;cursor:pointer}
+/* wordIn — يعمل في الأوبشن 2 فقط */
+@keyframes wordIn{from{opacity:0;transform:translateY(45px) rotateX(-65deg) scale(.8);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+.opt2 .wi{animation:wordIn 900ms var(--spring) both;animation-delay:calc(var(--i,0)*110ms)}
+.opt2 h1 span{animation:wordIn 800ms var(--spring) both;animation-delay:calc(var(--w,0)*100ms)}
+@media(prefers-reduced-motion:reduce){.opt2 .wi,.opt2 h1 span{animation:none}}
+/* 1 — Liquid Toggle (gooey) */
+.tg{position:relative;width:124px;height:56px;direction:ltr;cursor:pointer;display:block}
+.tg input{display:none}
+.tg .track{position:absolute;inset:0;border-radius:99px;background:var(--navy);border:1px solid var(--bd2);box-shadow:inset 0 3px 8px rgba(3,7,17,.8),var(--inset);transition:background .4s}
+.tg .goo{position:absolute;inset:0;filter:url(#goo)}
+.tg .d{position:absolute;top:8px;left:8px;width:40px;height:40px;border-radius:50%;background:var(--primary);transition:transform .55s var(--spring),background .4s}
+.tg .d2{transition-delay:.09s}
+.tg input:checked~.goo .d{transform:translateX(68px);background:var(--accent)}
+.tg input:checked~.track{background:rgba(18,63,206,.5)}
+.tg .lb{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;padding:0 16px;font:800 12px Cairo;color:var(--t2);pointer-events:none}
+/* 2 — Lens Button (من freefrontend، معدّل للدارك) */
+.lens-stage{padding:34px 18px;border-radius:20px;background:linear-gradient(135deg,var(--royal),var(--indigo));width:100%;display:flex;justify-content:center}
+.fx-layer{filter:contrast(2)}
+.box{--w:230px;--h:68px;--r:9999px;--tr:15%;z-index:500;position:relative;width:var(--w);height:var(--h);display:flex;justify-content:center;align-items:center;border-radius:var(--r);border:1px double rgba(255,255,255,.12);
+box-shadow:inset 2px -2px 1px -1px rgba(255,255,255,.9),inset -2px 2px 1px -1px rgba(255,255,255,.9),inset 6px -6px 1px -6px rgba(255,255,255,.55),inset -6px 6px 1px -6px rgba(255,255,255,.55),inset 0 0 2px rgba(3,7,17,.8),0 4px 8px rgba(3,7,17,.35);
+background:rgba(3,7,17,.04);backdrop-filter:blur(2px);cursor:pointer;filter:brightness(.9);user-select:none;padding:0 .8rem;gap:1rem;transition:.25s}
+.box:before{content:"";position:absolute;z-index:1;top:35%;left:50%;transform:translateX(-50%);width:calc(var(--w) - 16px);height:calc(var(--h) - 16px);border-radius:var(--r);border:1px solid rgba(3,7,17,.9);filter:blur(8px)}
+.box:after{z-index:501;content:"";position:absolute;width:var(--w);height:var(--h);border-radius:var(--r);filter:blur(7px);background:linear-gradient(45deg,rgba(255,255,255,.8),transparent var(--tr),transparent calc(100% - var(--tr)),rgba(255,255,255,.8))}
+.circle-overlay{position:absolute;width:calc(var(--w) - 9px);height:calc(var(--h) - 9px);border:1px solid rgba(255,255,255,.2);border-radius:var(--r);filter:blur(1px)}
+.box .text{font:800 22px Cairo;color:#fff}
+.btn-icon{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--primary);border-radius:50%;box-shadow:0 0 6px rgba(3,7,17,.3);transition:.25s}
+.btn-icon svg{width:16px;fill:#fff;transform:scaleX(-1)}
+.box:hover{transform:translateY(-3px)}.box:hover .btn-icon{transform:scale(1.1)}.box:active{transform:scale(.94)}
+/* 3 — Slider + Scrollbar (Liquid Glass) */
+.sl{width:100%;-webkit-appearance:none;appearance:none;height:14px;border-radius:99px;outline:0;cursor:pointer;--f:calc(29px + (100% - 58px) * var(--p,50) / 100);background:linear-gradient(270deg,var(--primary) var(--f),var(--navy) var(--f));border:1px solid var(--bd2);box-shadow:inset 0 2px 5px rgba(3,7,17,.8)}
+.sl::-webkit-slider-thumb{-webkit-appearance:none;width:58px;height:34px;border-radius:99px;background:rgba(255,255,255,.16);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.45);
+box-shadow:inset 2px -2px 2px -1px rgba(255,255,255,.8),inset -2px 2px 2px -1px rgba(255,255,255,.8),inset 0 0 4px rgba(3,7,17,.6),0 6px 14px rgba(3,7,17,.6);transition:transform .3s var(--spring)}
+.sl:active::-webkit-slider-thumb{transform:scale(1.18)}
+.sl::-moz-range-thumb{width:58px;height:34px;border-radius:99px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.45);box-shadow:inset 2px -2px 2px -1px rgba(255,255,255,.8),0 6px 14px rgba(3,7,17,.6)}
+.val{font:800 28px Cairo;color:var(--accent)}
+.sc{width:100%;max-height:130px;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.sc div{flex:none;padding:10px;border-radius:12px;font-size:12px;color:var(--t2);border:1px solid var(--bd)}
+.sc::-webkit-scrollbar{width:14px}.sc::-webkit-scrollbar-track{background:var(--navy);border-radius:99px;box-shadow:inset 0 2px 4px rgba(3,7,17,.8)}
+.sc::-webkit-scrollbar-thumb{border-radius:99px;border:3px solid var(--navy);background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(32,199,232,.5));box-shadow:inset 1px -1px 2px rgba(255,255,255,.8),0 0 8px rgba(32,199,232,.5)}
+.sc{scrollbar-color:var(--accent) var(--navy);scrollbar-width:thin}
+/* 4 — Tab bar notch (Clay، الخيار 3) */
+.tabbar{--x:50%;position:relative;width:100%;max-width:340px;height:72px;margin-top:26px}
+.tabbar .bg{position:absolute;inset:0;border-radius:28px;background:linear-gradient(180deg,rgba(11,36,82,.9),rgba(7,27,59,.9));border:1px solid var(--bd2);box-shadow:0 14px 44px rgba(3,7,17,.95),var(--inset),inset 0 -4px 10px rgba(3,7,17,.5);-webkit-mask:radial-gradient(circle 38px at var(--x) 4px,transparent 97%,#000 100%);mask:radial-gradient(circle 38px at var(--x) 4px,transparent 97%,#000 100%)}
+.bubble{position:absolute;top:-24px;left:var(--x);width:58px;height:58px;margin-left:-29px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;background:linear-gradient(135deg,var(--accent),var(--primary) 55%,var(--royal));box-shadow:0 10px 22px rgba(38,122,255,.55),inset 0 2px 3px rgba(255,255,255,.5),inset 0 -4px 8px rgba(18,63,206,.6);transition:left .45s var(--spring)}
+.tabbar ul{position:absolute;inset:0;display:flex;list-style:none;direction:ltr}
+.tabbar li{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:10px;cursor:pointer;color:var(--t2);font:700 11px Cairo;gap:2px}
+.tabbar li .mi{font-size:24px;transition:transform .4s var(--spring),opacity .3s}
+.tabbar li.on{color:var(--accent)}.tabbar li.on .mi{opacity:0;transform:translateY(-14px)}
+/* 5 — Blurry Loading */
+.bl{position:relative;width:100%;height:170px;border-radius:20px;overflow:hidden;border:1px solid var(--bd2)}
+.bl .bg{position:absolute;inset:-40px;background:radial-gradient(circle at 25% 30%,var(--accent),transparent 45%),radial-gradient(circle at 75% 35%,var(--violet),transparent 50%),radial-gradient(circle at 50% 85%,var(--primary),transparent 55%),linear-gradient(135deg,var(--royal),var(--indigo));filter:blur(30px)}
+.bl .n{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:800 44px Cairo;color:#fff;direction:ltr}
+.bl .done{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:800 18px Cairo;opacity:0;text-shadow:0 2px 10px rgba(3,7,17,.7)}
+</style>
+</head>
+<body class="opt1">
+<svg width="0" height="0" style="position:absolute"><defs><filter id="goo" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="6"/><feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7"/></filter></defs></svg>
+<div class="orb o1"></div><div class="orb o2"></div>
+<div class="wrap">
+<header>
+  <div><h1><span style="--w:0">Marco</span> <span style="--w:1">Sawiris</span> <span style="--w:2">—</span> <span style="--w:3">المكونات</span></h1><div class="sub">5 مكونات من اللينكات اللي طلبتها · الألوان السبعة فقط</div></div>
+  <div style="display:flex;align-items:center"><div class="clay"><input type="radio" name="o" id="o1" checked><label for="o1">أوبشن 1 — ثابت</label><input type="radio" name="o" id="o2"><label for="o2">أوبشن 2 — wordIn</label></div><button class="replay" onclick="replay()">إعادة الحركة</button></div>
+</header>
+
+<div class="grid">
+ <article class="glass card wi"><h3>Liquid Toggle Switch (ON / OFF)<small>تأثير السائل gooey بـ SVG filter</small></h3>
+  <div class="demo"><label class="tg"><input type="checkbox"><span class="track"></span><span class="goo"><i class="d"></i><i class="d d2"></i></span><span class="lb"><span>OFF</span><span>ON</span></span></label></div></article>
+
+ <article class="glass card wi"><h3>Liquid Glass Lens Button<small>الكود الأصلي من freefrontend (4.2kB) بألوان الهوية</small></h3>
+  <div class="demo"><div class="lens-stage"><div class="fx-layer"><div class="box"><span class="text">ابدأ الآن</span><div class="btn-icon"><svg viewBox="0 0 1024 1024"><path d="M779.18 473.23 322.35 16.4c-21.41-21.41-56.12-21.41-77.53 0-21.41 21.41-21.41 56.12 0 77.54l418.06 418.05L244.82 930.06c-21.41 21.41-21.41 56.12 0 77.53 10.7 10.7 24.76 16.06 38.77 16.06s28.06-5.35 38.77-16.06L779.18 550.77c21.41-21.41 21.41-56.12 0-77.54z"/></svg></div><div class="circle-overlay"></div></div></div></div></div></article>
+
+ <article class="glass card wi"><h3>Slider + Scrollbar بالزجاج السائل<small>مقبض زجاجي يكبر عند السحب، وسكرول بار بنفس الشكل</small></h3>
+  <div class="demo" style="flex-direction:column;gap:12px;min-height:0"><div class="val" id="sv">50</div><input class="sl" type="range" min="0" max="100" value="50" id="sr">
+  <div class="sc glass"><div>عنصر 1</div><div>عنصر 2</div><div>عنصر 3</div><div>عنصر 4</div><div>عنصر 5</div><div>عنصر 6</div></div></div></article>
+
+ <article class="glass card wi"><h3>Animated Bottom Tab Bar — الخيار 3 (نوتش)<small>Clay · الدائرة والنوتش يتحركوا مع التبويب</small></h3>
+  <div class="demo"><div class="tabbar" id="tb"><div class="bg"></div><div class="bubble"><span class="mi" id="bi">home</span></div>
+  <ul><li class="on" data-i="home"><span class="mi">home</span>الرئيسية</li><li data-i="search"><span class="mi">search</span>بحث</li><li data-i="headphones"><span class="mi">headphones</span>صوتيات</li><li data-i="person"><span class="mi">person</span>حسابي</li></ul></div></div></article>
+
+ <article class="glass card wi" style="grid-column:1/-1"><h3>Blurry Loading<small>العداد يوصل 100% والخلفية تتضح والرقم يختفي</small></h3>
+  <div class="demo"><div class="bl"><div class="bg" id="blbg"></div><div class="n" id="bln">0%</div><div class="done" id="bld">تم التحميل ✓</div></div></div>
+  <div class="demo" style="min-height:0"><button class="replay" onclick="load()">إعادة التحميل</button></div></article>
+</div>
+</div>
+<script>
+const body=document.body;
+function indexWi(){document.querySelectorAll('.wi').forEach((e,i)=>e.style.setProperty('--i',i))}indexWi();
+function replay(){document.querySelectorAll('.wi,h1 span').forEach(e=>{e.style.animation='none';e.offsetWidth;e.style.animation=''})}
+document.querySelectorAll('input[name=o]').forEach(r=>r.onchange=()=>{body.className=r.id==='o2'?'opt2':'opt1';replay()});
+const sr=document.getElementById('sr'),sv=document.getElementById('sv');
+function sl(){sv.textContent=sr.value;sr.style.setProperty('--p',sr.value)}sr.oninput=sl;sl();
+const tb=document.getElementById('tb'),lis=[...tb.querySelectorAll('li')];
+function place(li){tb.style.setProperty('--x',li.offsetLeft+li.offsetWidth/2+'px')}
+lis.forEach(li=>li.onclick=()=>{lis.forEach(l=>l.classList.remove('on'));li.classList.add('on');document.getElementById('bi').textContent=li.dataset.i;place(li)});
+const ip=()=>place(tb.querySelector('li.on'));ip();addEventListener('load',ip);addEventListener('resize',ip);
+let tm;const map=(v,a,b,c,d)=>(v-a)*(d-c)/(b-a)+c;
+function load(){clearInterval(tm);let n=0;const bg=document.getElementById('blbg'),nn=document.getElementById('bln'),dn=document.getElementById('bld');dn.style.opacity=0;
+tm=setInterval(()=>{n++;nn.textContent=n+'%';nn.style.opacity=map(n,0,100,1,0);bg.style.filter='blur('+map(n,0,100,30,0)+'px)';dn.style.opacity=map(n,60,100,0,1);if(n>=100)clearInterval(tm)},30)}
+load();
+</script>
+</body>
+</html>
