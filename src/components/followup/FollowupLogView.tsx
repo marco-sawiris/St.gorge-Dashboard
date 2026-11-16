@@ -122,7 +122,9 @@ export const FollowupLogView: React.FC = () => {
     if (servantLogs.length > 0) {
       text += `\n📝 *آخر عمليات الافتقاد المسجلة (${servantLogs.length}):*\n`;
       servantLogs.slice(0, 6).forEach((r, idx) => {
-        text += `${idx + 1}. ${r.studentName} — ${r.type} (${r.date})${r.notes ? `: ${r.notes}` : ''}\n`;
+        const isPhone = r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي';
+        const outcomeSuffix = isPhone ? ` — نتيجة الاتصال: ${r.callOutcome || 'غير مسجل'}` : '';
+        text += `${idx + 1}. ${r.studentName} — ${r.type}${outcomeSuffix} (${r.date})${r.notes ? `: ${r.notes}` : ''}\n`;
       });
     }
 
@@ -142,31 +144,39 @@ export const FollowupLogView: React.FC = () => {
 
   const handleExportFollowupCSV = () => {
     if (filteredRecords.length === 0) return;
-    const headers = ['التاريخ', 'أسبوع الجمعة', 'الكود', 'الاسم', 'الأشبين', 'النوع', 'ملاحظات'];
-    const rows = filteredRecords.map((r) => [
-      r.date,
-      r.fridayDate,
-      r.studentCode,
-      r.studentName,
-      r.servant,
-      r.type,
-      r.notes || ''
-    ]);
+    const headers = ['التاريخ', 'أسبوع الجمعة', 'الكود', 'الاسم', 'الأشبين', 'النوع', 'نتيجة الاتصال', 'ملاحظات'];
+    const rows = filteredRecords.map((r) => {
+      const isPhone = r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي';
+      return [
+        r.date,
+        r.fridayDate,
+        r.studentCode,
+        r.studentName,
+        r.servant,
+        r.type,
+        r.callOutcome || (isPhone ? 'غير مسجل' : '-'),
+        r.notes || ''
+      ];
+    });
     downloadCsvReport(headers, rows, `سجل_الافتقاد_${currentFriday}.csv`);
   };
 
   const handleExportFollowupPDF = () => {
     if (filteredRecords.length === 0) return;
-    const headers = ['التاريخ', 'أسبوع الجمعة', 'الكود', 'الاسم', 'الأشبين', 'الوسيلة', 'ملاحظات'];
-    const rows = filteredRecords.map((r) => [
-      r.date,
-      r.fridayDate,
-      r.studentCode,
-      r.studentName,
-      r.servant,
-      r.type,
-      r.notes || '-'
-    ]);
+    const headers = ['التاريخ', 'أسبوع الجمعة', 'الكود', 'الاسم', 'الأشبين', 'الوسيلة', 'نتيجة الاتصال', 'ملاحظات'];
+    const rows = filteredRecords.map((r) => {
+      const isPhone = r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي';
+      return [
+        r.date,
+        r.fridayDate,
+        r.studentCode,
+        r.studentName,
+        r.servant,
+        r.type,
+        r.callOutcome || (isPhone ? 'غير مسجل' : '-'),
+        r.notes || '-'
+      ];
+    });
     downloadPrintableHtmlReport(
       'تقرير سجل الافتقاد الشامل',
       `جمعة ${currentFriday} • الأشبين: ${selectedServant || 'الكل'} • السجلات: ${filteredRecords.length}`,
@@ -352,14 +362,27 @@ export const FollowupLogView: React.FC = () => {
                 className="word-in glass p-4 rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[var(--accent-secondary)]/50 transition-all duration-200"
               >
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-extrabold text-sm text-[var(--text-primary)]">{r.studentName}</span>
                     <span className="font-mono text-xs font-bold text-[var(--accent-secondary)] bg-[var(--accent-secondary)]/10 px-2 py-0.5 rounded-md border border-[var(--accent-secondary)]/25">
                       {r.studentCode}
                     </span>
                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30">
-                      {r.type}
+                      {r.type === 'تم تليفونياً' ? 'اتصال تليفوني' : r.type}
                     </span>
+                    {(r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي' || r.callOutcome) && (
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                          r.callOutcome === 'تم التواصل'
+                            ? 'bg-[#20c7e8]/15 text-[#20c7e8] border-[#20c7e8]/35'
+                            : r.callOutcome === 'لم يتم التواصل'
+                            ? 'bg-rose-500/15 text-rose-400 border-rose-500/35'
+                            : 'bg-[var(--surface-primary)] text-[var(--text-muted)] border-[var(--border-color)]'
+                        }`}
+                      >
+                        نتيجة الاتصال: {r.callOutcome || 'غير مسجل'}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">

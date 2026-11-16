@@ -247,6 +247,226 @@ export function computeMonthlyAttendanceSummary(
   };
 }
 
+function shiftIsoDateDays(isoDate: string, deltaDays: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays, 12, 0, 0));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
+function isEmptyFollowupValue(value: unknown): boolean {
+  const s = String(value ?? '').trim();
+  return !s || s === 'بدون' || s === '-' || s === 'لم يتم' || s === 'لم يتفتقد' || s === 'غير مسجل';
+}
+
+/**
+ * Weekly Follow-up deadline closes strictly after Friday 23:59 Africa/Cairo time
+ * (i.e. starting Saturday 00:00:00 Cairo -> cairo.isoDate > fridayDateIso).
+ */
+export function isFollowupWeekClosed(fridayDateIso: string, refDate: Date = new Date()): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fridayDateIso)) return false;
+  const cairo = getCairoDateParts(refDate);
+  return cairo.isoDate > fridayDateIso;
+}
+
+/**
+ * Returns the active follow-up week Friday (YYYY-MM-DD) respecting Friday 23:59 Africa/Cairo cutoff.
+ */
+export function getActiveFollowupFridayString(refDate: Date = new Date()): string {
+  return getNearestFridayString(refDate);
+}
+
+export type FollowupWeekState = 'done' | 'missed' | 'open' | 'upcoming' | 'no_data';
+
+export interface MonthlyFollowupWeekEntry {
+  weekNumber: number;
+  fridayDate: string; // Friday ending this week (YYYY-MM-DD)
+  weekStartDate: string; // Saturday starting this week (YYYY-MM-DD)
+  shortLabel: string;
+  status: FollowupWeekState;
+  isClosed: boolean;
+  isOpenWeek: boolean;
+  isUpcoming: boolean;
+  method?: string;
+  callOutcome?: string;
+  recordDate?: string;
+}
+
+export interface MonthlyFollowupSummary {
+  year: number;
+  month: number;
+  todayIso: string;
+  activeWeekFriday: string;
+  weeks: MonthlyFollowupWeekEntry[];
+  doneCount: number;
+  missedCount: number;
+  openCount: number;
+  totalWeeksInMonth: number; // 4 or 5
+}
+
+export interface FollowupStudentLike {
+  id: string;
+  code?: string;
+  fu?: Record<string, string>;
+  fuOutcomes?: Record<string, string>;
+  lastFollowup?: string;
+  lastCallOutcome?: string;
+}
+
+export interface FollowupRecordLike {
+  studentId?: string;
+  studentCode?: string;
+  date?: string;
+  fridayDate?: string;
+  type?: string;
+  callOutcome?: string;
+}
+
+/**
+ * Single source of truth for weekly follow-up tracking used across BOTH StudentCard & Smart Assistant:
+ * - Supports 4 or 5 Fridays dynamically per Cairo month.
+ * - Never derives follow-up from attendance (att has zero effect).
+ * - Weeks close strictly after Friday 23:59 Africa/Cairo (Saturday 00:00 Cairo).
+ * - Historical closed weeks remain immutable and never overlap the newly opened week.
+ */
+export function computeMonthlyFollowupSummary(
+  student: FollowupStudentLike,
+  followupRecords: ReadonlyArray<FollowupRecordLike> = [],
+  refDate: Date = new Date(),
+  hasDataAvailable: boolean = true
+): MonthlyFollowupSummary {
+  const cairo = getCairoDateParts(refDate);
+  const monthFridays = getMonthFridays(cairo.year, cairo.month);
+  const activeWeekFriday = getActiveFollowupFridayString(refDate);
+
+  let doneCount = 0;
+  let missedCount = 0;
+  let openCount = 0;
+
+  const weeks: MonthlyFollowupWeekEntry[] = monthFridays.map((fridayDate, idx) => {
+    const weekStartDate = shiftIsoDateDays(fridayDate, -6);
+    const parts = fridayDate.split('-');
+    const shortLabel = `${Number(parts[2])}/${Number(parts[1])}`;
+    const isClosed = isFollowupWeekClosed(fridayDate, refDate);
+    const isOpenWeek = !isClosed && weekStartDate <= cairo.isoDate;
+    const isUpcoming = !isClosed && weekStartDate > cairo.isoDate;
+
+    if (!hasDataAvailable) {
+      return {
+        weekNumber: idx + 1,
+        fridayDate,
+        weekStartDate,
+        shortLabel,
+        status: 'no_data',
+        isClosed,
+        isOpenWeek,
+        isUpcoming
+      };
+    }
+
+    const matchingLogs = followupRecords.filter((r) => {
+      if (!r || isEmptyFollowupValue(r.type)) return false;
+      const matchesStudent =
+        (r.studentId && r.studentId === student.id) ||
+        (Boolean(r.studentCode) && Boolean(student.code) && r.studentCode === student.code);
+      if (!matchesStudent) return false;
+      if (r.fridayDate === fridayDate) return true;
+      if (r.date && r.date >= weekStartDate && r.date <= fridayDate && (!r.fridayDate || r.fridayDate === fridayDate)) {
+        return true;
+      }
+      return false;
+    });
+
+    const sheetMethod = !isEmptyFollowupValue(student.fu?.[fridayDate]) ? student.fu?.[fridayDate]?.trim() : undefined;
+
+    if (matchingLogs.length > 0) {
+      const latest = matchingLogs[0];
+      doneCount++;
+      return {
+        weekNumber: idx + 1,
+        fridayDate,
+        weekStartDate,
+        shortLabel,
+        status: 'done',
+        isClosed,
+        isOpenWeek,
+        isUpcoming,
+        method: latest.type,
+        callOutcome: latest.callOutcome,
+        recordDate: latest.date || fridayDate
+      };
+    }
+
+    if (sheetMethod) {
+      doneCount++;
+      return {
+        weekNumber: idx + 1,
+        fridayDate,
+        weekStartDate,
+        shortLabel,
+        status: 'done',
+        isClosed,
+        isOpenWeek,
+        isUpcoming,
+        method: sheetMethod,
+        callOutcome: student.fuOutcomes?.[fridayDate] || student.lastCallOutcome,
+        recordDate: student.lastFollowup || fridayDate
+      };
+    }
+
+    if (isClosed) {
+      missedCount++;
+      return {
+        weekNumber: idx + 1,
+        fridayDate,
+        weekStartDate,
+        shortLabel,
+        status: 'missed',
+        isClosed: true,
+        isOpenWeek: false,
+        isUpcoming: false
+      };
+    }
+
+    if (isOpenWeek) {
+      openCount++;
+      return {
+        weekNumber: idx + 1,
+        fridayDate,
+        weekStartDate,
+        shortLabel,
+        status: 'open',
+        isClosed: false,
+        isOpenWeek: true,
+        isUpcoming: false
+      };
+    }
+
+    return {
+      weekNumber: idx + 1,
+      fridayDate,
+      weekStartDate,
+      shortLabel,
+      status: 'upcoming',
+      isClosed: false,
+      isOpenWeek: false,
+      isUpcoming: true
+    };
+  });
+
+  return {
+    year: cairo.year,
+    month: cairo.month,
+    todayIso: cairo.isoDate,
+    activeWeekFriday,
+    weeks,
+    doneCount,
+    missedCount,
+    openCount,
+    totalWeeksInMonth: monthFridays.length
+  };
+}
+
 export function formatArabicDate(dateStr: string | undefined | null): string {
   if (!dateStr) return '-';
   try {

@@ -346,6 +346,230 @@ export class GoogleSheetsService {
       throw new Error(`Google Sheets append failed (${appendResponse.status}): ${detail}`);
     }
   }
+
+  /**
+   * Batch persist multiple student updates across one or more sheets.
+   * Reads each target sheet ONCE and commits all updated rows in a SINGLE Google Sheets values:batchUpdate call.
+   */
+  public async upsertStudentsBatch(studentsToSave: Student[]): Promise<Student[]> {
+    if (!studentsToSave || studentsToSave.length === 0) return [];
+    if (!this.isGoogleConfigured() && !this.testFixtureMode) {
+      throw new Error('Google Sheets write is unavailable: configure server-side Service Account credentials before accepting mutations.');
+    }
+
+    const prepared: Student[] = studentsToSave.map((st) => {
+      const existing = this.students.get(st.id);
+      const nextVer =
+        typeof st.version === 'number' && existing && st.version > existing.version
+          ? st.version
+          : existing
+          ? (existing.version || 1) + 1
+          : st.version || 1;
+      return { ...st, version: nextVer };
+    });
+
+    if (this.isGoogleConfigured()) {
+      await this.syncStudentsBatchToGoogle(prepared);
+    } else if (!this.testFixtureMode) {
+      throw new Error('Google Sheets batch write was not attempted; refusing an in-memory-only success response.');
+    }
+
+    for (const saved of prepared) {
+      this.students.set(saved.id, { ...saved, att: { ...(saved.att || {}) }, fu: { ...(saved.fu || {}) } });
+    }
+    return prepared.map((s) => ({ ...s }));
+  }
+
+  private async syncStudentsBatchToGoogle(studentsToSave: Student[]): Promise<void> {
+    const accessToken = await this.getGoogleAccessToken();
+    const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
+    const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
+
+    const columnName = (index: number): string => {
+      let n = index + 1;
+      let label = '';
+      while (n > 0) {
+        const remainder = (n - 1) % 26;
+        label = String.fromCharCode(65 + remainder) + label;
+        n = Math.floor((n - 1) / 26);
+      }
+      return label;
+    };
+
+    const sanitizeSheetCell = (val: unknown): string => {
+      const str = String(val ?? '');
+      if (/^[=+\-@\t\r]/.test(str)) return `'${str}`;
+      return str;
+    };
+
+    const bySheet = new Map<string, Student[]>();
+    for (const st of studentsToSave) {
+      const tab = st.sourceSheet || 'نشط';
+      if (!bySheet.has(tab)) bySheet.set(tab, []);
+      bySheet.get(tab)!.push(st);
+    }
+
+    for (const [sheetName, sheetStudents] of bySheet.entries()) {
+      const lookupRange = encodeURIComponent(`'${sheetName}'!A1:AZ1000`);
+      const lookupResponse = await fetch(`${sheetPrefix}/${lookupRange}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (!lookupResponse.ok) {
+        throw new Error(`Google Sheets batch row lookup failed for "${sheetName}" (${lookupResponse.status})`);
+      }
+
+      const lookupData = (await lookupResponse.json()) as { values?: string[][] };
+      const rows = lookupData.values || [];
+      const headers = (rows[0] || []).map((v) => String(v || '').trim());
+      if (!headers.length) {
+        throw new Error(`Google Sheets tab "${sheetName}" has no header row`);
+      }
+
+      const headerUpdates: Array<{ range: string; values: string[][] }> = [];
+      let versionColumnIndex = headers.findIndex((h) => h.toLowerCase() === 'version' || h === 'الإصدار');
+      if (versionColumnIndex < 0) {
+        versionColumnIndex = headers.length;
+        headers.push('version');
+        headerUpdates.push({
+          range: `'${sheetName}'!${columnName(versionColumnIndex)}1`,
+          values: [['version']]
+        });
+      }
+
+      // Ensure any new ISO Friday dates present in batch exist in sheet headers
+      const neededDates = new Set<string>();
+      for (const st of sheetStudents) {
+        for (const d of Object.keys(st.att || {})) {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(d) && !headers.includes(d)) {
+            neededDates.add(d);
+          }
+        }
+      }
+      for (const d of Array.from(neededDates).sort()) {
+        const colIdx = headers.length;
+        headers.push(d);
+        headerUpdates.push({
+          range: `'${sheetName}'!${columnName(colIdx)}1`,
+          values: [[d]]
+        });
+      }
+
+      if (headerUpdates.length > 0) {
+        const hdrResp = await fetch(`${sheetPrefix}:batchUpdate`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            valueInputOption: 'RAW',
+            data: headerUpdates
+          })
+        });
+        if (!hdrResp.ok) {
+          throw new Error(`Could not add missing columns to Google Sheets "${sheetName}" (${hdrResp.status})`);
+        }
+      }
+
+      const codeToRowNum = new Map<string, number>();
+      for (let i = 1; i < rows.length; i++) {
+        const code = String(rows[i]?.[0] ?? '').trim();
+        if (code && !codeToRowNum.has(code)) {
+          codeToRowNum.set(code, i + 1);
+        }
+      }
+
+      const rowBatchData: Array<{ range: string; values: string[][] }> = [];
+      const appendRows: string[][] = [];
+      const width = Math.max(headers.length, 12);
+      const lastColLetter = columnName(width - 1);
+
+      for (const student of sheetStudents) {
+        const existingRowNumber = codeToRowNum.get(String(student.code).trim());
+        const rowValues = existingRowNumber ? [...(rows[existingRowNumber - 1] || [])] : [];
+        while (rowValues.length < width) rowValues.push('');
+
+        const baseValues = [
+          sanitizeSheetCell(student.code),
+          sanitizeSheetCell(student.name),
+          sanitizeSheetCell(student.servant),
+          sanitizeSheetCell(student.phoneStudent || ''),
+          sanitizeSheetCell(student.phoneParent1 || ''),
+          sanitizeSheetCell(student.phoneParent2 || ''),
+          sanitizeSheetCell(student.birthDate || ''),
+          sanitizeSheetCell(student.area || ''),
+          sanitizeSheetCell(student.address || ''),
+          sanitizeSheetCell(student.notes || ''),
+          sanitizeSheetCell(student.lastAttendance || ''),
+          sanitizeSheetCell(student.lastFollowup || '')
+        ];
+        baseValues.forEach((v, i) => { rowValues[i] = v; });
+
+        for (let c = 0; c < headers.length; c++) {
+          const hdr = headers[c];
+          const normHdr = hdr.toLowerCase().trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(hdr) && Object.prototype.hasOwnProperty.call(student.att || {}, hdr)) {
+            rowValues[c] = student.att[hdr] ? '1' : '0';
+            continue;
+          }
+          const fuMatch = hdr.match(/^افتقاد\s+(\d{4}-\d{2}-\d{2})$/);
+          if (fuMatch && Object.prototype.hasOwnProperty.call(student.fu || {}, fuMatch[1])) {
+            rowValues[c] = sanitizeSheetCell(student.fu[fuMatch[1]] ?? '');
+            continue;
+          }
+          if (normHdr === 'id') rowValues[c] = sanitizeSheetCell(student.id);
+          else if (normHdr === 'version' || hdr === 'الإصدار') rowValues[c] = String(student.version || 1);
+          else if (['إجمالي الحضور', 'اجمالي الحضور', 'attendancetotal'].includes(normHdr)) rowValues[c] = String(student.attendanceTotal || 0);
+          else if (['حضور الشهر', 'attendancemonth'].includes(normHdr)) rowValues[c] = String(student.attendanceMonth || 0);
+          else if (['الحالة', 'attendancestatus'].includes(normHdr)) rowValues[c] = sanitizeSheetCell(student.attendanceStatus || '');
+          else if (['حالة الافتقاد', 'followupstatus'].includes(normHdr)) rowValues[c] = sanitizeSheetCell(student.followupStatus || '');
+        }
+
+        if (existingRowNumber) {
+          rowBatchData.push({
+            range: `'${sheetName}'!A${existingRowNumber}:${lastColLetter}${existingRowNumber}`,
+            values: [rowValues]
+          });
+        } else {
+          appendRows.push(rowValues);
+        }
+      }
+
+      if (rowBatchData.length > 0) {
+        const batchResp = await fetch(`${sheetPrefix}:batchUpdate`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            valueInputOption: 'USER_ENTERED',
+            data: rowBatchData
+          })
+        });
+        if (!batchResp.ok) {
+          const detail = await batchResp.text().catch(() => '');
+          throw new Error(`Google Sheets batch update failed (${batchResp.status}): ${detail}`);
+        }
+      }
+
+      if (appendRows.length > 0) {
+        const appendRange = encodeURIComponent(`'${sheetName}'!A:${lastColLetter}`);
+        const appResp = await fetch(`${sheetPrefix}/${appendRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ values: appendRows })
+        });
+        if (!appResp.ok) {
+          const detail = await appResp.text().catch(() => '');
+          throw new Error(`Google Sheets batch append failed (${appResp.status}): ${detail}`);
+        }
+      }
+    }
+  }
 }
 
 export const googleSheetsService = new GoogleSheetsService();

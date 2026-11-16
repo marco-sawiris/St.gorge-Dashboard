@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   XCircle,
   ArrowUpDown,
-  Loader2
+  Loader2,
+  FileUp
 } from 'lucide-react';
 import { getLatestHeldFridayString, formatTelHref, formatWhatsAppUrl } from '../../utils/arabicUtils';
 import { downloadCsvReport, downloadPrintableHtmlReport } from '../../utils/exportUtils';
@@ -28,7 +29,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
   onOpenFollowup,
   onOpenEdit
 }) => {
-  const { filteredStudents, markAttendance, activeEditingId, inFlightStudentIds } = useApp();
+  const { filteredStudents, markAttendance, activeEditingId, inFlightStudentIds, setIsPdfImportModalOpen } = useApp();
   const currentFriday = getLatestHeldFridayString();
 
   const [sortField, setSortField] = useState<SortField>('name');
@@ -185,6 +186,16 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
 
           <button
             type="button"
+            onClick={() => setIsPdfImportModalOpen(true)}
+            className="glass-btn px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            title="استيراد كشف الحضور والغياب من ملف PDF"
+          >
+            <FileUp className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <span>استيراد كشف PDF</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleExportPrintablePDF}
             className="glass-btn px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             title="تنزيل تقرير جاهز للطباعة أو الحفظ كـ PDF"
@@ -257,7 +268,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                     <h3 className="text-sm font-extrabold text-[var(--text-primary)] m-0 break-words">{s.name}</h3>
                     <p className="text-[11px] text-[var(--text-secondary)] m-0 break-words">الأشبين: {s.servant || 'غير محدد'}</p>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-[var(--navy)]/80 border border-[var(--glass-border)] text-[var(--text)] shrink-0">
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-[var(--surface-inset)] border border-[var(--glass-border)] text-[var(--text)] shrink-0">
                     {s.sourceSheet || 'نشط'}
                   </span>
                 </div>
@@ -298,7 +309,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                       void markAttendance(s.id, !isPresent);
                     }}
                     aria-pressed={isPresent}
-                    className={`glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold inline-flex items-center gap-1 disabled:opacity-60 ${isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-muted)]'}`}
+                    className={`glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold inline-flex items-center gap-1 disabled:opacity-60 ${isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-secondary)]'}`}
                   >
                     {isInFlight ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -351,7 +362,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
       >
         <table className="w-full table-fixed text-right text-xs border-collapse">
           <thead>
-            <tr className="border-b border-[var(--glass-border)] bg-[var(--navy)]/80 text-[var(--text-secondary)] font-extrabold backdrop-blur-md">
+            <tr className="border-b border-[var(--glass-border)] bg-[var(--table-header-bg)] text-[var(--text-secondary)] font-extrabold backdrop-blur-md">
               <th className="py-3.5 px-3.5 cursor-pointer hover:text-[var(--accent)] transition-colors" onClick={() => handleSort('code')}>
                 <div className="flex items-center gap-1.5">
                   <span className={sortField === 'code' ? 'text-[var(--accent)]' : ''}>الكود</span>
@@ -416,7 +427,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                 return (
                   <tr
                     key={s.id}
-                    className="word-in hover:bg-white/5 transition-colors"
+                    className="word-in hover:bg-[var(--table-row-hover)] transition-colors"
                     style={{ '--i': Math.min(idx + 1, 10) } as React.CSSProperties}
                   >
                     <td className="py-3.5 px-3.5 font-mono font-bold text-[var(--accent)] break-words">
@@ -429,7 +440,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                       {s.servant}
                     </td>
                     <td className="py-3.5 px-3.5 break-words">
-                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--navy)]/80 border border-[var(--glass-border)] text-[var(--text)]">
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--surface-inset)] border border-[var(--glass-border)] text-[var(--text)]">
                         {s.sourceSheet}
                       </span>
                     </td>
@@ -455,7 +466,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                         }}
                         aria-pressed={isPresent}
                         className={`glass-btn px-3 py-1 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-60 ${
-                          isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-muted)]'
+                          isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-secondary)]'
                         }`}
                       >
                         {isInFlight ? (
@@ -470,7 +481,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                           </span>
                         ) : (
                           <span key="a" className="badge-pop inline-flex items-center gap-1.5">
-                            <XCircle className="w-3.5 h-3.5 text-slate-400" />
+                            <XCircle className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                             <span>غائب</span>
                           </span>
                         )}

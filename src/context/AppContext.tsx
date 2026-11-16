@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Student, SheetName, AppFilterState, APPROVED_SHEETS } from '../types/student';
-import { FollowupRecord } from '../types/followup';
-import { AppNotification, OfflineMutation, AuthUser } from '../types/auth';
+import { FollowupRecord, CallOutcome } from '../types/followup';
+import { AppNotification, MutationStageTimings, OfflineMutation, AuthUser, SyncOutcomeStatus } from '../types/auth';
 import {
   DynamicAlphabetBucket,
   extractDynamicAlphabetBuckets,
@@ -30,10 +30,12 @@ import {
   idbGetFollowupRecords,
   idbGetPendingMutations,
   idbRemoveMutation,
+  idbRemoveMutationsBatch,
   idbMarkMutationConflict,
   idbAtomicAddStudentWithMutation,
   idbAtomicUpdateStudentWithMutation,
   idbAtomicRecordAttendanceWithMutation,
+  idbAtomicBatchRecordAttendanceWithMutations,
   idbAtomicDeleteStudentWithMutation,
   idbAtomicRecordFollowupWithMutation,
   idbReconcileStudents,
@@ -41,7 +43,9 @@ import {
   idbSaveRemoteFollowupRecords,
   idbGetAttendanceHistory,
   idbUpdateMutationError,
-  idbResetMutationRetry
+  idbUpdateMutationsBatchState,
+  idbResetMutationRetry,
+  AttendanceHistoryRecord
 } from '../services/indexedDbService';
 import { syncWeeklyNotificationSchedules } from '../services/weeklyNotificationService';
 import {
@@ -135,6 +139,27 @@ export function evaluateSingleActiveEditLock(
   return { allowed: true };
 }
 
+export interface SyncQueueExecutionReport {
+  success: boolean;
+  outcome: SyncOutcomeStatus;
+  sentCount: number;
+  deduplicatedCount: number;
+  verifiedPostTimeoutCount: number;
+  remainingCount: number;
+  unknownResultCount: number;
+  failedCount: number;
+  conflictCount: number;
+  mode: 'batch' | 'single' | 'mixed';
+  totalDurationMs: number;
+  stageSummary?: {
+    prepMs: number;
+    networkMs: number;
+    verifyMs: number;
+    serverMs: number;
+  };
+  lastError?: string;
+}
+
 interface AppContextType {
   students: Student[];
   filteredStudents: Student[];
@@ -146,6 +171,7 @@ interface AppContextType {
   isSyncing: boolean;
   isOnline: boolean;
   lastSyncError: string | null;
+  lastSyncReport: SyncQueueExecutionReport | null;
   syncState: 'connected' | 'syncing' | 'synced' | 'failed' | 'offline' | 'pending';
   lastSyncAttemptTime: string | null; // Full ISO timestamp
   lastSuccessfulPushTime: string | null; // Full ISO timestamp
@@ -164,6 +190,7 @@ interface AppContextType {
   isAreaModalOpen: boolean;
   isAboutModalOpen: boolean;
   isAppearanceModalOpen: boolean;
+  isPdfImportModalOpen: boolean;
   isAddModalOpen: boolean;
   isSyncModalOpen: boolean;
   setFilters: React.Dispatch<React.SetStateAction<AppFilterState>>;
@@ -180,13 +207,31 @@ interface AppContextType {
   setIsAreaModalOpen: (open: boolean) => void;
   setIsAboutModalOpen: (open: boolean) => void;
   setIsAppearanceModalOpen: (open: boolean) => void;
+  setIsPdfImportModalOpen: (open: boolean) => void;
   setIsAddModalOpen: (open: boolean) => void;
   setIsSyncModalOpen: (open: boolean) => void;
   isQueueModalOpen: boolean;
   setIsQueueModalOpen: (open: boolean) => void;
   syncData: (overrideSheet?: SheetName) => Promise<boolean>;
   markAttendance: (studentId: string, isPresent: boolean, targetFridayDate?: string) => Promise<boolean>;
-  recordFollowup: (studentId: string, method: string, notes?: string) => Promise<boolean>;
+  importAttendanceBatch: (
+    entries: Array<{ studentId: string; fridayDate: string; isPresent: boolean }>
+  ) => Promise<{
+    success: boolean;
+    appliedCount: number;
+    skippedDuplicateCount: number;
+    blockedCount: number;
+    futureBlockedCount: number;
+    queuedCount: number;
+    syncReport?: SyncQueueExecutionReport;
+    error?: string;
+  }>;
+  recordFollowup: (
+    studentId: string,
+    method: string,
+    notes?: string,
+    options?: { callOutcome?: CallOutcome }
+  ) => Promise<boolean>;
   updateStudent: (studentId: string, updatedFields: Partial<Student>) => Promise<boolean>;
   addNewStudent: (studentData: Partial<Student>) => Promise<boolean>;
   deleteStudent: (studentId: string) => Promise<boolean>;
@@ -198,17 +243,221 @@ interface AppContextType {
     type?: 'info' | 'warn' | 'success' | 'danger',
     options?: { id?: string; dedupKey?: string }
   ) => void;
-  processOfflineQueue: () => Promise<{ success: boolean; sentCount: number; remainingCount: number }>;
+  processOfflineQueue: () => Promise<SyncQueueExecutionReport>;
   inFlightStudentIds: string[];
   syncedStudentIds: string[];
   pendingStudentIds: string[];
   isQueueProcessing: boolean;
-  triggerAutoProcessQueue: (isImmediateUserAction?: boolean) => Promise<void>;
+  triggerAutoProcessQueue: (isImmediateUserAction?: boolean) => Promise<SyncQueueExecutionReport | void>;
   activeToast: AppNotification | null;
   dismissToast: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+
+export function normalizeStudentRecord(raw: Partial<Student>): Student {
+  const safeAtt: Record<string, boolean> =
+    raw.att && typeof raw.att === 'object' ? { ...raw.att } : {};
+  const safeFu: Record<string, string> =
+    raw.fu && typeof raw.fu === 'object' ? { ...raw.fu } : {};
+  const safeFuOutcomes =
+    raw.fuOutcomes && typeof raw.fuOutcomes === 'object' ? { ...raw.fuOutcomes } : undefined;
+  const parsedTotal = Number(raw.attendanceTotal);
+  const parsedMonth = Number(raw.attendanceMonth);
+  const parsedVersion = Number(raw.version);
+
+  return {
+    id: String(raw.id || ''),
+    code: String(raw.code || ''),
+    name: String(raw.name || ''),
+    servant: String(raw.servant || '').trim() || 'غير محدد',
+    phoneStudent: String(raw.phoneStudent || ''),
+    phoneParent1: String(raw.phoneParent1 || ''),
+    phoneParent2: String(raw.phoneParent2 || ''),
+    birthDate: String(raw.birthDate || ''),
+    area: String(raw.area || '').trim() || 'غير محددة',
+    address: String(raw.address || ''),
+    notes: String(raw.notes || ''),
+    followupStatus: String(raw.followupStatus || 'بدون'),
+    attendanceTotal: Number.isFinite(parsedTotal) ? Math.max(0, parsedTotal) : 0,
+    attendanceMonth: Number.isFinite(parsedMonth) ? Math.max(0, parsedMonth) : 0,
+    attendanceStatus: raw.attendanceStatus === 'حاضر' ? 'حاضر' : 'غائب',
+    lastAttendance: raw.lastAttendance || undefined,
+    lastFollowup: raw.lastFollowup || undefined,
+    sourceSheet: raw.sourceSheet || 'نشط',
+    version: Number.isFinite(parsedVersion) && parsedVersion >= 1 ? parsedVersion : 1,
+    att: safeAtt,
+    fu: safeFu,
+    ...(safeFuOutcomes ? { fuOutcomes: safeFuOutcomes } : {}),
+    ...(raw.lastCallOutcome ? { lastCallOutcome: raw.lastCallOutcome } : {})
+  };
+}
+
+export interface BatchAttendanceEntryInput {
+  studentId: string;
+  fridayDate: string;
+  isPresent: boolean;
+}
+
+export interface PreparedBatchAttendancePlan {
+  updatedStudents: Student[];
+  historyRecords: AttendanceHistoryRecord[];
+  mutations: OfflineMutation[];
+  appliedCount: number;
+  skippedDuplicateCount: number;
+  blockedCount: number;
+  futureBlockedCount: number;
+}
+
+/**
+ * Pure atomic batch attendance planner:
+ * - Preserves historical attendance records without overwriting unrelated dates
+ * - Skips identical duplicate dates (idempotent re-upload)
+ * - Increments OCC expectedVersion sequentially per student so Code.gs & Express approve all N dates cleanly
+ * - Assigns strictly increasing FIFO timestamps across the batch
+ */
+export function prepareBatchAttendanceMutations(
+  entries: ReadonlyArray<BatchAttendanceEntryInput>,
+  students: ReadonlyArray<Student>,
+  canPerformAction: (action: 'attendance', servantName?: string) => { allowed: boolean; reason?: string },
+  cairoTodayIso: string = getCairoDateParts().isoDate
+): PreparedBatchAttendancePlan {
+  const studentsById = new Map(students.map((s) => [s.id, s]));
+  const grouped = new Map<string, BatchAttendanceEntryInput[]>();
+  const seenKeys = new Set<string>();
+
+  let skippedDuplicateCount = 0;
+  let blockedCount = 0;
+  let futureBlockedCount = 0;
+
+  for (const rawEntry of entries) {
+    const friday = String(rawEntry.fridayDate || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) continue;
+
+    const logicalKey = `${rawEntry.studentId}__${friday}`;
+    if (seenKeys.has(logicalKey)) continue;
+    seenKeys.add(logicalKey);
+
+    const student = studentsById.get(rawEntry.studentId);
+    if (!student) continue;
+
+    if (!canPerformAction('attendance', student.servant).allowed) {
+      blockedCount++;
+      continue;
+    }
+
+    if (friday > cairoTodayIso) {
+      futureBlockedCount++;
+      continue;
+    }
+
+    if (student.att?.[friday] === rawEntry.isPresent) {
+      skippedDuplicateCount++;
+      continue;
+    }
+
+    if (!grouped.has(student.id)) grouped.set(student.id, []);
+    grouped.get(student.id)!.push({
+      studentId: student.id,
+      fridayDate: friday,
+      isPresent: rawEntry.isPresent
+    });
+  }
+
+  const updatedStudents: Student[] = [];
+  const historyRecords: AttendanceHistoryRecord[] = [];
+  const mutations: OfflineMutation[] = [];
+  let seqTimestamp = Date.now();
+  let appliedCount = 0;
+
+  for (const [studentId, studentEntries] of grouped.entries()) {
+    const student = studentsById.get(studentId);
+    if (!student || studentEntries.length === 0) continue;
+
+    // Sort chronologically for deterministic version chaining & lastAttendance calculation
+    studentEntries.sort((a, b) => a.fridayDate.localeCompare(b.fridayDate));
+
+    const nextAtt: Record<string, boolean> = { ...(student.att || {}) };
+    const baseVersion = student.version || 1;
+    let totalDelta = 0;
+    const safeStudentId = toSafeHeaderAscii(studentId);
+
+    studentEntries.forEach((entry, idx) => {
+      const prevVal = nextAtt[entry.fridayDate];
+      if (entry.isPresent && prevVal !== true) totalDelta += 1;
+      else if (!entry.isPresent && prevVal === true) totalDelta -= 1;
+
+      nextAtt[entry.fridayDate] = entry.isPresent;
+
+      const opId = generateUUID();
+      mutations.push({
+        id: `ATT_${safeStudentId}_${entry.fridayDate}_${opId}`,
+        action: 'attendance',
+        studentId,
+        studentCode: student.code,
+        studentName: student.name,
+        sourceSheet: student.sourceSheet,
+        payload: { friday: entry.fridayDate, isPresent: entry.isPresent },
+        expectedVersion: baseVersion + idx,
+        timestamp: seqTimestamp++,
+        retryCount: 0,
+        status: 'pending'
+      });
+
+      historyRecords.push({
+        id: `${studentId}__${entry.fridayDate}`,
+        studentId,
+        studentCode: student.code,
+        fridayDate: entry.fridayDate,
+        status: entry.isPresent,
+        recordedAt: seqTimestamp,
+        sourceSheet: student.sourceSheet
+      });
+
+      appliedCount++;
+    });
+
+    const latestHeldPresentDates = Object.keys(nextAtt)
+      .filter((d) => nextAtt[d] === true && d <= cairoTodayIso)
+      .sort();
+    const computedLastAttendance =
+      latestHeldPresentDates.length > 0
+        ? latestHeldPresentDates[latestHeldPresentDates.length - 1]
+        : student.lastAttendance || '';
+
+    const latestHeldFriday = getLatestHeldFridayString();
+    const attendanceStatus: 'حاضر' | 'غائب' =
+      typeof nextAtt[latestHeldFriday] === 'boolean'
+        ? nextAtt[latestHeldFriday]
+          ? 'حاضر'
+          : 'غائب'
+        : student.attendanceStatus === 'حاضر'
+        ? 'حاضر'
+        : 'غائب';
+
+    const monthlySummary = computeMonthlyAttendanceSummary(nextAtt);
+
+    updatedStudents.push({
+      ...student,
+      att: nextAtt,
+      attendanceStatus,
+      attendanceTotal: Math.max(0, (student.attendanceTotal || 0) + totalDelta),
+      attendanceMonth: monthlySummary.presentCount,
+      lastAttendance: computedLastAttendance,
+      version: baseVersion + studentEntries.length
+    });
+  }
+
+  return {
+    updatedStudents,
+    historyRecords,
+    mutations,
+    appliedCount,
+    skippedDuplicateCount,
+    blockedCount,
+    futureBlockedCount
+  };
+}
 
 export function getAvailableAlphabetBuckets(
   students: Student[],
@@ -276,19 +525,221 @@ export function filterStudentsByAppFilters(students: Student[], filters: AppFilt
 // ============================================================================
 
 let queueExecutionTail: Promise<void> = Promise.resolve();
+const batchUnsupportedEndpoints = new Set<string>();
+
+export function clearBatchUnsupportedCache(): void {
+  batchUnsupportedEndpoints.clear();
+}
+
+export function computeExponentialBackoffDelayMs(retryCount: number): number {
+  const safeCount = Math.max(1, Math.floor(retryCount || 1));
+  return Math.min(60_000, 2000 * Math.pow(2, safeCount - 1));
+}
+
+function isAbortOrTimeoutError(err: any): boolean {
+  if (!err) return false;
+  if (err.name === 'AbortError') return true;
+  const msg = String(err.message || '');
+  return /abort|timeout|timed out|مهلة/i.test(msg);
+}
+
+function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: string): Record<string, any> {
+  const payloadDate = String(mutation.payload?.friday || mutation.payload?.date || '').trim();
+  const payloadPresent = mutation.payload?.isPresent ?? mutation.payload?.present ?? false;
+  const followupStatus = mutation.payload?.status || mutation.payload?.method || mutation.payload?.type;
+  const fields = mutation.payload?.fields || {
+    name: mutation.studentName || '',
+    servant: mutation.payload?.servant || '',
+    code: mutation.studentCode || mutation.payload?.code || '',
+    phoneStudent: mutation.payload?.phoneStudent || '',
+    phoneParent1: mutation.payload?.phoneParent1 || '',
+    phoneParent2: mutation.payload?.phoneParent2 || '',
+    birthDate: mutation.payload?.birthDate || '',
+    area: mutation.payload?.area || '',
+    address: mutation.payload?.address || '',
+    notes: mutation.payload?.notes || '',
+    status: followupStatus || 'بدون',
+    ...(typeof mutation.payload === 'object' && mutation.payload !== null ? mutation.payload : {})
+  };
+
+  return {
+    sheet: mutation.sourceSheet || 'نشط',
+    sourceSheet: mutation.sourceSheet || 'نشط',
+    name: mutation.studentName || '',
+    studentName: mutation.studentName || '',
+    studentId: mutation.studentId || '',
+    studentCode: mutation.studentCode || '',
+    action: mutation.action,
+    date: payloadDate,
+    friday: payloadDate,
+    present: payloadPresent,
+    isPresent: payloadPresent,
+    token: relayKey,
+    relayKey,
+    idempotencyKey: mutation.id,
+    id: mutation.id,
+    expectedVersion: mutation.expectedVersion || 1,
+    payload: mutation.payload || {},
+    type: followupStatus,
+    status: followupStatus,
+    followupStatus: followupStatus,
+    callOutcome: mutation.payload?.callOutcome || undefined,
+    notes: mutation.payload?.notes || '',
+    fields: fields,
+    mutation: {
+      ...mutation,
+      id: mutation.id,
+      sourceSheet: mutation.sourceSheet || 'نشط',
+      studentName: mutation.studentName || '',
+      payload: {
+        ...(mutation.payload || {}),
+        status: followupStatus,
+        method: followupStatus,
+        ...(mutation.payload?.callOutcome ? { callOutcome: mutation.payload.callOutcome } : {}),
+        fields: fields
+      }
+    }
+  };
+}
+
+/**
+ * Verifies post-timeout (Unknown Result) whether timed-out operations were actually committed on the server
+ * BEFORE allowing any retry, preventing duplicate writes when HTTP response was lost or aborted late.
+ */
+async function verifyMutationsAfterTimeout(
+  timedOutMutations: OfflineMutation[],
+  appsScriptUrl: string,
+  user: AuthUser | null,
+  verifyTimeoutMs: number
+): Promise<{
+  verifiedIds: string[];
+  unconfirmedMutations: OfflineMutation[];
+  verifyDurationMs: number;
+}> {
+  const verifyStart = Date.now();
+  const keys = timedOutMutations.map((m) => m.id).filter(Boolean);
+  if (keys.length === 0) {
+    return { verifiedIds: [], unconfirmedMutations: timedOutMutations, verifyDurationMs: 0 };
+  }
+
+  const verifiedSet = new Set<string>();
+
+  try {
+    if (appsScriptUrl) {
+      const relayKey = getEffectiveRelayKey();
+      const controller = new AbortController();
+      const tId = setTimeout(() => controller.abort(), verifyTimeoutMs);
+      try {
+        const checkResp = await fetch(appsScriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'checkIdempotency',
+            relayKey,
+            token: relayKey,
+            keys
+          }),
+          signal: controller.signal
+        });
+        const checkJson = await checkResp.json().catch(() => null);
+
+        if (checkResp.ok && checkJson?.ok && checkJson?.results) {
+          for (const k of keys) {
+            if (checkJson.results[k]?.found) {
+              verifiedSet.add(k);
+            }
+          }
+        } else if (
+          String(checkJson?.error || '').includes('action غير معروف') ||
+          checkResp.status === 404
+        ) {
+          // Graceful fallback against un-upgraded live Apps Script: verify via getStudents row version + date cell
+          const sheetsNeeded = Array.from(
+            new Set(
+              timedOutMutations
+                .filter((m) => m.action === 'attendance')
+                .map((m) => m.sourceSheet || 'نشط')
+            )
+          );
+          for (const sh of sheetsNeeded) {
+            const gsUrl = `${appsScriptUrl}?action=getStudents&sheet=${encodeURIComponent(sh)}&relayKey=${encodeURIComponent(relayKey)}&token=${encodeURIComponent(relayKey)}`;
+            const gsResp = await fetch(gsUrl, { signal: controller.signal });
+            if (!gsResp.ok) continue;
+            const gsJson = await gsResp.json().catch(() => null);
+            const serverStudents: Student[] = Array.isArray(gsJson?.students) ? gsJson.students : [];
+            const byId = new Map(serverStudents.map((s) => [s.id, s]));
+            const byCode = new Map(serverStudents.map((s) => [s.code, s]));
+
+            for (const mut of timedOutMutations) {
+              if (mut.action !== 'attendance' || (mut.sourceSheet || 'نشط') !== sh) continue;
+              const friday = String(mut.payload?.friday || mut.payload?.date || '').trim();
+              const isPresent = Boolean(mut.payload?.isPresent ?? mut.payload?.present);
+              const sRec = byId.get(mut.studentId) || (mut.studentCode ? byCode.get(mut.studentCode) : undefined);
+              if (!sRec) continue;
+              const serverDateVal = Boolean(sRec.att?.[friday]);
+              const expectedAfterWrite = (mut.expectedVersion || 1) + 1;
+              if (sRec.att && Object.prototype.hasOwnProperty.call(sRec.att, friday) && serverDateVal === isPresent && (sRec.version || 1) >= expectedAfterWrite) {
+                verifiedSet.add(mut.id);
+              }
+            }
+          }
+        }
+      } finally {
+        clearTimeout(tId);
+      }
+    } else {
+      const encodedKeys = encodeURIComponent(keys.join(','));
+      const checkUrl = buildApiUrl(`/api/sheets/idempotency?keys=${encodedKeys}`);
+      const controller = new AbortController();
+      const tId = setTimeout(() => controller.abort(), verifyTimeoutMs);
+      try {
+        const resp = await fetch(checkUrl, {
+          method: 'GET',
+          headers: getAuthHeaders(user?.token),
+          signal: controller.signal
+        });
+        const json = await resp.json().catch(() => null);
+        if (resp.ok && json?.ok && json?.results) {
+          for (const k of keys) {
+            if (json.results[k]?.found) {
+              verifiedSet.add(k);
+            }
+          }
+        }
+      } finally {
+        clearTimeout(tId);
+      }
+    }
+  } catch (verifyErr) {
+    console.warn('[StGeorge Sync] Post-timeout verification check could not confirm state:', verifyErr);
+  }
+
+  return {
+    verifiedIds: timedOutMutations.filter((m) => verifiedSet.has(m.id)).map((m) => m.id),
+    unconfirmedMutations: timedOutMutations.filter((m) => !verifiedSet.has(m.id)),
+    verifyDurationMs: Date.now() - verifyStart
+  };
+}
+
+export interface ProcessOfflineQueueCallbacks {
+  onMutationStart?: (mutation: OfflineMutation) => void;
+  onMutationSuccess?: (mutation: OfflineMutation) => void;
+  onMutationError?: (mutation: OfflineMutation, error: string) => void;
+  silent?: boolean;
+  disableBatch?: boolean;
+  batchSize?: number;
+  singleTimeoutMs?: number;
+  batchTimeoutMs?: number;
+  verifyTimeoutMs?: number;
+}
 
 export async function executeProcessOfflineQueue(
   user: AuthUser | null,
   _isPreviewMode: boolean = false,
   onNotify?: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void,
   onRecordPushTime?: (pushIso: string) => void,
-  callbacks?: {
-    onMutationStart?: (mutation: OfflineMutation) => void;
-    onMutationSuccess?: (mutation: OfflineMutation) => void;
-    onMutationError?: (mutation: OfflineMutation, error: string) => void;
-    silent?: boolean;
-  }
-): Promise<{ success: boolean; sentCount: number; remainingCount: number }> {
+  callbacks?: ProcessOfflineQueueCallbacks
+): Promise<SyncQueueExecutionReport> {
   let releaseLock!: () => void;
   const nextLock = new Promise<void>((resolve) => {
     releaseLock = resolve;
@@ -315,21 +766,30 @@ async function runProcessOfflineQueueSerial(
   _isPreviewMode: boolean = false,
   onNotify?: (title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void,
   onRecordPushTime?: (pushIso: string) => void,
-  callbacks?: {
-    onMutationStart?: (mutation: OfflineMutation) => void;
-    onMutationSuccess?: (mutation: OfflineMutation) => void;
-    onMutationError?: (mutation: OfflineMutation, error: string) => void;
-    silent?: boolean;
-  }
-): Promise<{ success: boolean; sentCount: number; remainingCount: number }> {
+  callbacks?: ProcessOfflineQueueCallbacks
+): Promise<SyncQueueExecutionReport> {
+  const runStartMs = Date.now();
+  const stageTotals = { prepMs: 0, networkMs: 0, verifyMs: 0, serverMs: 0 };
+
   if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
     onNotify?.('وضع عدم الاتصال', 'لا يوجد اتصال بالإنترنت لإرسال العمليات المعلقة', 'warn');
     const pending = await idbGetPendingMutations();
-    return { success: false, sentCount: 0, remainingCount: pending.length };
+    return {
+      success: false,
+      outcome: 'pending',
+      sentCount: 0,
+      deduplicatedCount: 0,
+      verifiedPostTimeoutCount: 0,
+      remainingCount: pending.length,
+      unknownResultCount: pending.filter((m) => m.status === 'timeout_unknown').length,
+      failedCount: pending.filter((m) => m.status === 'failed').length,
+      conflictCount: pending.filter((m) => m.status === 'conflict').length,
+      mode: 'single',
+      totalDurationMs: Date.now() - runStartMs
+    };
   }
 
   const appsScriptUrl = getEffectiveAppsScriptUrl();
-  const relayKey = getEffectiveRelayKey();
 
   if (!appsScriptUrl && !hasConfiguredRemoteBackend() && isNativeCapacitorRuntime()) {
     onNotify?.('مطلوب رابط المزامنة', 'يرجى ضبط رابط Google Apps Script في تفاصيل المزامنة. العمليات محفوظة محلياً بأمان.', 'warn');
@@ -337,81 +797,355 @@ async function runProcessOfflineQueueSerial(
     for (const m of pending) {
       await idbUpdateMutationError(m.id, 'يرجى ضبط رابط Google Apps Script في تفاصيل المزامنة للمزامنة مع الشيت', 'failed');
     }
-    return { success: false, sentCount: 0, remainingCount: pending.length };
+    return {
+      success: false,
+      outcome: 'failed',
+      sentCount: 0,
+      deduplicatedCount: 0,
+      verifiedPostTimeoutCount: 0,
+      remainingCount: pending.length,
+      unknownResultCount: 0,
+      failedCount: pending.length,
+      conflictCount: 0,
+      mode: 'single',
+      totalDurationMs: Date.now() - runStartMs,
+      lastError: 'مطلوب رابط المزامنة'
+    };
   }
 
+  const prepStart = Date.now();
   const pending = await idbGetPendingMutations();
+  stageTotals.prepMs += Date.now() - prepStart;
+
   if (pending.length === 0) {
-    return { success: true, sentCount: 0, remainingCount: 0 };
+    return {
+      success: true,
+      outcome: 'success',
+      sentCount: 0,
+      deduplicatedCount: 0,
+      verifiedPostTimeoutCount: 0,
+      remainingCount: 0,
+      unknownResultCount: 0,
+      failedCount: 0,
+      conflictCount: 0,
+      mode: 'single',
+      totalDurationMs: Date.now() - runStartMs,
+      stageSummary: { ...stageTotals }
+    };
   }
+
+  const endpointKey = appsScriptUrl || buildApiUrl('/api/sheets');
+  const maxChunkSize = Math.max(3, Math.min(30, callbacks?.batchSize ?? 15));
+  const singleTimeoutMs = callbacks?.singleTimeoutMs ?? (appsScriptUrl ? 35000 : 25000);
+  const batchTimeoutMs = callbacks?.batchTimeoutMs ?? (appsScriptUrl ? 55000 : 45000);
+  const verifyTimeoutMs = callbacks?.verifyTimeoutMs ?? 15000;
 
   let sentCount = 0;
+  let deduplicatedCount = 0;
+  let verifiedPostTimeoutCount = 0;
+  let usedBatch = false;
+  let usedSingle = false;
+  let lastErrorMsg: string | undefined;
 
-  for (const mutation of pending) {
+  const recordPushSuccessNow = () => {
+    const nowIso = new Date().toISOString();
+    try {
+      localStorage.setItem('stgorge_last_successful_push_iso', nowIso);
+    } catch {}
+    onRecordPushTime?.(nowIso);
+  };
+
+  let cursor = 0;
+  while (cursor < pending.length) {
+    const head = pending[cursor];
+
+    // Check if we can process a contiguous attendance chunk in batch mode (>= 3 consecutive same-sheet attendance ops)
+    const canTryBatch =
+      !callbacks?.disableBatch &&
+      !batchUnsupportedEndpoints.has(endpointKey) &&
+      head.action === 'attendance';
+
+    let batchSlice: OfflineMutation[] = [];
+    if (canTryBatch) {
+      const targetSheet = head.sourceSheet || 'نشط';
+      for (let j = cursor; j < pending.length && batchSlice.length < maxChunkSize; j++) {
+        const candidate = pending[j];
+        if (candidate.action !== 'attendance' || (candidate.sourceSheet || 'نشط') !== targetSheet) {
+          break;
+        }
+        batchSlice.push(candidate);
+      }
+    }
+
+    if (batchSlice.length >= 3) {
+      const chunkStartMs = Date.now();
+      for (const m of batchSlice) callbacks?.onMutationStart?.(m);
+
+      let fallbackToSingle = false;
+      try {
+        const netStart = Date.now();
+        let response: Response;
+        if (appsScriptUrl) {
+          const relayKey = getEffectiveRelayKey();
+          const chunkPayload = {
+            action: 'batch',
+            relayKey,
+            token: relayKey,
+            mutations: batchSlice.map((m) => buildAppsScriptSinglePayload(m, relayKey))
+          };
+          const controller = new AbortController();
+          const tId = setTimeout(() => controller.abort(), batchTimeoutMs);
+          try {
+            response = await fetch(appsScriptUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(chunkPayload),
+              signal: controller.signal
+            });
+          } finally {
+            clearTimeout(tId);
+          }
+        } else {
+          const batchUrl = buildApiUrl('/api/sheets/mutate-batch');
+          const controller = new AbortController();
+          const tId = setTimeout(() => controller.abort(), batchTimeoutMs);
+          try {
+            response = await fetch(batchUrl, {
+              method: 'POST',
+              headers: getAuthHeaders(user?.token),
+              body: JSON.stringify({
+                mutations: batchSlice.map((m) => ({
+                  ...m,
+                  idempotencyKey: m.id
+                }))
+              }),
+              signal: controller.signal
+            });
+          } finally {
+            clearTimeout(tId);
+          }
+        }
+        const netMs = Date.now() - netStart;
+        stageTotals.networkMs += netMs;
+
+        const resultJson = await response.json().catch(() => null);
+        const batchUnsupported =
+          response.status === 404 ||
+          String(resultJson?.error || '').includes('action غير معروف');
+
+        if (batchUnsupported) {
+          batchUnsupportedEndpoints.add(endpointKey);
+          fallbackToSingle = true;
+          console.info('[StGeorge Sync] Remote endpoint returned unsupported batch; seamlessly falling back to single mode.');
+        } else if (!response.ok || !resultJson?.ok || !Array.isArray(resultJson.results)) {
+          let errDetail = resultJson?.error || `استجاب الخادم برمز خطأ (HTTP ${response.status})`;
+          if (response.status === 401) {
+            errDetail = 'يتطلب إرسال التعديلات للشيت تفعيل رابط Google Apps Script في إعدادات المنظومة أو تسجيل دخول موثق';
+          } else if (response.status === 403) {
+            errDetail = 'غير مصرح: الحساب الحالي لا يملك صلاحية تعديل هذا المخدوم';
+          } else if (response.status >= 500) {
+            errDetail = `الخادم غير متاح مؤقتاً (HTTP ${response.status})، سيُعاد الإرسال تلقائياً`;
+          }
+          lastErrorMsg = errDetail;
+          const totalChunkMs = Date.now() - chunkStartMs;
+          const updates = batchSlice.map((m) => {
+            const nextRetry = (m.retryCount || 0) + 1;
+            return {
+              id: m.id,
+              errorMessage: errDetail,
+              status: 'failed' as const,
+              meta: {
+                nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+                lastDurationMs: totalChunkMs,
+                stageTimingsMs: {
+                  networkMs: netMs,
+                  totalMs: totalChunkMs,
+                  mode: 'batch' as const,
+                  batchSize: batchSlice.length
+                }
+              }
+            };
+          });
+          await idbUpdateMutationsBatchState(updates);
+          for (const m of batchSlice) callbacks?.onMutationError?.(m, errDetail);
+          break;
+        } else {
+          usedBatch = true;
+          if (typeof resultJson.serverDurationMs === 'number') {
+            stageTotals.serverMs += resultJson.serverDurationMs;
+          }
+
+          const confirmedMuts: OfflineMutation[] = [];
+          let conflictHit: { mut: OfflineMutation; msg: string } | null = null;
+          let failedHit: { mut: OfflineMutation; msg: string } | null = null;
+
+          for (let k = 0; k < batchSlice.length; k++) {
+            const itemMut = batchSlice[k];
+            const itemRes = resultJson.results[k];
+            if (itemRes?.ok) {
+              confirmedMuts.push(itemMut);
+              if (itemRes.deduplicated) deduplicatedCount++;
+            } else if (itemRes?.status === 409) {
+              conflictHit = {
+                mut: itemMut,
+                msg: itemRes?.error || 'تعارض في التعديل المتزامن (HTTP 409)'
+              };
+              break;
+            } else {
+              failedHit = {
+                mut: itemMut,
+                msg: itemRes?.error || 'رفض الخادم حفظ أحد سجلات الدفعة'
+              };
+              break;
+            }
+          }
+
+          if (confirmedMuts.length > 0) {
+            await idbRemoveMutationsBatch(confirmedMuts.map((m) => m.id));
+            sentCount += confirmedMuts.length;
+            recordPushSuccessNow();
+            for (const m of confirmedMuts) callbacks?.onMutationSuccess?.(m);
+          }
+
+          console.info(
+            `[StGeorge Sync Telemetry] Batch chunk (${confirmedMuts.length}/${batchSlice.length}) committed | network=${netMs}ms | server=${resultJson.serverDurationMs ?? '-'}ms`
+          );
+
+          if (conflictHit) {
+            lastErrorMsg = conflictHit.msg;
+            await idbMarkMutationConflict(conflictHit.mut.id, conflictHit.msg);
+            onNotify?.('تعارض في التعديل', `العملية (${conflictHit.mut.action}) تحتاج مراجعة أمين الخدمة: ${conflictHit.msg}`, 'danger');
+            callbacks?.onMutationError?.(conflictHit.mut, conflictHit.msg);
+            break;
+          }
+
+          if (failedHit) {
+            lastErrorMsg = failedHit.msg;
+            const nextRetry = (failedHit.mut.retryCount || 0) + 1;
+            await idbUpdateMutationError(failedHit.mut.id, failedHit.msg, 'failed', {
+              nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+              lastDurationMs: Date.now() - chunkStartMs,
+              stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - chunkStartMs, mode: 'batch', batchSize: batchSlice.length }
+            });
+            callbacks?.onMutationError?.(failedHit.mut, failedHit.msg);
+            break;
+          }
+
+          cursor += batchSlice.length;
+          continue;
+        }
+      } catch (batchNetErr: any) {
+        const netMs = Date.now() - chunkStartMs;
+        stageTotals.networkMs += netMs;
+
+        if (isAbortOrTimeoutError(batchNetErr)) {
+          // Critical: Server may have executed before response returned. Verify idempotency keys FIRST!
+          const initialTimeoutUpdates = batchSlice.map((m) => ({
+            id: m.id,
+            errorMessage: 'انتهت مهلة الاتصال بالخادم (Timeout) — جاري التحقق من تنفيذ الدفعة على الخادم قبل أي إعادة إرسال',
+            status: 'timeout_unknown' as const,
+            meta: {
+              incrementRetry: true,
+              lastDurationMs: netMs,
+              stageTimingsMs: { networkMs: netMs, totalMs: netMs, mode: 'batch' as const, batchSize: batchSlice.length }
+            }
+          }));
+          await idbUpdateMutationsBatchState(initialTimeoutUpdates);
+
+          const verification = await verifyMutationsAfterTimeout(batchSlice, appsScriptUrl, user, verifyTimeoutMs);
+          stageTotals.verifyMs += verification.verifyDurationMs;
+
+          if (verification.verifiedIds.length > 0) {
+            const verifiedIdSet = new Set(verification.verifiedIds);
+            await idbRemoveMutationsBatch(verification.verifiedIds);
+            sentCount += verification.verifiedIds.length;
+            verifiedPostTimeoutCount += verification.verifiedIds.length;
+            recordPushSuccessNow();
+            for (const m of batchSlice) {
+              if (verifiedIdSet.has(m.id)) callbacks?.onMutationSuccess?.(m);
+            }
+            console.info(
+              `[StGeorge Sync Telemetry] Post-timeout verification confirmed ${verification.verifiedIds.length}/${batchSlice.length} batch mutations already persisted (verify=${verification.verifyDurationMs}ms)`
+            );
+          }
+
+          if (verification.unconfirmedMutations.length > 0) {
+            const unknownMsg =
+              'انتهت مهلة الاتصال بالخادم (Timeout): تم حفظ العمليات محلياً بنفس معرفاتها الثابتة وستُعاد المحاولة تلقائياً بعد التحقق لتجنب التكرار.';
+            lastErrorMsg = unknownMsg;
+            await idbUpdateMutationsBatchState(
+              verification.unconfirmedMutations.map((m) => {
+                const retryNum = (m.retryCount || 0) + 1;
+                return {
+                  id: m.id,
+                  errorMessage: unknownMsg,
+                  status: 'timeout_unknown' as const,
+                  meta: {
+                    incrementRetry: false,
+                    nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(retryNum),
+                    lastDurationMs: Date.now() - chunkStartMs,
+                    stageTimingsMs: {
+                      networkMs: netMs,
+                      verifyMs: verification.verifyDurationMs,
+                      totalMs: Date.now() - chunkStartMs,
+                      mode: 'batch' as const,
+                      batchSize: batchSlice.length
+                    }
+                  }
+                };
+              })
+            );
+            for (const um of verification.unconfirmedMutations) {
+              callbacks?.onMutationError?.(um, unknownMsg);
+            }
+            break;
+          }
+
+          // All items in chunk were verified as committed! Advance cursor without re-executing!
+          usedBatch = true;
+          cursor += batchSlice.length;
+          continue;
+        }
+
+        const errMsg = `تعذر الاتصال بالشبكة لإرسال الدفعة: ${batchNetErr?.message || 'انقطع الاتصال'}`;
+        lastErrorMsg = errMsg;
+        await idbUpdateMutationsBatchState(
+          batchSlice.map((m) => {
+            const nextRetry = (m.retryCount || 0) + 1;
+            return {
+              id: m.id,
+              errorMessage: errMsg,
+              status: 'failed' as const,
+              meta: {
+                nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+                lastDurationMs: Date.now() - chunkStartMs,
+                stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - chunkStartMs, mode: 'batch', batchSize: batchSlice.length }
+              }
+            };
+          })
+        );
+        for (const m of batchSlice) callbacks?.onMutationError?.(m, errMsg);
+        break;
+      }
+
+      if (!fallbackToSingle) {
+        continue;
+      }
+    }
+
+    // Single-mutation path (for single items, non-attendance ops, or automatic fallback from older Apps Script)
+    const mutation = pending[cursor];
+    const singleStartMs = Date.now();
+    usedSingle = true;
     callbacks?.onMutationStart?.(mutation);
     try {
+      const netStart = Date.now();
       let response: Response;
       if (appsScriptUrl) {
         const relayKey = getEffectiveRelayKey();
-        const payloadDate = String(mutation.payload?.friday || mutation.payload?.date || '').trim();
-        const payloadPresent = mutation.payload?.isPresent ?? mutation.payload?.present ?? false;
-        const followupStatus = mutation.payload?.status || mutation.payload?.method || mutation.payload?.type;
-        const fields = mutation.payload?.fields || {
-          name: mutation.studentName || '',
-          servant: mutation.payload?.servant || '',
-          code: mutation.studentCode || mutation.payload?.code || '',
-          phoneStudent: mutation.payload?.phoneStudent || '',
-          phoneParent1: mutation.payload?.phoneParent1 || '',
-          phoneParent2: mutation.payload?.phoneParent2 || '',
-          birthDate: mutation.payload?.birthDate || '',
-          area: mutation.payload?.area || '',
-          address: mutation.payload?.address || '',
-          notes: mutation.payload?.notes || '',
-          status: followupStatus || 'بدون',
-          ...(typeof mutation.payload === 'object' && mutation.payload !== null ? mutation.payload : {})
-        };
-
-        const appsScriptBody = {
-          // Legacy Google Apps Script contract (deployed web app)
-          sheet: mutation.sourceSheet || 'نشط',
-          sourceSheet: mutation.sourceSheet || 'نشط',
-          name: mutation.studentName || '',
-          studentName: mutation.studentName || '',
-          studentId: mutation.studentId || '',
-          studentCode: mutation.studentCode || '',
-          action: mutation.action,
-          date: payloadDate,
-          friday: payloadDate,
-          present: payloadPresent,
-          isPresent: payloadPresent,
-          token: relayKey,
-          relayKey,
-          idempotencyKey: mutation.id,
-          id: mutation.id,
-          expectedVersion: mutation.expectedVersion || 1,
-          payload: mutation.payload || {},
-          type: followupStatus,
-          status: followupStatus,
-          followupStatus: followupStatus,
-          notes: mutation.payload?.notes || '',
-          fields: fields,
-          // Modern Code.gs envelope
-          mutation: {
-            ...mutation,
-            id: mutation.id,
-            sourceSheet: mutation.sourceSheet || 'نشط',
-            studentName: mutation.studentName || '',
-            payload: {
-              ...(mutation.payload || {}),
-              status: followupStatus,
-              method: followupStatus,
-              fields: fields
-            }
-          }
-        };
-
+        const appsScriptBody = buildAppsScriptSinglePayload(mutation, relayKey);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), singleTimeoutMs);
         try {
           response = await fetch(appsScriptUrl, {
             method: 'POST',
@@ -432,7 +1166,7 @@ async function runProcessOfflineQueueSerial(
         };
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), singleTimeoutMs);
         try {
           response = await fetch(mutateUrl, {
             method: 'POST',
@@ -444,48 +1178,54 @@ async function runProcessOfflineQueueSerial(
           clearTimeout(timeoutId);
         }
       }
+      const netMs = Date.now() - netStart;
+      stageTotals.networkMs += netMs;
 
       if (response.status === 409) {
-        // Version Conflict: Zero data loss - mark conflict and STOP loop to preserve FIFO dependencies
         const result = await response.json().catch(() => null);
         const conflictMsg = result?.error || 'تعارض في التعديل المتزامن (HTTP 409)';
+        lastErrorMsg = conflictMsg;
         await idbMarkMutationConflict(mutation.id, conflictMsg);
         onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة أمين الخدمة: ${conflictMsg}`, 'danger');
         callbacks?.onMutationError?.(mutation, conflictMsg);
-        break; // Crucial: Do NOT skip past a conflict to send dependent operations!
+        break;
       }
 
       if (response.ok) {
         const result = await response.json().catch(() => null);
         if (result && result.status === 409) {
           const conflictMsg = result?.error || 'تعارض في التعديل المتزامن (409)';
+          lastErrorMsg = conflictMsg;
           await idbMarkMutationConflict(mutation.id, conflictMsg);
           onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة: ${conflictMsg}`, 'danger');
           callbacks?.onMutationError?.(mutation, conflictMsg);
           break;
         }
         if (result && result.ok) {
-          // ONLY remove from IndexedDB after verified server success confirmation
           await idbRemoveMutation(mutation.id);
           sentCount++;
+          if (result.deduplicated) deduplicatedCount++;
+          if (typeof result.serverDurationMs === 'number') {
+            stageTotals.serverMs += result.serverDurationMs;
+          }
 
-          // Update push timestamp IMMEDIATELY upon any verified confirmation
-          // Guarantees push state updates even if subsequent operations fail
-          const nowIso = new Date().toISOString();
-          try {
-            localStorage.setItem('stgorge_last_successful_push_iso', nowIso);
-          } catch {}
-          onRecordPushTime?.(nowIso);
+          recordPushSuccessNow();
           callbacks?.onMutationSuccess?.(mutation);
+          cursor++;
         } else {
           const errMsg = result?.error || 'رفض Google Sheets العملية';
+          lastErrorMsg = errMsg;
           console.warn(`Server rejected mutation ${mutation.id}:`, errMsg);
-          await idbUpdateMutationError(mutation.id, errMsg, 'failed');
+          const nextRetry = (mutation.retryCount || 0) + 1;
+          await idbUpdateMutationError(mutation.id, errMsg, 'failed', {
+            nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+            lastDurationMs: Date.now() - singleStartMs,
+            stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - singleStartMs, mode: 'single' }
+          });
           callbacks?.onMutationError?.(mutation, errMsg);
-          break; // Stop loop on rejection
+          break;
         }
       } else {
-        // Non-200 HTTP status (401, 500, 502, 503): retain in queue and STOP loop
         let errDetail = `استجاب الخادم برمز خطأ (HTTP ${response.status})`;
         if (response.status === 401) {
           errDetail = 'يتطلب إرسال التعديلات للشيت تفعيل رابط Google Apps Script في إعدادات المنظومة أو تسجيل دخول موثق';
@@ -494,38 +1234,137 @@ async function runProcessOfflineQueueSerial(
         } else if (response.status >= 500) {
           errDetail = `الخادم غير متاح مؤقتاً (HTTP ${response.status})، سيُعاد الإرسال تلقائياً`;
         }
+        lastErrorMsg = errDetail;
         console.warn(`Failed to sync mutation ${mutation.id}, HTTP status: ${response.status}`);
-        await idbUpdateMutationError(mutation.id, errDetail, 'failed');
+        const nextRetry = (mutation.retryCount || 0) + 1;
+        await idbUpdateMutationError(mutation.id, errDetail, 'failed', {
+          nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+          lastDurationMs: Date.now() - singleStartMs,
+          stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - singleStartMs, mode: 'single' }
+        });
         callbacks?.onMutationError?.(mutation, errDetail);
         break;
       }
     } catch (networkError: any) {
-      // Network timeout / connection dropped: preserve in queue and STOP loop
-      const errMsg = networkError?.name === 'AbortError'
-        ? 'انتهت مهلة الاتصال بالخادم (Timeout)، تم حفظ العملية محلياً بأمان وستتم إعادة الإرسال تلقائياً.'
-        : `تعذر الاتصال بالشبكة لإرسال العملية: ${networkError?.message || 'انقطع الاتصال'}`;
+      const netMs = Date.now() - singleStartMs;
+      stageTotals.networkMs += netMs;
+
+      if (isAbortOrTimeoutError(networkError)) {
+        // Post-timeout check BEFORE leaving as unconfirmed/retryable
+        await idbUpdateMutationError(
+          mutation.id,
+          'انتهت مهلة الاتصال بالخادم (Timeout) — جاري التحقق من نتيجة العملية على الخادم لتجنب التكرار',
+          'timeout_unknown',
+          {
+            incrementRetry: true,
+            lastDurationMs: netMs,
+            stageTimingsMs: { networkMs: netMs, totalMs: netMs, mode: 'single' }
+          }
+        );
+
+        const verification = await verifyMutationsAfterTimeout([mutation], appsScriptUrl, user, verifyTimeoutMs);
+        stageTotals.verifyMs += verification.verifyDurationMs;
+
+        if (verification.verifiedIds.includes(mutation.id)) {
+          await idbRemoveMutation(mutation.id);
+          sentCount++;
+          verifiedPostTimeoutCount++;
+          recordPushSuccessNow();
+          callbacks?.onMutationSuccess?.(mutation);
+          cursor++;
+          continue;
+        }
+
+        const unknownErrMsg =
+          'انتهت مهلة الاتصال بالخادم (Timeout): النتيجة غير مؤكدة بعد، تم حفظ العملية محلياً بنفس معرفها الثابت وستتم إعادة المحاولة تلقائياً بأمان.';
+        lastErrorMsg = unknownErrMsg;
+        const retryNum = (mutation.retryCount || 0) + 1;
+        await idbUpdateMutationError(mutation.id, unknownErrMsg, 'timeout_unknown', {
+          incrementRetry: false,
+          nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(retryNum),
+          lastDurationMs: Date.now() - singleStartMs,
+          stageTimingsMs: {
+            networkMs: netMs,
+            verifyMs: verification.verifyDurationMs,
+            totalMs: Date.now() - singleStartMs,
+            mode: 'single'
+          }
+        });
+        callbacks?.onMutationError?.(mutation, unknownErrMsg);
+        break;
+      }
+
+      const errMsg = `تعذر الاتصال بالشبكة لإرسال العملية: ${networkError?.message || 'انقطع الاتصال'}`;
+      lastErrorMsg = errMsg;
       console.warn(`Network failure syncing mutation ${mutation.id}:`, networkError);
-      await idbUpdateMutationError(mutation.id, errMsg, 'failed');
+      const nextRetry = (mutation.retryCount || 0) + 1;
+      await idbUpdateMutationError(mutation.id, errMsg, 'failed', {
+        nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+        lastDurationMs: Date.now() - singleStartMs,
+        stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - singleStartMs, mode: 'single' }
+      });
       callbacks?.onMutationError?.(mutation, errMsg);
       break;
     }
   }
 
   const remaining = await idbGetPendingMutations();
+  const unknownResultCount = remaining.filter((m) => m.status === 'timeout_unknown').length;
+  const failedCount = remaining.filter((m) => m.status === 'failed').length;
+  const conflictCount = remaining.filter((m) => m.status === 'conflict').length;
+  const mode: 'batch' | 'single' | 'mixed' = usedBatch && usedSingle ? 'mixed' : usedBatch ? 'batch' : 'single';
+  const totalDurationMs = Date.now() - runStartMs;
+
+  const outcome: SyncOutcomeStatus =
+    remaining.length === 0
+      ? 'success'
+      : conflictCount > 0
+      ? 'conflict'
+      : unknownResultCount > 0
+      ? 'timeout_unknown'
+      : failedCount > 0
+      ? 'failed'
+      : 'pending';
 
   if (sentCount > 0 && remaining.length === 0) {
     if (!callbacks?.silent) {
       onNotify?.('اكتمل إرسال العمليات', `تم تأكيد إرسال ${sentCount} عملية بنجاح للشيت`, 'success');
     }
-    return { success: true, sentCount, remainingCount: 0 };
-  } else if (sentCount > 0) {
-    if (!callbacks?.silent) {
-      onNotify?.('مزامنة جزئية', `تم إرسال ${sentCount} عملية بنجاح، ومتبقي ${remaining.length} عملية بالطابور`, 'warn');
-    }
-    return { success: false, sentCount, remainingCount: remaining.length };
-  } else {
-    return { success: false, sentCount: 0, remainingCount: remaining.length };
+    return {
+      success: true,
+      outcome: 'success',
+      sentCount,
+      deduplicatedCount,
+      verifiedPostTimeoutCount,
+      remainingCount: 0,
+      unknownResultCount: 0,
+      failedCount: 0,
+      conflictCount: 0,
+      mode,
+      totalDurationMs,
+      stageSummary: { ...stageTotals }
+    };
   }
+
+  if (sentCount > 0 && !callbacks?.silent) {
+    onNotify?.('مزامنة جزئية', `تم إرسال ${sentCount} عملية بنجاح، ومتبقي ${remaining.length} عملية بالطابور`, 'warn');
+  }
+
+  return {
+    success: false,
+    outcome,
+    sentCount,
+    deduplicatedCount,
+    verifiedPostTimeoutCount,
+    remainingCount: remaining.length,
+    unknownResultCount,
+    failedCount,
+    conflictCount,
+    mode,
+    totalDurationMs,
+    stageSummary: { ...stageTotals },
+    lastError: lastErrorMsg
+  };
 }
 
 export async function executeSyncData(
@@ -882,9 +1721,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [syncedStudentIds, setSyncedStudentIds] = useState<string[]>([]);
   const [pendingStudentIds, setPendingStudentIds] = useState<string[]>([]);
   const [isQueueProcessing, setIsQueueProcessing] = useState<boolean>(false);
+  const [lastSyncReport, setLastSyncReport] = useState<SyncQueueExecutionReport | null>(null);
   const queueLockRef = useRef<boolean>(false);
   const queueNeedsRerunRef = useRef<boolean>(false);
-  const triggerAutoProcessQueueRef = useRef<((isImmediateUserAction?: boolean) => Promise<void>) | null>(null);
+  const backoffRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerAutoProcessQueueRef = useRef<((isImmediateUserAction?: boolean) => Promise<SyncQueueExecutionReport | void>) | null>(null);
 
   const refreshPendingState = useCallback(async () => {
     try {
@@ -916,6 +1757,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearTimeout(toastTimerRef.current);
         toastTimerRef.current = null;
       }
+      if (backoffRetryTimerRef.current) {
+        clearTimeout(backoffRetryTimerRef.current);
+        backoffRetryTimerRef.current = null;
+      }
       syncedTimersRef.current.forEach((timer) => clearTimeout(timer));
       syncedTimersRef.current.clear();
     };
@@ -943,6 +1788,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAreaModalOpen, setIsAreaModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isAppearanceModalOpen, setIsAppearanceModalOpen] = useState(false);
+  const [isPdfImportModalOpen, setIsPdfImportModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpenState] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
@@ -1047,17 +1893,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             const merged = cachedStudents.map((st) => {
               const localHist = histByStudent.get(st.id);
-              if (!localHist) return st;
+              if (!localHist) return normalizeStudentRecord(st);
               const nextAtt = { ...localHist, ...(st.att || {}) };
-              return {
+              return normalizeStudentRecord({
                 ...st,
                 att: nextAtt,
                 attendanceMonth: computeMonthlyAttendanceSummary(nextAtt).presentCount
-              };
+              });
             });
             setStudents(merged);
           } else {
-            setStudents(cachedStudents);
+            setStudents(cachedStudents.map((st) => normalizeStudentRecord(st)));
           }
         }
         const cachedFollowup = await idbGetFollowupRecords();
@@ -1074,7 +1920,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (mounted && onlineNow) {
           setIsSyncing(true);
           setLastSyncAttemptTime(new Date().toISOString());
-          const targetOnBoot: SheetName = cachedStudents.length === 0 ? '__ALL__' : 'نشط';
+          const hasActiveCached = cachedStudents.some((s) => s.sourceSheet === 'نشط');
+          const targetOnBoot: SheetName = hasActiveCached ? 'نشط' : '__ALL__';
           const ok = await executeSyncData(
             targetOnBoot,
             user,
@@ -1082,7 +1929,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             syncInProgressLock,
             undefined,
             (fresh) => {
-              if (mounted) setStudents(fresh);
+              if (mounted) setStudents(fresh.map((s) => normalizeStudentRecord(s)));
             },
             (nowIso) => {
               if (mounted) {
@@ -1260,10 +2107,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return filterStudentsByAppFilters(students, filters);
   }, [students, filters]);
 
-  // 1. Automatic Real-Time Queue Processor with Mutex & FIFO Guarantee
+  // 1. Automatic Real-Time Queue Processor with Mutex, Batch Chunking & Exponential Backoff Scheduler
   const triggerAutoProcessQueue = useCallback(
-    async (isImmediateUserAction: boolean = false): Promise<void> => {
-      // If browser is explicitly offline
+    async (isImmediateUserAction: boolean = false): Promise<SyncQueueExecutionReport | void> => {
+      if (backoffRetryTimerRef.current) {
+        clearTimeout(backoffRetryTimerRef.current);
+        backoffRetryTimerRef.current = null;
+      }
+
       if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
         setIsOnline(false);
         await refreshPendingState();
@@ -1277,7 +2128,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      // Mutex locking: prevent concurrent queue runs while maintaining FIFO
       if (queueLockRef.current) {
         queueNeedsRerunRef.current = true;
         return;
@@ -1285,6 +2135,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       queueLockRef.current = true;
       setIsQueueProcessing(true);
+      let latestReport: SyncQueueExecutionReport | undefined;
 
       try {
         do {
@@ -1292,7 +2143,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const pending = await refreshPendingState();
           if (pending.length === 0) break;
 
-          await executeProcessOfflineQueue(
+          latestReport = await executeProcessOfflineQueue(
             user,
             isPreviewMode,
             addNotification,
@@ -1323,7 +2174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (mut.studentId) {
                   setInFlightStudentIds((prev) => prev.filter((id) => id !== mut.studentId));
                 }
-                if (isImmediateUserAction) {
+                if (isImmediateUserAction && pending.length <= 2) {
                   addNotification(
                     'محفوظة في الانتظار',
                     `تعذر إرسال العملية للشيت حالياً (${err})، تم حفظها محلياً بأمان وستتم المزامنة تلقائياً.`,
@@ -1334,8 +2185,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           );
 
+          setLastSyncReport(latestReport);
+          if (latestReport.success) {
+            setLastSyncError(null);
+          } else if (latestReport.lastError) {
+            setLastSyncError(latestReport.lastError);
+          }
+
           await refreshPendingState();
         } while (queueNeedsRerunRef.current);
+
+        // Schedule Exponential Backoff auto-retry when retryable items remain
+        const remainingAfterRun = await idbGetPendingMutations().catch(() => []);
+        const retryable = remainingAfterRun.filter((m) => m.status !== 'conflict');
+        if (retryable.length > 0 && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+          const earliestRetryAt = retryable.reduce((minTs, m) => {
+            const candidate = m.nextRetryAt || Date.now() + 4000;
+            return candidate < minTs ? candidate : minTs;
+          }, Number.MAX_SAFE_INTEGER);
+          const delayMs = Math.max(2000, Math.min(60000, earliestRetryAt - Date.now()));
+          backoffRetryTimerRef.current = setTimeout(() => {
+            backoffRetryTimerRef.current = null;
+            void triggerAutoProcessQueueRef.current?.(false);
+          }, delayMs);
+        }
       } catch (err) {
         console.warn('Auto queue execution error:', err);
       } finally {
@@ -1344,17 +2217,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setInFlightStudentIds([]);
         await refreshPendingState();
       }
+      return latestReport;
     },
     [user, isPreviewMode, addNotification, refreshPendingState]
   );
   triggerAutoProcessQueueRef.current = triggerAutoProcessQueue;
 
   // Manual trigger from Modals / UI
-  const processOfflineQueue = useCallback(async (): Promise<{
-    success: boolean;
-    sentCount: number;
-    remainingCount: number;
-  }> => {
+  const processOfflineQueue = useCallback(async (): Promise<SyncQueueExecutionReport> => {
     setIsQueueProcessing(true);
     try {
       const res = await executeProcessOfflineQueue(
@@ -1365,6 +2235,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setLastSuccessfulPushTime(pushIso);
         }
       );
+      setLastSyncReport(res);
+      if (res.success) {
+        setLastSyncError(null);
+      } else if (res.lastError) {
+        setLastSyncError(res.lastError);
+      }
       await refreshPendingState();
       return res;
     } finally {
@@ -1395,7 +2271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addNotification,
       (fresh) => {
         if (!hasUnsavedEditChangesRef.current) {
-          setStudents(fresh);
+          setStudents(fresh.map((s) => normalizeStudentRecord(s)));
         }
       },
       (nowIso) => {
@@ -1525,9 +2401,149 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [students, isPreviewMode, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
   );
 
+  // 3b. Batch Attendance Import (Multi-Date PDF Sheet): Atomic single-transaction write + OCC-chained chunked queue
+  const importAttendanceBatch = useCallback(
+    async (
+      entries: BatchAttendanceEntryInput[]
+    ): Promise<{
+      success: boolean;
+      appliedCount: number;
+      skippedDuplicateCount: number;
+      blockedCount: number;
+      futureBlockedCount: number;
+      queuedCount: number;
+      syncReport?: SyncQueueExecutionReport;
+      error?: string;
+    }> => {
+      // Guard against duplicate queue submissions for identical (studentId, fridayDate, isPresent) already queued
+      const existingPending = await idbGetPendingMutations().catch(() => [] as OfflineMutation[]);
+      const alreadyQueuedAttendanceSet = new Set(
+        existingPending
+          .filter((m) => m.action === 'attendance')
+          .map((m) => `${m.studentId}__${String(m.payload?.friday || m.payload?.date || '')}__${Boolean(m.payload?.isPresent ?? m.payload?.present)}`)
+      );
+      const nonQueuedEntries = entries.filter(
+        (e) => !alreadyQueuedAttendanceSet.has(`${e.studentId}__${e.fridayDate}__${Boolean(e.isPresent)}`)
+      );
+      const extraQueuedSkipped = entries.length - nonQueuedEntries.length;
+
+      const plan = prepareBatchAttendanceMutations(nonQueuedEntries, students, canPerformAction);
+
+      if (plan.appliedCount === 0) {
+        if (plan.blockedCount > 0 && plan.skippedDuplicateCount === 0) {
+          addNotification(
+            'غير مصرح',
+            'لا يملك الحساب الحالي صلاحية تعديل حضور هؤلاء المخدومين.',
+            'warn'
+          );
+          return {
+            success: false,
+            appliedCount: 0,
+            skippedDuplicateCount: plan.skippedDuplicateCount + extraQueuedSkipped,
+            blockedCount: plan.blockedCount,
+            futureBlockedCount: plan.futureBlockedCount,
+            queuedCount: 0,
+            error: 'غير مصرح بتعديل سجلات هؤلاء المخدومين'
+          };
+        }
+        return {
+          success: true,
+          appliedCount: 0,
+          skippedDuplicateCount: plan.skippedDuplicateCount + extraQueuedSkipped,
+          blockedCount: plan.blockedCount,
+          futureBlockedCount: plan.futureBlockedCount,
+          queuedCount: 0
+        };
+      }
+
+      const priorStudents = students;
+      try {
+        await idbAtomicBatchRecordAttendanceWithMutations(
+          plan.updatedStudents,
+          plan.historyRecords,
+          plan.mutations
+        );
+
+        const updatedMap = new Map(plan.updatedStudents.map((s) => [s.id, s]));
+        setStudents((prev) => prev.map((s) => updatedMap.get(s.id) || s));
+
+        await refreshPendingState();
+
+        const onlineNow = typeof navigator === 'undefined' || navigator.onLine !== false;
+        let syncReport: SyncQueueExecutionReport | undefined;
+        if (!onlineNow) {
+          addNotification(
+            'تم الحفظ محلياً في انتظار الشبكة',
+            `تم حفظ ${plan.appliedCount} سجل حضور محلياً في IndexedDB، وستتم مزامنتها تلقائياً مع Google Sheets عند عودة الاتصال.`,
+            'info'
+          );
+        } else {
+          const maybeReport = await triggerAutoProcessQueue(true);
+          if (maybeReport) {
+            syncReport = maybeReport;
+          }
+          if (!syncReport) {
+            addNotification(
+              'تم الحفظ محلياً وجاري المزامنة',
+              `تم حفظ ${plan.appliedCount} سجل حضور وإدراجها في طابور المزامنة مع Google Sheets.`,
+              'info'
+            );
+          } else if (syncReport.success) {
+            addNotification(
+              'تم تأكيد استيراد ومزامنة الحضور',
+              `تم إرسال وتأكيد كتابة ${syncReport.sentCount} سجل في الشيت خلال ${(syncReport.totalDurationMs / 1000).toFixed(1)} ث.`,
+              'success'
+            );
+          } else if (syncReport.outcome === 'timeout_unknown') {
+            addNotification(
+              'انتهت المهلة — محفوظ بأمان',
+              syncReport.lastError || `متبقي ${syncReport.remainingCount} سجل بحالة نتيجة غير مؤكدة وسيتم التحقق وإعادة الإرسال تلقائياً.`,
+              'warn'
+            );
+          } else {
+            addNotification(
+              'تم الحفظ محلياً مع تعثر المزامنة',
+              syncReport.lastError || `متبقي ${syncReport.remainingCount} سجل بالطابور لإعادة الإرسال تلقائياً.`,
+              'warn'
+            );
+          }
+        }
+
+        return {
+          success: true,
+          appliedCount: plan.appliedCount,
+          skippedDuplicateCount: plan.skippedDuplicateCount + extraQueuedSkipped,
+          blockedCount: plan.blockedCount,
+          futureBlockedCount: plan.futureBlockedCount,
+          queuedCount: plan.mutations.length,
+          syncReport
+        };
+      } catch (err: any) {
+        setStudents(priorStudents);
+        const msg = err?.message || 'تعذر حفظ دفعة الحضور المستوردة في IndexedDB';
+        addNotification('فشل حفظ استيراد الحضور', msg, 'danger');
+        return {
+          success: false,
+          appliedCount: 0,
+          skippedDuplicateCount: plan.skippedDuplicateCount + extraQueuedSkipped,
+          blockedCount: plan.blockedCount,
+          futureBlockedCount: plan.futureBlockedCount,
+          queuedCount: 0,
+          error: msg
+        };
+      }
+    },
+    [students, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
+  );
+
   // 4. Record Followup: Atomic multi-store transaction (Students + Followup + Mutations)
   const recordFollowup = useCallback(
-    async (studentId: string, method: string, notes?: string): Promise<boolean> => {
+    async (
+      studentId: string,
+      method: string,
+      notes?: string,
+      options?: { callOutcome?: CallOutcome }
+    ): Promise<boolean> => {
       const student = students.find((s) => s.id === studentId);
       if (!student) return false;
 
@@ -1543,11 +2559,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const safeStudentId = toSafeHeaderAscii(studentId);
       const idempotencyKey = `FU_${safeStudentId}_${opId}`;
       const cleanNotes = (notes || '').trim();
+      const isPhoneFollowup = method === 'تم تليفونياً' || method === 'اتصال تليفوني' || method === 'اتصال هاتفي';
+      const validOutcome: CallOutcome | undefined =
+        isPhoneFollowup && (options?.callOutcome === 'تم التواصل' || options?.callOutcome === 'لم يتم التواصل')
+          ? options.callOutcome
+          : undefined;
 
       const updatedStudent: Student = {
         ...student,
         followupStatus: method,
         fu: { ...student.fu, [friday]: method },
+        ...(validOutcome
+          ? {
+              fuOutcomes: { ...(student.fuOutcomes || {}), [friday]: validOutcome },
+              lastCallOutcome: validOutcome
+            }
+          : {}),
         ...(cleanNotes ? { notes: cleanNotes } : {}),
         version: (student.version || 1) + 1
       };
@@ -1561,6 +2588,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         studentName: student.name,
         servant: student.servant,
         type: method,
+        ...(validOutcome ? { callOutcome: validOutcome } : {}),
         notes: cleanNotes || `افتقاد عبر ${method}`
       };
 
@@ -1571,7 +2599,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         studentCode: student.code,
         studentName: student.name,
         sourceSheet: student.sourceSheet,
-        payload: { friday, method, recordId, ...(cleanNotes ? { notes: cleanNotes } : {}) },
+        payload: {
+          friday,
+          method,
+          recordId,
+          ...(validOutcome ? { callOutcome: validOutcome } : {}),
+          ...(cleanNotes ? { notes: cleanNotes } : {})
+        },
         expectedVersion: student.version,
         timestamp: Date.now(),
         retryCount: 0,
@@ -1587,7 +2621,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
         setFollowupRecords((prev) => [newRecord, ...prev]);
         await refreshPendingState();
-        addNotification('تم تسجيل الافتقاد', `${student.name}: ${method}`, 'success');
+        addNotification(
+          'تم تسجيل الافتقاد',
+          validOutcome ? `${student.name}: ${method} (${validOutcome})` : `${student.name}: ${method}`,
+          'success'
+        );
         void triggerAutoProcessQueue(true);
         return true;
       } catch (err: any) {
@@ -1778,6 +2816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSyncing,
         isOnline,
         lastSyncError,
+        lastSyncReport,
         syncState,
         lastSyncAttemptTime,
         lastSuccessfulPushTime,
@@ -1800,6 +2839,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAreaModalOpen,
         isAboutModalOpen,
         isAppearanceModalOpen,
+        isPdfImportModalOpen,
         isAddModalOpen,
         isSyncModalOpen,
         isQueueModalOpen,
@@ -1817,11 +2857,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAreaModalOpen,
         setIsAboutModalOpen,
         setIsAppearanceModalOpen,
+        setIsPdfImportModalOpen,
         setIsAddModalOpen,
         setIsSyncModalOpen,
         setIsQueueModalOpen,
         syncData,
         markAttendance,
+        importAttendanceBatch,
         recordFollowup,
         updateStudent,
         addNewStudent,

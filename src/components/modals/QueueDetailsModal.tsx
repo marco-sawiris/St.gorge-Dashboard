@@ -136,19 +136,31 @@ export const QueueDetailsModal: React.FC = () => {
   const getStatusBadge = (mutation: OfflineMutation) => {
     if (mutation.status === 'conflict') {
       return {
-        label: 'تعارض في الإصدار',
-        badgeClass: 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+        label: 'تعارض في الإصدار (Conflict)',
+        badgeClass: 'bg-rose-500/20 text-rose-500 dark:text-rose-400 border-rose-500/40'
+      };
+    }
+    if (mutation.status === 'timeout_unknown') {
+      return {
+        label: 'نتيجة غير مؤكدة — Timeout (Unknown Result)',
+        badgeClass: 'bg-amber-500/20 text-[var(--warning-text)] border-amber-500/45'
       };
     }
     if (mutation.status === 'failed') {
       return {
-        label: 'تعذر الإرسال',
-        badgeClass: 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+        label: 'تعذر الإرسال (Failed)',
+        badgeClass: 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border-rose-500/35'
+      };
+    }
+    if (mutation.status === 'retrying') {
+      return {
+        label: 'إعادة محاولة مجدولة (Pending)',
+        badgeClass: 'bg-blue-500/15 text-blue-500 dark:text-blue-400 border-blue-500/30'
       };
     }
     return {
-      label: 'قيد الانتظار',
-      badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+      label: 'قيد الانتظار (Pending)',
+      badgeClass: 'bg-blue-500/15 text-blue-500 dark:text-blue-400 border-blue-500/30'
     };
   };
 
@@ -291,14 +303,48 @@ export const QueueDetailsModal: React.FC = () => {
                           {actionMeta.details}
                         </div>
                       )}
+
+                      {mutation.nextRetryAt && mutation.status !== 'conflict' && (
+                        <div className="sm:col-span-2 flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] pr-5">
+                          <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span>إعادة المحاولة التلقائية المجدولة:</span>
+                          <span className="font-mono font-bold text-[var(--text-primary)]">
+                            {formatTimestamp(mutation.nextRetryAt)}
+                          </span>
+                        </div>
+                      )}
+
+                      {mutation.stageTimingsMs && (
+                        <div className="sm:col-span-2 flex flex-wrap items-center gap-2 text-[10.5px] text-[var(--text-muted)] font-mono pr-5">
+                          <span>الوضع: {mutation.stageTimingsMs.mode === 'batch' ? `مجمع (${mutation.stageTimingsMs.batchSize || ''})` : 'فردي'}</span>
+                          {typeof mutation.stageTimingsMs.networkMs === 'number' && (
+                            <span>· الشبكة: {mutation.stageTimingsMs.networkMs}ms</span>
+                          )}
+                          {typeof mutation.stageTimingsMs.verifyMs === 'number' && (
+                            <span>· التحقق: {mutation.stageTimingsMs.verifyMs}ms</span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Error Box (if lastError exists) */}
                     {mutation.lastError && (
-                      <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-500 dark:text-rose-400 space-y-1">
+                      <div className={`p-3 rounded-xl border space-y-1 ${
+                        mutation.status === 'timeout_unknown'
+                          ? 'bg-amber-500/10 border-amber-500/30 text-[var(--warning-text)]'
+                          : 'bg-rose-500/10 border-rose-500/25 text-rose-500 dark:text-rose-400'
+                      }`}>
                         <div className="flex items-center gap-1.5 font-bold text-[11px]">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span>سبب تعثر الإرسال:</span>
+                          {mutation.status === 'timeout_unknown' ? (
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          )}
+                          <span>
+                            {mutation.status === 'timeout_unknown'
+                              ? 'حالة المهلة (يتم التحقق بالمعرف الثابت لمنع التكرار):'
+                              : 'سبب تعثر الإرسال:'}
+                          </span>
                         </div>
                         <p className="text-[11px] font-mono m-0 pr-5 leading-relaxed">
                           {mutation.lastError}

@@ -18,8 +18,8 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Bot,
-  ChevronLeft,
-  Palette
+  Palette,
+  FileUp
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -32,6 +32,7 @@ export const Sidebar: React.FC = () => {
     setActiveView,
     setIsAboutModalOpen,
     setIsAppearanceModalOpen,
+    setIsPdfImportModalOpen,
     setIsAreaModalOpen,
     setIsSyncModalOpen,
     setIsAssistantOpen,
@@ -46,7 +47,6 @@ export const Sidebar: React.FC = () => {
   const [dragOffsetX, setDragOffsetX] = useState(0);
   const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
   const touchStartRef = React.useRef<{ x: number; y: number } | null>(null);
-  const dragHandleStartRef = React.useRef<number | null>(null);
 
   // Re-trigger staggered wordIn item choreography every time mobile drawer opens
   useEffect(() => {
@@ -81,18 +81,6 @@ export const Sidebar: React.FC = () => {
       servant: prev.servant === servantName ? '' : servantName
     }));
     setIsSidebarOpen(false);
-  };
-
-  const handleDragHandlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    dragHandleStartRef.current = e.clientX;
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handleDragHandlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (dragHandleStartRef.current === null) return;
-    const dragDistance = dragHandleStartRef.current - e.clientX;
-    dragHandleStartRef.current = null;
-    if (dragDistance >= 18) setIsSidebarOpen(true);
   };
 
   const handleDrawerTouchStart = (e: React.TouchEvent) => {
@@ -159,23 +147,6 @@ export const Sidebar: React.FC = () => {
         }`}
       />
 
-      {!isSidebarOpen && (
-        <motion.button
-          type="button"
-          aria-label="فتح القائمة الجانبية بالسحب"
-          title="اسحب لفتح القائمة"
-          onClick={() => setIsSidebarOpen(true)}
-          onPointerDown={handleDragHandlePointerDown}
-          onPointerUp={handleDragHandlePointerUp}
-          onPointerCancel={() => { dragHandleStartRef.current = null; }}
-          whileTap={{ scale: 0.94, x: -3 }}
-          className="fixed right-1 top-1/2 -translate-y-1/2 z-[45] lg:hidden w-7 h-24 rounded-full border border-white/45 bg-white/15 backdrop-blur-xl shadow-[0_0_18px_rgba(255,255,255,0.18)] flex items-center justify-center text-white/85 cursor-grab active:cursor-grabbing touch-pan-y"
-          style={{ touchAction: "pan-y" }}
-        >
-          <ChevronLeft className="w-4 h-4 drop-shadow" />
-        </motion.button>
-      )}
-
       {/* Premium Animated Liquid Glass Sidebar + Original Spring Slide, Live Drag & Stagger */}
       <aside
         aria-label="القائمة الجانبية الرئيسية"
@@ -201,7 +172,8 @@ export const Sidebar: React.FC = () => {
 
         {/* Subtle Inner Light Rim Highlight */}
         <div
-          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.08] via-transparent to-black/[0.14]"
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'var(--sidebar-sheen)' }}
           aria-hidden="true"
         />
 
@@ -394,10 +366,24 @@ export const Sidebar: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setIsSidebarOpen(false);
+                  setIsPdfImportModalOpen(true);
+                }}
+                title="استيراد كشف PDF"
+                style={{ '--i': 8 } as React.CSSProperties}
+                className={navLinkClass(false)}
+              >
+                <FileUp className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>استيراد كشف PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSidebarOpen(false);
                   setIsAppearanceModalOpen(true);
                 }}
                 title="مظهر وسمة التطبيق"
-                style={{ '--i': 8 } as React.CSSProperties}
+                style={{ '--i': 9 } as React.CSSProperties}
                 className={navLinkClass(false)}
               >
                 <Palette className="w-4 h-4 shrink-0 text-[#20c7e8]" />
@@ -411,10 +397,10 @@ export const Sidebar: React.FC = () => {
                   setIsAboutModalOpen(true);
                 }}
                 title="عن التطبيق"
-                style={{ '--i': 9 } as React.CSSProperties}
+                style={{ '--i': 10 } as React.CSSProperties}
                 className={navLinkClass(false)}
               >
-                <Info className="w-4 h-4 shrink-0 text-[#8ecfff]" />
+                <Info className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
                 <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>عن التطبيق</span>
               </button>
             </nav>

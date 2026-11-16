@@ -1,5 +1,5 @@
 import { Student, APPROVED_SHEETS, ALL_SHEETS_SENTINEL } from '../types/student';
-import { FollowupRecord } from '../types/followup';
+import { FollowupRecord, CallOutcome } from '../types/followup';
 
 export const DEFAULT_SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
 
@@ -269,6 +269,7 @@ export function parseGoogleVisualizationFollowupLog(
   const nameIdx = findHeaderIndex(headers, ['الاسم', 'name']);
   const servantIdx = findHeaderIndex(headers, ['الأشبين', 'الاشبين', 'الخادم']);
   const typeIdx = findHeaderIndex(headers, ['النوع', 'نوع']);
+  const outcomeIdx = findHeaderIndex(headers, ['نتيجة الاتصال', 'نتيجه الاتصال', 'callOutcome', 'النتيجة']);
   const notesIdx = findHeaderIndex(headers, ['ملاحظات', 'ملا حظات']);
 
   const records: FollowupRecord[] = [];
@@ -285,6 +286,11 @@ export function parseGoogleVisualizationFollowupLog(
       (studentName ? studentsByCodeOrName?.get(studentName) : undefined);
     const servant = (servantIdx >= 0 ? normalizeCellValue(row[servantIdx]) : '') || linked?.servant || 'غير محدد';
     const typeVal = (typeIdx >= 0 ? normalizeCellValue(row[typeIdx]) : '') || 'بدون';
+    const rawOutcome = outcomeIdx >= 0 ? normalizeCellValue(row[outcomeIdx]) : '';
+    const callOutcome: CallOutcome | undefined =
+      rawOutcome === 'تم التواصل' || rawOutcome === 'لم يتم التواصل'
+        ? rawOutcome
+        : undefined;
     const notesVal = notesIdx >= 0 ? normalizeCellValue(row[notesIdx]) : '';
 
     // Skip rows that have neither date nor followup method (empty template rows)
@@ -299,6 +305,7 @@ export function parseGoogleVisualizationFollowupLog(
       studentName: studentName || linked?.name || '',
       servant,
       type: typeVal,
+      ...(callOutcome ? { callOutcome } : {}),
       notes: notesVal
     });
   }

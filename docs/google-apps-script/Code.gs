@@ -69,13 +69,15 @@ function doGet(e) {
   try {
     var action = (e && e.parameter && e.parameter.action) || 'health';
 
-    // Health check returns exact signature expected by both systems
+    // Health check returns exact signature expected by both systems plus batch/idempotency capability flags
     if (action === 'health' || !e || !e.parameter || !e.parameter.action) {
       return jsonResponse({
         ok: true,
         status: 'ok',
         msg: 'Apps Script شغال',
-        version: 'notes-v2',
+        version: 'notes-v3',
+        supportsBatch: true,
+        capabilities: ['attendance', 'followup', 'update', 'add', 'batch', 'checkIdempotency'],
         mode: 'google_apps_script_relay',
         timestamp: new Date().toISOString()
       });
@@ -138,6 +140,22 @@ function doGet(e) {
       });
     }
 
+    if (action === 'checkIdempotency') {
+      var queryKeysRaw = (e && e.parameter && (e.parameter.keys || e.parameter.key)) || '';
+      var queryKeys = String(queryKeysRaw)
+        .split(',')
+        .map(function (k) { return String(k || '').trim(); })
+        .filter(function (k) { return k.length > 0; });
+      var ssIdemp = getSpreadsheet();
+      var checkStartMs = Date.now();
+      return jsonResponse({
+        ok: true,
+        status: 200,
+        results: checkIdempotencyKeys(ssIdemp, queryKeys),
+        serverDurationMs: Date.now() - checkStartMs
+      });
+    }
+
     return jsonResponse({ ok: false, status: 400, error: 'action غير معروف' });
   } catch (err) {
     return jsonResponse({ ok: false, status: 500, error: String(err && err.message ? err.message : err) });
@@ -145,8 +163,9 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  var postStartMs = Date.now();
   var lock = LockService.getScriptLock();
-  lock.waitLock(15000);
+  lock.waitLock(25000);
   try {
     var rawContents = (e && e.postData && e.postData.contents) || '{}';
     var body = {};
@@ -163,7 +182,7 @@ function doPost(e) {
     }
 
     var mutation = body.mutation || body;
-    var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete'];
+    var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete', 'batch', 'checkidempotency'];
     var action = String(body.action || mutation.action || '').trim().toLowerCase();
     if (!action || allowedActions.indexOf(action) === -1) {
       return jsonResponse({ ok: false, status: 400, error: 'action غير معروف' });
@@ -171,6 +190,26 @@ function doPost(e) {
 
     if (action === 'delete') {
       return jsonResponse({ ok: false, status: 403, error: 'حذف المخدومين محظور نهائياً' });
+    }
+
+    if (action === 'checkidempotency') {
+      var checkKeys = Array.isArray(body.keys)
+        ? body.keys.map(function (k) { return String(k || '').trim(); }).filter(function (k) { return k.length > 0; })
+        : (body.key ? [String(body.key).trim()] : []);
+      var ssCheck = getSpreadsheet();
+      return jsonResponse({
+        ok: true,
+        status: 200,
+        action: 'checkIdempotency',
+        results: checkIdempotencyKeys(ssCheck, checkKeys),
+        serverDurationMs: Date.now() - postStartMs
+      });
+    }
+
+    if (action === 'batch') {
+      var batchItems = Array.isArray(body.mutations) ? body.mutations : [];
+      var batchRes = processBatchMutations(batchItems, postStartMs);
+      return jsonResponse(batchRes);
     }
 
     // Target Sheet resolution
@@ -439,7 +478,9 @@ function doPost(e) {
 
       // Pastoral log row
       var fuNotes = body.notes || (mutation.payload && mutation.payload.notes) || '';
-      appendFollowupLogRow(ss, targetSheetName, headers, values[rowIndex], todayStr, fuMethod, fuNotes, idempotencyKey);
+      var fuOutcomeRaw = String(body.callOutcome || (mutation.payload && mutation.payload.callOutcome) || '').trim();
+      var fuOutcome = (fuOutcomeRaw === 'تم التواصل' || fuOutcomeRaw === 'لم يتم التواصل') ? fuOutcomeRaw : '';
+      appendFollowupLogRow(ss, targetSheetName, headers, values[rowIndex], todayStr, fuMethod, fuNotes, idempotencyKey, fuOutcome);
 
       if (versionCol >= 0) {
         sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion);
@@ -452,6 +493,7 @@ function doPost(e) {
         lastFollowup: todayStr,
         fuDate: todayStr,
         fuStatus: fuMethod,
+        callOutcome: fuOutcome || undefined,
         mutationId: idempotencyKey,
         newVersion: nextVersion,
         action: 'followup'
@@ -545,6 +587,384 @@ function saveDurableIdempotencyResult(ss, key, response) {
   } catch (e) {}
 }
 
+function loadDurableIdempotencyMap(ss, keysNeeded) {
+  var map = {};
+  if (!keysNeeded || keysNeeded.length === 0) return map;
+  var neededSet = {};
+  for (var i = 0; i < keysNeeded.length; i++) {
+    neededSet[keysNeeded[i]] = true;
+  }
+  var ledger = getDurableIdempotencySheet(ss);
+  var lastRow = ledger.getLastRow();
+  if (lastRow < 2) return map;
+  var rows = ledger.getRange(2, 1, lastRow - 1, 2).getValues();
+  for (var r = 0; r < rows.length; r++) {
+    var k = String(rows[r][0] || '').trim();
+    if (k && neededSet[k]) {
+      try {
+        map[k] = JSON.parse(String(rows[r][1] || '{}'));
+      } catch (e) {
+        map[k] = { ok: true };
+      }
+    }
+  }
+  return map;
+}
+
+function checkIdempotencyKeys(ss, keys) {
+  var results = {};
+  if (!keys || keys.length === 0) return results;
+  var cache = CacheService.getScriptCache();
+  var cacheKeys = keys.map(function (k) { return 'IDEMP_' + k; });
+  var cachedEntries = {};
+  try {
+    cachedEntries = cache.getAll(cacheKeys) || {};
+  } catch (e) {}
+
+  var missingFromCache = [];
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var cachedRaw = cachedEntries['IDEMP_' + k];
+    if (cachedRaw) {
+      try {
+        results[k] = { found: true, response: JSON.parse(String(cachedRaw)), source: 'cache' };
+      } catch (err) {
+        results[k] = { found: true, response: { ok: true }, source: 'cache' };
+      }
+    } else {
+      missingFromCache.push(k);
+    }
+  }
+
+  if (missingFromCache.length > 0) {
+    var durableMap = loadDurableIdempotencyMap(ss, missingFromCache);
+    for (var j = 0; j < missingFromCache.length; j++) {
+      var mk = missingFromCache[j];
+      if (durableMap[mk]) {
+        results[mk] = { found: true, response: durableMap[mk], source: 'sheet' };
+        try {
+          cache.put('IDEMP_' + mk, JSON.stringify(durableMap[mk]), 21600);
+        } catch (ce) {}
+      } else {
+        results[mk] = { found: false };
+      }
+    }
+  }
+
+  return results;
+}
+
+function saveDurableIdempotencyBatch(ss, entries) {
+  if (!entries || entries.length === 0) return;
+  try {
+    var ledger = getDurableIdempotencySheet(ss);
+    var startRow = Math.max(2, ledger.getLastRow() + 1);
+    var now = new Date();
+    var rows = entries.map(function (entry) {
+      return [String(entry.key), JSON.stringify(entry.response), now];
+    });
+    ledger.getRange(startRow, 1, rows.length, 3).setValues(rows);
+  } catch (e) {}
+}
+
+function processBatchMutations(batchItems, postStartMs) {
+  if (!batchItems || batchItems.length === 0) {
+    return { ok: true, status: 200, action: 'batch', results: [], serverDurationMs: Date.now() - postStartMs };
+  }
+  if (batchItems.length > 50) {
+    return { ok: false, status: 400, error: 'حجم الدفعة يتجاوز الحد الأقصى المسموح (50 عملية في الطلب الواحد)' };
+  }
+
+  // Strictly block any delete operation inside a batch
+  for (var d = 0; d < batchItems.length; d++) {
+    var itemAct = String((batchItems[d] && batchItems[d].action) || '').trim().toLowerCase();
+    if (itemAct === 'delete') {
+      return { ok: false, status: 403, error: 'حذف المخدومين محظور نهائياً' };
+    }
+  }
+
+  var ss = getSpreadsheet();
+  var cache = CacheService.getScriptCache();
+  var allKeys = [];
+  for (var i = 0; i < batchItems.length; i++) {
+    var rawItem = batchItems[i] || {};
+    var itemKey = String(rawItem.idempotencyKey || rawItem.id || '').trim();
+    if (itemKey) allKeys.push(itemKey);
+  }
+  var idempStateMap = checkIdempotencyKeys(ss, allKeys);
+
+  // Validate target sheets upfront and collect missing Friday columns per sheet
+  var results = new Array(batchItems.length);
+  var pendingIndicesBySheet = {};
+  for (var idx = 0; idx < batchItems.length; idx++) {
+    var item = batchItems[idx] || {};
+    var mutKey = String(item.idempotencyKey || item.id || '').trim();
+    if (mutKey && idempStateMap[mutKey] && idempStateMap[mutKey].found) {
+      var prevResp = idempStateMap[mutKey].response || { ok: true };
+      prevResp.deduplicated = true;
+      prevResp.mutationId = mutKey;
+      results[idx] = prevResp;
+      continue;
+    }
+
+    var sheetName = String(item.sheet || item.sourceSheet || 'نشط').trim();
+    if (APPROVED_SHEETS.indexOf(sheetName) === -1) {
+      results[idx] = { ok: false, status: 400, mutationId: mutKey, error: 'اسم الفصل غير معتمد: ' + sheetName };
+      continue;
+    }
+    var itemAction = String(item.action || '').trim().toLowerCase();
+    if (itemAction !== 'attendance') {
+      results[idx] = { ok: false, status: 400, mutationId: mutKey, error: 'المعالجة المجمعة تدعم عمليات الحضور فقط حالياً' };
+      continue;
+    }
+    if (!pendingIndicesBySheet[sheetName]) pendingIndicesBySheet[sheetName] = [];
+    pendingIndicesBySheet[sheetName].push(idx);
+  }
+
+  var newIdempotencyEntries = [];
+  var cacheBatchToPut = {};
+  var currentCairoMonth = Utilities.formatDate(new Date(), 'Africa/Cairo', 'yyyy-MM');
+
+  var sheetNames = Object.keys(pendingIndicesBySheet);
+  for (var sIdx = 0; sIdx < sheetNames.length; sIdx++) {
+    var targetSheetName = sheetNames[sIdx];
+    var itemIndices = pendingIndicesBySheet[targetSheetName];
+    var sheet = ss.getSheetByName(targetSheetName);
+    if (!sheet) {
+      for (var m = 0; m < itemIndices.length; m++) {
+        var rIdx = itemIndices[m];
+        results[rIdx] = { ok: false, status: 404, mutationId: String(batchItems[rIdx].idempotencyKey || batchItems[rIdx].id || ''), error: 'التاب مش موجود: ' + targetSheetName };
+      }
+      continue;
+    }
+
+    var values = sheet.getDataRange().getValues();
+    if (values.length === 0) {
+      for (var m = 0; m < itemIndices.length; m++) {
+        var eIdx = itemIndices[m];
+        results[eIdx] = { ok: false, status: 500, mutationId: String(batchItems[eIdx].idempotencyKey || batchItems[eIdx].id || ''), error: 'الشيت فارغ' };
+      }
+      continue;
+    }
+
+    var headers = values[0].map(function (h) { return formatHeaderCell(h); });
+
+    // Pre-create all missing Friday columns in this chunk in one pass before applying cells
+    var neededFridays = [];
+    var seenFridays = {};
+    for (var m = 0; m < itemIndices.length; m++) {
+      var bItem = batchItems[itemIndices[m]];
+      var fDate = String(bItem.date || bItem.friday || (bItem.payload && (bItem.payload.friday || bItem.payload.date)) || '').trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(fDate) && findExactHeaderIndex(headers, fDate) < 0 && !seenFridays[fDate]) {
+        seenFridays[fDate] = true;
+        neededFridays.push(fDate);
+      }
+    }
+    neededFridays.sort();
+    var insertedColumns = false;
+    for (var nf = 0; nf < neededFridays.length; nf++) {
+      var nfDate = neededFridays[nf];
+      var insertBeforeCol = findColIndex(headers, ['آخر حضور', 'اخر حضور', 'إجمالي الحضور', 'حضور الشهر']);
+      if (insertBeforeCol >= 0) {
+        sheet.insertColumnBefore(insertBeforeCol + 1);
+        sheet.getRange(1, insertBeforeCol + 1).setValue(nfDate);
+        headers.splice(insertBeforeCol, 0, nfDate);
+      } else {
+        var lastCol = sheet.getLastColumn();
+        sheet.getRange(1, lastCol + 1).setValue(nfDate);
+        headers.push(nfDate);
+      }
+      insertedColumns = true;
+    }
+    if (insertedColumns) {
+      values = sheet.getDataRange().getValues();
+      headers = values[0].map(function (h) { return formatHeaderCell(h); });
+    }
+
+    var idCol = findColIndex(headers, ['id', 'ID']);
+    var codeCol = findColIndex(headers, ['كود', 'الكود', 'code']);
+    var nameLookupCol = findColIndex(headers, ['الاسم', 'name', 'Name']);
+    var versionCol = findColIndex(headers, ['version', 'الإصدار']);
+    var totalCol = findColIndex(headers, ['إجمالي الحضور', 'اجمالي الحضور', 'attendanceTotal', 'total']);
+    var lastAttCol = findColIndex(headers, ['آخر حضور', 'اخر حضور', 'lastAttendance']);
+    var monthCol = findColIndex(headers, ['حضور الشهر', 'attendanceMonth']);
+
+    // Build fast student lookup maps once for the entire sheet
+    var byCode = {};
+    var byId = {};
+    var byName = {};
+    var rowVersionMap = {};
+    for (var r = 1; r < values.length; r++) {
+      if (codeCol >= 0) {
+        var cv = String(values[r][codeCol] || '').trim();
+        if (cv && byCode[cv] === undefined) byCode[cv] = r;
+      }
+      if (idCol >= 0) {
+        var iv = String(values[r][idCol] || '').trim();
+        if (iv && byId[iv] === undefined) byId[iv] = r;
+      }
+      if (nameLookupCol >= 0) {
+        var nv = String(values[r][nameLookupCol] || '').trim().replace(/\s+/g, ' ');
+        if (nv && byName[nv] === undefined) byName[nv] = r;
+      }
+      rowVersionMap[r] = (versionCol >= 0) ? (parseInt(values[r][versionCol], 10) || 1) : 1;
+    }
+
+    var dirtyRows = {};
+    var dirtyCells = []; // [{ rowIndex, colIndex, val }]
+    var conflictedRowSet = {};
+
+    for (var m = 0; m < itemIndices.length; m++) {
+      var qIdx = itemIndices[m];
+      var qItem = batchItems[qIdx];
+      var qKey = String(qItem.idempotencyKey || qItem.id || '').trim();
+
+      var friday = String(qItem.date || qItem.friday || (qItem.payload && (qItem.payload.friday || qItem.payload.date)) || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) {
+        results[qIdx] = { ok: false, status: 400, mutationId: qKey, error: 'تاريخ غير صحيح' };
+        continue;
+      }
+      var fridayCol = findExactHeaderIndex(headers, friday);
+      if (fridayCol < 0) {
+        results[qIdx] = { ok: false, status: 500, mutationId: qKey, error: 'تعذر إنشاء عمود التاريخ' };
+        continue;
+      }
+
+      var qCode = String(qItem.studentCode || qItem.code || '').trim();
+      var qId = String(qItem.studentId || '').trim();
+      var qName = String(qItem.studentName || qItem.name || '').trim().replace(/\s+/g, ' ');
+      var rowIndex = -1;
+      if (qCode && byCode[qCode] !== undefined) rowIndex = byCode[qCode];
+      else if (qId && byId[qId] !== undefined) rowIndex = byId[qId];
+      else if (qName && byName[qName] !== undefined) rowIndex = byName[qName];
+
+      if (rowIndex === -1) {
+        results[qIdx] = { ok: false, status: 404, mutationId: qKey, error: 'الاسم غير موجود' };
+        continue;
+      }
+
+      if (conflictedRowSet[rowIndex]) {
+        results[qIdx] = {
+          ok: false,
+          status: 409,
+          mutationId: qKey,
+          studentId: qId,
+          error: 'توقف التحديث المتسلسل لهذا المخدوم لوجود تعارض إصدار سابق في الدفعة'
+        };
+        continue;
+      }
+
+      var curVer = rowVersionMap[rowIndex];
+      var expectedVer = qItem.expectedVersion;
+      if (typeof expectedVer === 'number' && isFinite(expectedVer) && expectedVer >= 1 && curVer !== expectedVer) {
+        conflictedRowSet[rowIndex] = true;
+        results[qIdx] = {
+          ok: false,
+          status: 409,
+          mutationId: qKey,
+          studentId: qId,
+          error: 'تعارض في التعديل المتزامن (409): إصدار الشيت (' + curVer + ') لا يطابق الإصدار المرسل (' + expectedVer + ')'
+        };
+        continue;
+      }
+
+      var rawPresent = qItem.present !== undefined ? qItem.present : (qItem.isPresent !== undefined ? qItem.isPresent : (qItem.payload && (qItem.payload.isPresent !== undefined ? qItem.payload.isPresent : qItem.payload.present)));
+      var isPresent = rawPresent === true || ['1', 'true', 'present', 'حاضر'].indexOf(String(rawPresent).trim().toLowerCase()) !== -1;
+
+      var prevVal = String(values[rowIndex][fridayCol] || '').trim().toLowerCase();
+      var wasPresent = ['1', 'true', 'present', 'حاضر'].indexOf(prevVal) !== -1;
+      var delta = (isPresent ? 1 : 0) - (wasPresent ? 1 : 0);
+
+      values[rowIndex][fridayCol] = isPresent ? 1 : 0;
+      dirtyCells.push({ rowIndex: rowIndex, colIndex: fridayCol, val: isPresent ? 1 : 0 });
+
+      if (totalCol >= 0) {
+        var prevTotal = parseInt(values[rowIndex][totalCol] || '0', 10) || 0;
+        values[rowIndex][totalCol] = Math.max(0, prevTotal + delta);
+      }
+
+      var nextVer = curVer + 1;
+      rowVersionMap[rowIndex] = nextVer;
+      if (versionCol >= 0) {
+        values[rowIndex][versionCol] = nextVer;
+      }
+      dirtyRows[rowIndex] = true;
+
+      var itemRes = {
+        ok: true,
+        status: 200,
+        row: rowIndex + 1,
+        mutationId: qKey,
+        studentId: qId,
+        newVersion: nextVer,
+        action: 'attendance'
+      };
+      results[qIdx] = itemRes;
+      if (qKey) {
+        newIdempotencyEntries.push({ key: qKey, response: itemRes });
+        cacheBatchToPut['IDEMP_' + qKey] = JSON.stringify(itemRes);
+      }
+    }
+
+    // Flush modified attendance cells and compute summary columns ONCE per dirty student row
+    for (var cIdx = 0; cIdx < dirtyCells.length; cIdx++) {
+      var dc = dirtyCells[cIdx];
+      sheet.getRange(dc.rowIndex + 1, dc.colIndex + 1).setValue(dc.val);
+    }
+
+    var dirtyRowKeys = Object.keys(dirtyRows);
+    for (var dr = 0; dr < dirtyRowKeys.length; dr++) {
+      var rIndex = parseInt(dirtyRowKeys[dr], 10);
+      var rNum = rIndex + 1;
+
+      var latestPresentFriday = '';
+      var monthCount = 0;
+      for (var c = 0; c < headers.length; c++) {
+        var hDate = String(headers[c] || '').trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(hDate)) {
+          var cv = values[rIndex][c];
+          if (cv === 1 || String(cv).trim() === '1' || cv === true) {
+            if (hDate > latestPresentFriday) latestPresentFriday = hDate;
+            if (hDate.substring(0, 7) === currentCairoMonth) monthCount++;
+          }
+        }
+      }
+
+      if (totalCol >= 0) {
+        sheet.getRange(rNum, totalCol + 1).setValue(values[rIndex][totalCol]);
+      }
+      if (lastAttCol >= 0) {
+        sheet.getRange(rNum, lastAttCol + 1).setValue(sanitizeFormulaValue(latestPresentFriday));
+      }
+      if (monthCol >= 0) {
+        sheet.getRange(rNum, monthCol + 1).setValue(monthCount);
+      }
+      if (versionCol >= 0) {
+        sheet.getRange(rNum, versionCol + 1).setValue(rowVersionMap[rIndex]);
+      }
+    }
+  }
+
+  if (newIdempotencyEntries.length > 0) {
+    saveDurableIdempotencyBatch(ss, newIdempotencyEntries);
+    try {
+      cache.putAll(cacheBatchToPut, 21600);
+    } catch (ce) {
+      for (var ck in cacheBatchToPut) {
+        try { cache.put(ck, cacheBatchToPut[ck], 21600); } catch (e2) {}
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    action: 'batch',
+    results: results,
+    serverDurationMs: Date.now() - postStartMs
+  };
+}
+
 function sanitizeFormulaValue(value) {
   if (typeof value === 'string' && /^[=+\-@\t\r]/.test(value)) {
     return "'" + value;
@@ -608,6 +1028,7 @@ function readFollowupLogRows(ss) {
   var iName = findColIndex(headers, ['الاسم']);
   var iServant = findColIndex(headers, ['الأشبين', 'الاشبين']);
   var iType = findColIndex(headers, ['النوع']);
+  var iOutcome = findColIndex(headers, ['نتيجة الاتصال', 'نتيجه الاتصال', 'callOutcome', 'النتيجة']);
   var iNotes = findColIndex(headers, ['ملاحظات', 'ملا حظات']);
 
   var records = [];
@@ -616,6 +1037,8 @@ function readFollowupLogRows(ss) {
     var nameVal = iName >= 0 ? formatCellValue(row[iName]) : '';
     var codeVal = iCode >= 0 ? formatCellValue(row[iCode]) : '';
     if (!nameVal && !codeVal) continue;
+    var rawOutcome = iOutcome >= 0 ? formatCellValue(row[iOutcome]) : '';
+    var outcomeVal = (rawOutcome === 'تم التواصل' || rawOutcome === 'لم يتم التواصل') ? rawOutcome : undefined;
     records.push({
       id: 'gs_fu_' + (r + 1) + '_' + (codeVal || nameVal).replace(/\s+/g, '_'),
       date: iDate >= 0 ? formatCellValue(row[iDate]) : '',
@@ -625,13 +1048,14 @@ function readFollowupLogRows(ss) {
       studentName: nameVal,
       servant: iServant >= 0 ? formatCellValue(row[iServant]) : '',
       type: (iType >= 0 ? formatCellValue(row[iType]) : '') || 'بدون',
+      callOutcome: outcomeVal,
       notes: iNotes >= 0 ? formatCellValue(row[iNotes]) : ''
     });
   }
   return records;
 }
 
-function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayDate, method, notes, mutationId) {
+function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayDate, method, notes, mutationId, callOutcome) {
   var logSheet = ss.getSheetByName('سجل الافتقاد');
   if (!logSheet) return;
   var codeCol = findColIndex(studentHeaders, ['كود', 'الكود', 'code']);
@@ -644,6 +1068,12 @@ function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayD
   if (mutationIdCol < 0) {
     mutationIdCol = logLastColumn;
     logSheet.getRange(1, mutationIdCol + 1).setValue('mutation_id');
+    logLastColumn = mutationIdCol + 1;
+  }
+  var outcomeCol = findColIndex(logHeaders, ['نتيجة الاتصال', 'نتيجه الاتصال', 'callOutcome']);
+  if (outcomeCol < 0 && callOutcome) {
+    outcomeCol = logLastColumn;
+    logSheet.getRange(1, outcomeCol + 1).setValue('نتيجة الاتصال');
   }
 
   var logLastRow = logSheet.getLastRow();
@@ -666,8 +1096,12 @@ function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayD
     sanitizeFormulaValue(method || 'تم تليفونياً'),
     sanitizeFormulaValue(notes || '')
   ];
-  while (newRow.length <= mutationIdCol) newRow.push('');
+  var targetWidth = Math.max(mutationIdCol + 1, outcomeCol >= 0 ? outcomeCol + 1 : 0);
+  while (newRow.length < targetWidth) newRow.push('');
   newRow[mutationIdCol] = mutationId || '';
+  if (outcomeCol >= 0 && callOutcome) {
+    newRow[outcomeCol] = sanitizeFormulaValue(callOutcome);
+  }
   logSheet.appendRow(newRow);
 }
 

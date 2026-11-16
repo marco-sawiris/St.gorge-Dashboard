@@ -30,7 +30,7 @@ export const AreaFilterModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
       <div className="w-full max-w-md glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[85vh] animate-wordIn">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-white/[0.02]">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#20c7e8]/10 border border-[#20c7e8]/30 flex items-center justify-center text-[#20c7e8]">
               <MapPin className="w-4 h-4" />
@@ -74,7 +74,7 @@ export const AreaFilterModal: React.FC = () => {
                     }`}
                   >
                     <strong className="block text-sm font-extrabold mb-1">{areaName}</strong>
-                    <span className="text-xs opacity-75 font-semibold text-[#8ecfff]">{count} مخدوم</span>
+                    <span className={`text-xs font-semibold ${isSelected ? 'text-white/90' : 'text-[var(--accent-secondary)]'}`}>{count} مخدوم</span>
                   </button>
                 );
               })
@@ -83,7 +83,7 @@ export const AreaFilterModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-between items-center bg-white/[0.02]">
+        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-between items-center bg-[var(--surface-secondary)]/60">
           <button
             type="button"
             onClick={handleClear}

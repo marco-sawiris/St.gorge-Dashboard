@@ -51,7 +51,7 @@ export const NavigationTabs: React.FC = () => {
             className={`word-in relative flex min-w-0 flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl text-[10px] sm:text-sm font-extrabold cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#20C7E8] ${
               isActive
                 ? 'text-white'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
             }`}
           >
             {isActive && (

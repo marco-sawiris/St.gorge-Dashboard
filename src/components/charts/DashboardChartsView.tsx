@@ -245,16 +245,16 @@ export const DashboardChartsView: React.FC = () => {
             >
               <defs>
                 <linearGradient id="attTrendArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#20C7E8" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#267AFF" stopOpacity="0.02" />
+                  <stop offset="0%" stopColor="var(--accent-secondary)" stopOpacity="0.32" />
+                  <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity="0.03" />
                 </linearGradient>
               </defs>
               {[25, 50, 75, 100].map((gridPct) => {
                 const y = 145 - (gridPct / 100) * 115;
                 return (
                   <g key={gridPct}>
-                    <line x1="36" y1={y} x2="616" y2={y} stroke="rgba(148,163,184,0.18)" strokeDasharray="4 4" />
-                    <text x="10" y={y + 4} fill="rgba(148,163,184,0.7)" fontSize="10" fontFamily="monospace">
+                    <line x1="36" y1={y} x2="616" y2={y} stroke="var(--border-color)" strokeDasharray="4 4" />
+                    <text x="10" y={y + 4} fill="var(--text-muted)" fontSize="10" fontFamily="monospace">
                       {gridPct}%
                     </text>
                   </g>
@@ -282,7 +282,7 @@ export const DashboardChartsView: React.FC = () => {
                     {pts.length > 1 && (
                       <polyline
                         fill="none"
-                        stroke="#20C7E8"
+                        stroke="var(--accent-secondary)"
                         strokeWidth="3"
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -292,12 +292,12 @@ export const DashboardChartsView: React.FC = () => {
                     )}
                     {pts.map((p) => (
                       <g key={p.dateStr}>
-                        <circle cx={p.x} cy={p.y} r="5" fill="#267AFF" stroke="#20C7E8" strokeWidth="2.5" />
+                        <circle cx={p.x} cy={p.y} r="5" fill="var(--accent-primary)" stroke="var(--accent-secondary)" strokeWidth="2.5" />
                         <text
                           x={p.x}
                           y={Math.max(16, p.y - 10)}
                           textAnchor="middle"
-                          fill="#20C7E8"
+                          fill="var(--accent-secondary)"
                           fontSize="11"
                           fontWeight="bold"
                           fontFamily="monospace"
@@ -308,7 +308,7 @@ export const DashboardChartsView: React.FC = () => {
                           x={p.x}
                           y="170"
                           textAnchor="middle"
-                          fill="rgba(148,163,184,0.85)"
+                          fill="var(--text-muted)"
                           fontSize="10"
                           fontFamily="monospace"
                         >
@@ -357,7 +357,7 @@ export const DashboardChartsView: React.FC = () => {
                     <span>{sheetName}</span>
                     <span className="font-mono text-[var(--text-secondary)]">{count} ({pct}%)</span>
                   </div>
-                  <div className="w-full h-2.5 rounded-full bg-[var(--navy)]/80 border border-[var(--glass-border)] overflow-hidden">
+                  <div className="w-full h-2.5 rounded-full bg-[var(--surface-inset)] border border-[var(--glass-border)] overflow-hidden">
                     <div
                       className={`chart-bar-grow h-full rounded-full transition-all duration-500 shadow-sm ${colorClass}`}
                       style={{ width: `${pct}%`, '--i': idx } as React.CSSProperties}
@@ -388,7 +388,7 @@ export const DashboardChartsView: React.FC = () => {
               const fuPct = data.total > 0 ? Math.round((data.followedUp / data.total) * 100) : 0;
 
               return (
-                <div key={servantName} className="p-3 rounded-2xl bg-[var(--navy)]/60 border border-[var(--glass-border)] space-y-1.5 text-xs">
+                <div key={servantName} className="p-3 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1.5 text-xs">
                   <div className="flex justify-between font-bold text-[var(--text)]">
                     <span>{servantName}</span>
                     <span className="font-mono text-[var(--accent)]">{data.total} مخدوم</span>
@@ -431,7 +431,7 @@ export const DashboardChartsView: React.FC = () => {
                     <span>{areaName}</span>
                     <span className="font-mono text-[var(--text-secondary)]">{count} ({pct}%)</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-[var(--navy)]/80 border border-[var(--glass-border)] overflow-hidden">
+                  <div className="w-full h-2 rounded-full bg-[var(--surface-inset)] border border-[var(--glass-border)] overflow-hidden">
                     <div
                       className="chart-bar-grow h-full rounded-full bg-gradient-to-l from-[var(--accent)] to-[var(--primary)] transition-all duration-500 shadow-[0_0_8px_rgba(32,199,232,0.4)]"
                       style={{ width: `${pct}%`, '--i': idx } as React.CSSProperties}
@@ -458,7 +458,7 @@ export const DashboardChartsView: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             {Object.entries(followupMethodStats).map(([methodName, count]) => (
-              <div key={methodName} className="p-3.5 rounded-2xl bg-[var(--navy)]/60 border border-[var(--glass-border)] text-center shadow-xs">
+              <div key={methodName} className="p-3.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] text-center shadow-xs">
                 <span className="block text-xs font-semibold text-[var(--text-muted)] mb-1">{methodName}</span>
                 <strong className="text-xl font-mono text-[var(--accent)] tabular-nums">{count}</strong>
               </div>

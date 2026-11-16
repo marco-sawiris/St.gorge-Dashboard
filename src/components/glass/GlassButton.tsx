@@ -33,7 +33,7 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
     secondary:
       'bg-[var(--glass-bg)] text-[var(--text)] border border-[var(--glass-border)] shadow-xs hover:border-[var(--glass-border-2)] hover:bg-[var(--glass-bg-2)]',
     ghost:
-      'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-white/5 border border-transparent hover:border-white/10',
+      'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-color)]',
     danger:
       'bg-gradient-to-r from-red-600/80 to-[var(--indigo)] text-white border border-red-500/30 shadow-[0_0_14px_rgba(225,29,72,0.3)] hover:border-red-400'
   }[variant];

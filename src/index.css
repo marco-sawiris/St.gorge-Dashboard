@@ -83,8 +83,22 @@
   /* Backward Compatibility Aliases for App Components */
   --bg-main: var(--app-bg);
   --card-bg: var(--surface-glass);
+  --surface-inset: rgba(7, 27, 59, 0.56);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-disabled: rgba(7, 27, 59, 0.35);
+  --dropdown-bg: #071B3B;
+  --table-header-bg: rgba(7, 27, 59, 0.85);
+  --table-row-hover: rgba(255, 255, 255, 0.05);
+  --tooltip-bg: #0B2452;
+  --tooltip-text: #F8FAFC;
+  --shadow-card: 0 12px 32px 0 rgba(3, 7, 17, 0.72);
+  --shadow-lg: 0 14px 44px rgba(3, 7, 17, 0.90);
+  --sidebar-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 50%, rgba(0, 0, 0, 0.14) 100%);
+  --warning-text: #FDE68A;
+  --badge-on-accent: #030711;
   --text-main: var(--text-primary);
   --border: var(--border-color);
+  --border-strong: rgba(38, 122, 255, 0.42);
   --sidebar-bg: var(--surface-glass-strong);
   --input-bg: rgba(7, 27, 59, 0.65);
   --green-status: var(--success);
@@ -98,6 +112,7 @@
   --bg-el: #0B2452;
   --glass-bg: rgba(18, 63, 206, 0.25);
   --glass-bg-2: rgba(18, 63, 206, 0.38);
+  --surface-inset: rgba(11, 36, 82, 0.58);
   --glass-border: rgba(32, 199, 232, 0.30);
   --bg-main: var(--bg);
   --card-bg: var(--glass-bg);
@@ -109,35 +124,48 @@
 /* Light Theme Specification (Premium Liquid Glass Daylight) */
 [data-theme="light"] {
   /* Central Design Tokens - Light Theme */
-  --app-bg: #F0F4FA;
+  --app-bg: #F1F5FA;
   --surface-primary: #FFFFFF;
-  --surface-secondary: #F8FAFD;
-  --surface-glass: rgba(255, 255, 255, 0.85);
-  --surface-glass-strong: rgba(255, 255, 255, 0.96);
-  --text-primary: #07152E;
-  --text-secondary: #2A3F5F;
-  --text-muted: #627894;
+  --surface-secondary: #EBF1FA;
+  --surface-inset: #E8EFF9;
+  --surface-hover: rgba(18, 63, 206, 0.06);
+  --surface-disabled: rgba(148, 163, 184, 0.16);
+  --surface-glass: rgba(255, 255, 255, 0.88);
+  --surface-glass-strong: rgba(255, 255, 255, 0.97);
+  --dropdown-bg: #FFFFFF;
+  --table-header-bg: #E6EEF9;
+  --table-row-hover: rgba(18, 63, 206, 0.045);
+  --tooltip-bg: #0F172A;
+  --tooltip-text: #FFFFFF;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #52637A;
   --border-color: rgba(18, 63, 206, 0.16);
+  --border-strong: rgba(18, 63, 206, 0.28);
   --border-focus: #123FCE;
   --accent-primary: #123FCE;
-  --accent-secondary: #267AFF;
-  --success: #20C7E8; /* Cyan, strictly zero green */
-  --warning: #D97706;
-  --danger: #DC2626;
-  --shadow: 0 4px 18px rgba(18, 63, 206, 0.08), 0 1px 3px rgba(0, 0, 0, 0.03);
-  --shadow-lg: 0 14px 38px rgba(18, 63, 206, 0.14), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --accent-secondary: #0369A1;
+  --success: #047857;
+  --warning: #B45309;
+  --warning-text: #92400E;
+  --danger: #BE123C;
+  --badge-on-accent: #FFFFFF;
+  --shadow: 0 4px 18px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(18, 63, 206, 0.04);
+  --shadow-card: 0 10px 26px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(18, 63, 206, 0.05);
+  --shadow-lg: 0 16px 38px rgba(15, 23, 42, 0.13), 0 2px 6px rgba(18, 63, 206, 0.06);
+  --sidebar-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, transparent 55%, rgba(18, 63, 206, 0.04) 100%);
   --glass-blur: 24px;
 
   /* 7 Approved Blue & Cyan Colors adapted for Daylight Contrast */
-  --midnight: #FFFFFF;
+  --midnight: #F8FAFC;
   --navy: #FFFFFF;
-  --navy-mid: #F0F4FA;
+  --navy-mid: #EFF4FC;
   --royal: #123FCE;
   --primary: #123FCE;
-  --primary-hover: #267AFF;
-  --accent: #20C7E8;
+  --primary-hover: #1D4ED8;
+  --accent: #0369A1;
   --indigo: #3020A0;
-  --violet: #6548F5;
+  --violet: #5B21B6;
 
   /* Backgrounds & Liquid Glass Surfaces */
   --bg: var(--app-bg);
@@ -147,7 +175,7 @@
   --glass-bg-2: var(--surface-glass-strong);
   --glass-bg-3: rgba(18, 63, 206, 0.08);
   --glass-border: var(--border-color);
-  --glass-border-2: rgba(18, 63, 206, 0.32);
+  --glass-border-2: rgba(18, 63, 206, 0.28);
   --glass-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.95);
   --glass-inset-bot: inset 0 -1px 0 rgba(18, 63, 206, 0.08);
 
@@ -157,15 +185,15 @@
 
   /* Gradients */
   --grad-primary: linear-gradient(135deg, #123FCE 0%, #267AFF 100%);
-  --grad-accent: linear-gradient(135deg, #20C7E8 0%, #267AFF 60%, #123FCE 100%);
-  --grad-deep: linear-gradient(180deg, #FFFFFF 0%, #F0F4FA 100%);
-  --grad-lens: linear-gradient(180deg, rgba(38, 122, 255, 0.20) 0%, rgba(18, 63, 206, 0.10) 100%);
+  --grad-accent: linear-gradient(135deg, #0284C7 0%, #267AFF 60%, #123FCE 100%);
+  --grad-deep: linear-gradient(180deg, #FFFFFF 0%, #F1F5FA 100%);
+  --grad-lens: linear-gradient(180deg, rgba(38, 122, 255, 0.92) 0%, rgba(18, 63, 206, 0.96) 100%);
 
   /* Shadows, Insets & Glows */
   --shadow-1: var(--shadow);
   --shadow-2: var(--shadow-lg);
-  --shadow-primary: 0 0 0 1px rgba(18, 63, 206, 0.25), 0 8px 24px -6px rgba(18, 63, 206, 0.35);
-  --shadow-accent: 0 0 0 1px rgba(32, 199, 232, 0.35), 0 6px 20px -6px rgba(32, 199, 232, 0.30);
+  --shadow-primary: 0 0 0 1px rgba(18, 63, 206, 0.25), 0 8px 24px -6px rgba(18, 63, 206, 0.30);
+  --shadow-accent: 0 0 0 1px rgba(2, 132, 199, 0.30), 0 6px 20px -6px rgba(2, 132, 199, 0.24);
   --focus-ring: 0 0 0 3px rgba(18, 63, 206, 0.25);
 
   /* Compatibility Aliases */
@@ -174,37 +202,103 @@
   --text-main: var(--text-primary);
   --border: var(--border-color);
   --sidebar-bg: var(--surface-glass-strong);
-  --input-bg: rgba(255, 255, 255, 0.95);
+  --input-bg: #FFFFFF;
   --green-status: var(--success);
   --gold-accent: var(--accent-secondary);
 }
 
 [data-theme="light"] body::before {
-  background: radial-gradient(circle, rgba(38, 122, 255, 0.10) 0%, rgba(32, 199, 232, 0.05) 50%, transparent 75%);
+  background: radial-gradient(circle, rgba(38, 122, 255, 0.09) 0%, rgba(2, 132, 199, 0.04) 50%, transparent 75%);
   filter: blur(80px);
 }
 
 [data-theme="light"] body::after {
-  background: radial-gradient(circle, rgba(18, 63, 206, 0.08) 0%, rgba(101, 72, 245, 0.04) 55%, transparent 80%);
+  background: radial-gradient(circle, rgba(18, 63, 206, 0.07) 0%, rgba(91, 33, 182, 0.04) 55%, transparent 80%);
   filter: blur(90px);
 }
 
 [data-theme="light"] .clay-selection-bar {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(18, 63, 206, 0.16);
-  box-shadow: 0 4px 14px rgba(18, 63, 206, 0.08), inset 0 2px 3px rgba(255, 255, 255, 0.9), inset 0 -2px 3px rgba(18, 63, 206, 0.06);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06), inset 0 2px 3px rgba(255, 255, 255, 0.95), inset 0 -2px 3px rgba(18, 63, 206, 0.05);
 }
 
 [data-theme="light"] .clay-active-pill {
   background: linear-gradient(135deg, #123FCE 0%, #267AFF 100%);
   border: 1px solid rgba(255, 255, 255, 0.45);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.6), 0 4px 14px rgba(18, 63, 206, 0.35);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5), 0 4px 14px rgba(18, 63, 206, 0.30);
   color: #FFFFFF;
 }
 
 [data-theme="light"] .btn--lens {
   color: #FFFFFF;
-  border-color: rgba(18, 63, 206, 0.35);
+  border-color: rgba(18, 63, 206, 0.40);
+}
+
+/* Light Theme Contrast & Form Controls Enforcement */
+[data-theme="light"] select option {
+  background-color: #FFFFFF;
+  color: #0F172A;
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #64748B;
+  opacity: 1;
+}
+
+[data-theme="light"] .text-emerald-300 {
+  color: #047857 !important;
+}
+[data-theme="light"] .text-emerald-400 {
+  color: #059669 !important;
+}
+[data-theme="light"] .text-rose-300,
+[data-theme="light"] .text-rose-400 {
+  color: #BE123C !important;
+}
+[data-theme="light"] .text-amber-200,
+[data-theme="light"] .text-amber-300,
+[data-theme="light"] .text-amber-400 {
+  color: #B45309 !important;
+}
+[data-theme="light"] .text-slate-400,
+[data-theme="light"] .text-slate-300 {
+  color: #475569 !important;
+}
+[data-theme="light"] .text-\[\#20c7e8\],
+[data-theme="light"] .text-\[\#20C7E8\],
+[data-theme="light"] .text-\[\#8ecfff\],
+[data-theme="light"] .text-\[\#8ECFFF\] {
+  color: #0369A1 !important;
+}
+[data-theme="light"] .glass-btn--primary *,
+[data-theme="light"] .glass-btn--active *,
+[data-theme="light"] .clay-active-pill *,
+[data-theme="light"] .btn--lens {
+  color: #FFFFFF !important;
+}
+[data-theme="light"] .bg-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.16) !important;
+  border-color: rgba(5, 150, 105, 0.42) !important;
+}
+[data-theme="light"] .bg-emerald-500\/25 {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  border-color: rgba(5, 150, 105, 0.55) !important;
+}
+[data-theme="light"] .bg-rose-500\/20,
+[data-theme="light"] .bg-rose-500\/25 {
+  background-color: rgba(244, 63, 94, 0.13) !important;
+  border-color: rgba(225, 29, 72, 0.45) !important;
+}
+[data-theme="light"] .bg-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(217, 119, 6, 0.42) !important;
+}
+[data-theme="light"] .bg-slate-500\/12,
+[data-theme="light"] .bg-slate-500\/15 {
+  background-color: rgba(148, 163, 184, 0.16) !important;
+  border-color: rgba(100, 116, 139, 0.28) !important;
 }
 
 /* ==========================================================================
@@ -223,9 +317,23 @@ body {
   direction: rtl;
   min-height: 100vh;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   transition: background-color 0.3s var(--ease-standard), color 0.3s var(--ease-standard);
   overflow-x: hidden;
   position: relative;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="range"]),
+textarea,
+select,
+[contenteditable="true"],
+[contenteditable=""],
+.selectable-text {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
 }
 
 /* Ambient Backlight Orbs (Liquid Glass Glow) */
@@ -1058,5 +1166,109 @@ body::after {
     transform: none !important;
     transition: opacity 0.2s linear !important;
   }
+}
+
+/* ==========================================================================
+   Weekly Follow-up Horizontal Indicator Bars (Distinct from Attendance Grid)
+   ========================================================================== */
+.followup-week-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 3px;
+  border-radius: 0.55rem;
+  border: 1px solid transparent;
+  transition: transform 0.15s var(--ease-standard), filter 0.15s var(--ease-standard), border-color 0.2s var(--ease-standard);
+}
+
+.followup-week-line {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+}
+
+.followup-bar--done {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #6EE7B7;
+}
+.followup-bar--done .followup-week-line {
+  background: linear-gradient(90deg, #10B981, #34D399);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.45);
+}
+
+.followup-bar--missed {
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(251, 113, 133, 0.45);
+  color: #FDA4AF;
+}
+.followup-bar--missed .followup-week-line {
+  background: linear-gradient(90deg, #E11D48, #FB7185);
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.38);
+}
+
+.followup-bar--open {
+  background: rgba(148, 163, 184, 0.10);
+  border-color: rgba(148, 163, 184, 0.34);
+  color: var(--text-secondary);
+}
+.followup-bar--open .followup-week-line {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.55) 0 6px,
+    transparent 6px 9px
+  );
+}
+
+.followup-bar--upcoming {
+  background: rgba(148, 163, 184, 0.06);
+  border-color: rgba(148, 163, 184, 0.22);
+  color: var(--text-muted);
+}
+.followup-bar--upcoming .followup-week-line {
+  background: rgba(148, 163, 184, 0.28);
+}
+
+.followup-bar--empty {
+  background: transparent;
+  border-color: rgba(148, 163, 184, 0.25);
+  border-style: dashed;
+  color: var(--text-muted);
+}
+.followup-bar--empty .followup-week-line {
+  background: rgba(148, 163, 184, 0.20);
+}
+
+[data-theme="light"] .followup-bar--done {
+  background: rgba(16, 185, 129, 0.13);
+  border-color: rgba(5, 150, 105, 0.42);
+  color: #047857;
+}
+[data-theme="light"] .followup-bar--done .followup-week-line {
+  background: #059669;
+  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.28);
+}
+
+[data-theme="light"] .followup-bar--missed {
+  background: rgba(244, 63, 94, 0.11);
+  border-color: rgba(225, 29, 72, 0.42);
+  color: #BE123C;
+}
+[data-theme="light"] .followup-bar--missed .followup-week-line {
+  background: #E11D48;
+  box-shadow: 0 1px 4px rgba(225, 29, 72, 0.24);
+}
+
+[data-theme="light"] .followup-bar--open {
+  background: rgba(100, 116, 139, 0.10);
+  border-color: rgba(100, 116, 139, 0.30);
+  color: #334155;
+}
+[data-theme="light"] .followup-bar--upcoming {
+  background: rgba(100, 116, 139, 0.06);
+  border-color: rgba(100, 116, 139, 0.20);
+  color: #64748B;
 }
 

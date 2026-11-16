@@ -80,7 +80,7 @@ export const TopBar: React.FC = () => {
           <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--text-primary)]" />
           {unreadCount > 0 && (
             <span
-              className="absolute top-0.5 end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--accent-secondary)] text-[#030711] font-mono text-[9px] sm:text-[10px] font-black flex items-center justify-center shadow-xs ring-1.5 ring-[var(--surface-primary)] select-none pointer-events-none"
+              className="absolute top-0.5 end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--accent-secondary)] text-[var(--badge-on-accent)] font-mono text-[9px] sm:text-[10px] font-black flex items-center justify-center shadow-xs ring-1.5 ring-[var(--surface-primary)] select-none pointer-events-none"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>

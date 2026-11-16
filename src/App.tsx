@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { useApp } from './context/AppContext';
 import { Student } from './types/student';
@@ -12,6 +12,7 @@ import { NotificationsPanel } from './components/modals/NotificationsPanel';
 import { AreaFilterModal } from './components/modals/AreaFilterModal';
 import { AboutModal } from './components/modals/AboutModal';
 import { AppearanceModal } from './components/modals/AppearanceModal';
+import { PdfAttendanceImportModal } from './components/modals/PdfAttendanceImportModal';
 import { SyncDetailsModal } from './components/modals/SyncDetailsModal';
 import { QueueDetailsModal } from './components/modals/QueueDetailsModal';
 import { StudentCard } from './components/cards/StudentCard';
@@ -63,6 +64,28 @@ export default function App() {
     setFollowupStudent(student);
   }, []);
 
+  // Block native long-press Copy/Paste/Select All context menu on read-only dashboard content
+  // while preserving full text editing/selection inside form controls and explicit copyable blocks.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (
+        target.closest(
+          'input, textarea, select, [contenteditable="true"], [contenteditable=""], .selectable-text, .select-text'
+        )
+      ) {
+        return;
+      }
+      e.preventDefault();
+    };
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <MotionConfig reducedMotion="user">
@@ -83,6 +106,7 @@ export default function App() {
         <AreaFilterModal />
         <AboutModal />
         <AppearanceModal />
+        <PdfAttendanceImportModal />
         <SyncDetailsModal />
         <QueueDetailsModal />
 
@@ -115,7 +139,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.94 }}
               transition={{ duration: 0.28, ease: SPRING_EASE }}
-              className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[60] glass-strong rounded-2xl p-3.5 border shadow-[0_14px_34px_rgba(3,7,17,0.75)] flex items-start gap-3 ${
+              className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[60] glass-strong rounded-2xl p-3.5 border shadow-[var(--shadow-lg)] flex items-start gap-3 ${
                 activeToast.type === 'danger'
                   ? 'border-rose-500/50 bg-rose-500/15'
                   : activeToast.type === 'warn'
@@ -125,7 +149,7 @@ export default function App() {
             >
               <div className="shrink-0 mt-0.5">
                 {activeToast.type === 'danger' || activeToast.type === 'warn' ? (
-                  <AlertTriangle className={`w-4 h-4 ${activeToast.type === 'danger' ? 'text-rose-400' : 'text-amber-300'}`} />
+                  <AlertTriangle className={`w-4 h-4 ${activeToast.type === 'danger' ? 'text-rose-400' : 'text-[var(--warning-text)]'}`} />
                 ) : activeToast.type === 'success' ? (
                   <CheckCircle2 className="w-4 h-4 text-[#20c7e8]" />
                 ) : (
@@ -276,11 +300,22 @@ export default function App() {
                       </div>
 
                       {filteredStudents.length === 0 ? (
-                        <div className="glass p-12 text-center rounded-3xl text-[var(--text-muted)] space-y-2 border border-[var(--border-color)] word-in">
+                        <div className="glass p-12 text-center rounded-3xl text-[var(--text-muted)] space-y-3 border border-[var(--border-color)] word-in">
                           <p className="text-sm font-bold m-0 text-[var(--text-primary)]">لا توجد نتائج مطابقة للفلاتر المحددة</p>
                           <p className="text-xs m-0">
                             يمكنك مسح الفلاتر أو استخدام شريط البحث للعثور على المخدومين.
                           </p>
+                          {students.length > 0 && filters.sheet !== '__ALL__' && (
+                            <div className="pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setFilters((p) => ({ ...p, sheet: '__ALL__' }))}
+                                className="glass-btn px-4 py-2 rounded-xl text-xs font-extrabold text-[var(--accent-secondary)] cursor-pointer"
+                              >
+                                عرض كل الفصول ({students.length})
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 word-in-scope overflow-x-clip box-border">

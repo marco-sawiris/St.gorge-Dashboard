@@ -20,8 +20,21 @@ export interface AppNotification {
   appVersion?: string;
 }
 
+export type MutationQueueStatus = 'pending' | 'retrying' | 'timeout_unknown' | 'conflict' | 'failed';
+export type SyncOutcomeStatus = 'success' | 'pending' | 'timeout_unknown' | 'failed' | 'conflict';
+
+export interface MutationStageTimings {
+  prepMs?: number;
+  networkMs?: number;
+  verifyMs?: number;
+  serverMs?: number;
+  totalMs?: number;
+  mode?: 'batch' | 'single';
+  batchSize?: number;
+}
+
 export interface OfflineMutation {
-  id: string; // Unique Operation Idempotency Key (UUID-backed)
+  id: string; // Unique Operation Idempotency Key (UUID-backed, immutable across all retries)
   action: 'attendance' | 'followup' | 'update' | 'add' | 'delete';
   studentId: string;
   studentCode: string;
@@ -31,7 +44,11 @@ export interface OfflineMutation {
   expectedVersion?: number;
   timestamp: number;
   retryCount?: number;
-  status?: 'pending' | 'conflict' | 'failed';
+  status?: MutationQueueStatus;
+  syncOutcome?: SyncOutcomeStatus;
   lastError?: string;
   lastAttemptAt?: number;
+  nextRetryAt?: number;
+  lastDurationMs?: number;
+  stageTimingsMs?: MutationStageTimings;
 }

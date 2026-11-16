@@ -1319,7 +1319,10 @@ async function runSprintTests() {
     'Test 31i: Apps Script monthly and latest attendance calculations use valid single-escaped ISO date regexes'
   );
   assert(
-    appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete'];") &&
+    (appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete', 'batch', 'checkidempotency'];") ||
+      appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete'];")) &&
+      appsScriptSrc.includes("if (action === 'delete')") &&
+      appsScriptSrc.includes('status: 403') &&
       appsScriptSrc.indexOf("sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion)") >
         appsScriptSrc.indexOf("if (!friday)"),
     'Test 31j: Apps Script explicitly rejects delete and commits the row version only after attendance validation'

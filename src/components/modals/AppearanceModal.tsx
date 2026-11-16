@@ -64,7 +64,7 @@ export const AppearanceModal: React.FC = () => {
     >
       <div className="w-full max-w-lg glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-white/[0.02]">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shrink-0">
               <Palette className="w-5 h-5" />
@@ -152,7 +152,7 @@ export const AppearanceModal: React.FC = () => {
                   <span
                     className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
                       isSelected
-                        ? 'bg-[var(--accent-secondary)] border-[var(--accent-secondary)] text-[#030711]'
+                        ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
                         : 'border-[var(--border-color)] bg-transparent text-transparent'
                     }`}
                   >
@@ -165,7 +165,7 @@ export const AppearanceModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-end bg-white/[0.02]">
+        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-end bg-[var(--surface-secondary)]/60">
           <button
             type="button"
             onClick={() => setIsAppearanceModalOpen(false)}

@@ -226,10 +226,19 @@ router.post(
       if (!friday) {
         return res.status(400).json({ error: 'تاريخ الافتقاد (friday) مطلوب' });
       }
+      const rawOutcome = String(payload.callOutcome || '').trim();
+      const validOutcome =
+        rawOutcome === 'تم التواصل' || rawOutcome === 'لم يتم التواصل' ? rawOutcome : undefined;
 
       updatedStudent = {
         ...currentStudent,
         fu: { ...(currentStudent.fu || {}), [friday]: method },
+        ...(validOutcome
+          ? {
+              fuOutcomes: { ...(currentStudent.fuOutcomes || {}), [friday]: validOutcome },
+              lastCallOutcome: validOutcome
+            }
+          : {}),
         followupStatus: method,
         lastFollowup: friday
       };
@@ -325,6 +334,313 @@ router.post(
       ok: true,
       ...responseBody,
       student: saved
+    });
+  }
+);
+
+// GET /api/sheets/idempotency?keys=k1,k2,...
+// Used post-timeout (Unknown Result) to verify whether timed-out operations already persisted on server
+router.get(
+  '/idempotency',
+  authenticateToken,
+  apiLimiter,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const startedAt = Date.now();
+    const rawKeys = String(req.query.keys || req.query.key || '');
+    const keys = rawKeys
+      .split(',')
+      .map((k) => {
+        const trimmed = k.trim();
+        try {
+          return decodeURIComponent(trimmed);
+        } catch {
+          return trimmed;
+        }
+      })
+      .filter((k) => k.length > 0)
+      .slice(0, 100);
+
+    const results: Record<string, { found: boolean; response?: any; status?: string }> = {};
+    for (const key of keys) {
+      const rec = await dbManager.getIdempotencyRecord(key);
+      if (rec) {
+        results[key] = {
+          found: true,
+          status: rec.status,
+          response: rec.responseBody
+        };
+      } else {
+        results[key] = { found: false };
+      }
+    }
+
+    return res.json({
+      ok: true,
+      results,
+      serverDurationMs: Date.now() - startedAt
+    });
+  }
+);
+
+// POST /api/sheets/mutate-batch
+// Chunked batch endpoint: enforces RBAC + RLAC + OCC + Idempotency per item while committing to Google Sheets in one batch
+router.post(
+  '/mutate-batch',
+  authenticateToken,
+  requireRole(['admin', 'servant']),
+  apiLimiter,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const startedAt = Date.now();
+    const user = req.user!;
+    const ip = getClientIp(req);
+    const mutations = Array.isArray(req.body?.mutations) ? req.body.mutations : null;
+
+    if (!mutations) {
+      return res.status(400).json({ ok: false, error: 'مصفوفة العمليات (mutations) مطلوبة' });
+    }
+    if (mutations.length > 50) {
+      return res.status(400).json({ ok: false, error: 'حجم الدفعة يتجاوز الحد الأقصى المسموح (50 عملية)' });
+    }
+
+    // Strict Zero-Delete check across entire batch
+    if (mutations.some((m: any) => String(m?.action || '').trim().toLowerCase() === 'delete')) {
+      await dbManager.logAudit({
+        timestamp: new Date(),
+        userId: user.userId,
+        username: user.username,
+        action: 'MUTATE_BATCH_DELETE_BLOCKED',
+        status: 'denied',
+        ipAddress: ip,
+        details: { batchSize: mutations.length }
+      });
+      return res.status(403).json({
+        ok: false,
+        error: 'عملية حذف المخدومين محظورة نهائياً في النظام لحماية سجلات الخدمة.'
+      });
+    }
+
+    const results: any[] = new Array(mutations.length);
+    const workingStudents = new Map<string, Student>();
+    const blockedStudentIds = new Set<string>();
+    const stagedIdempotencyRecords: Array<{
+      index: number;
+      key: string;
+      action: string;
+      studentId: string;
+      responseBody: any;
+    }> = [];
+    const currentCairoMonth = getCairoDateParts().isoDate.slice(0, 7);
+
+    for (let i = 0; i < mutations.length; i++) {
+      const mut = mutations[i] || {};
+      const itemKey = String(mut.idempotencyKey || mut.id || '').trim();
+      if (!itemKey) {
+        results[i] = { ok: false, status: 400, error: 'مفتاح عدم التكرار (idempotencyKey) مطلوب لكل عملية' };
+        continue;
+      }
+
+      // 1. Server-side idempotency deduplication
+      const existingRec = await dbManager.getIdempotencyRecord(itemKey);
+      if (existingRec) {
+        results[i] = {
+          ok: true,
+          status: 200,
+          deduplicated: true,
+          ...existingRec.responseBody
+        };
+        continue;
+      }
+
+      const action = String(mut.action || '').trim().toLowerCase();
+      const studentId = String(mut.studentId || '').trim();
+      const expectedVersion = mut.expectedVersion;
+      const payload = mut.payload || mut;
+
+      if (action !== 'attendance' || !studentId) {
+        results[i] = {
+          ok: false,
+          status: 400,
+          mutationId: itemKey,
+          studentId,
+          error: 'المعالجة المجمعة تقبل عمليات الحضور الصحيحة فقط'
+        };
+        continue;
+      }
+
+      if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+        results[i] = {
+          ok: false,
+          status: 400,
+          mutationId: itemKey,
+          studentId,
+          error: 'expectedVersion إلزامي ويجب أن يكون رقم إصدار صحيحاً'
+        };
+        continue;
+      }
+
+      if (blockedStudentIds.has(studentId)) {
+        results[i] = {
+          ok: false,
+          status: 409,
+          mutationId: itemKey,
+          studentId,
+          error: 'توقف التحديث المتسلسل لهذا المخدوم لوجود تعارض إصدار سابق في الدفعة'
+        };
+        continue;
+      }
+
+      let currentStudent = workingStudents.get(studentId) || googleSheetsService.getStudentById(studentId);
+      if (!currentStudent) {
+        results[i] = {
+          ok: false,
+          status: 404,
+          mutationId: itemKey,
+          studentId,
+          error: 'المخدوم غير موجود في قاعدة بيانات الخادم'
+        };
+        continue;
+      }
+
+      // RLAC Check
+      if (user.role === 'servant') {
+        const studentServant = currentStudent.servant?.trim();
+        const userServant = user.assignedServantName?.trim();
+        if (!studentServant || !userServant || studentServant !== userServant) {
+          results[i] = {
+            ok: false,
+            status: 403,
+            mutationId: itemKey,
+            studentId,
+            error: `غير مصرح: هذا المخدوم مسند للأشبين (${studentServant || 'غير محدد'}).`
+          };
+          continue;
+        }
+      }
+
+      // Sequential OCC Version check
+      if ((currentStudent.version || 1) !== expectedVersion) {
+        blockedStudentIds.add(studentId);
+        results[i] = {
+          ok: false,
+          status: 409,
+          mutationId: itemKey,
+          studentId,
+          error: `تعارض في التعديل المتزامن (HTTP 409): إصدار الخادم (${currentStudent.version}) لا يطابق الإصدار المرسل (${expectedVersion}).`,
+          latestServerRecord: currentStudent
+        };
+        continue;
+      }
+
+      const friday = String(payload.friday || payload.date || mut.date || mut.friday || '').trim();
+      const rawAttendance = String(payload.isPresent ?? payload.present ?? mut.isPresent ?? mut.present ?? '').trim().toLowerCase();
+      const isPresent =
+        payload.isPresent === true ||
+        payload.present === true ||
+        mut.isPresent === true ||
+        mut.present === true ||
+        ['1', 'true', 'present', 'حاضر'].includes(rawAttendance);
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) {
+        results[i] = {
+          ok: false,
+          status: 400,
+          mutationId: itemKey,
+          studentId,
+          error: 'تاريخ الجمعة (friday) مطلوب بصيغة YYYY-MM-DD'
+        };
+        continue;
+      }
+
+      const previousAttendance = currentStudent.att?.[friday];
+      const prevVal = previousAttendance === true;
+      const delta = isPresent ? (prevVal ? 0 : 1) : prevVal ? -1 : 0;
+      const nextAttendance = { ...(currentStudent.att || {}), [friday]: isPresent };
+      const monthlyAttendanceCount = Object.entries(nextAttendance).reduce(
+        (count, [d, present]) => (d.slice(0, 7) === currentCairoMonth && present === true ? count + 1 : count),
+        0
+      );
+      const latestPresentFriday = Object.entries(nextAttendance)
+        .filter(([, present]) => present === true)
+        .map(([d]) => d)
+        .sort()
+        .pop();
+
+      const nextVersion = (currentStudent.version || 1) + 1;
+      const updatedStudent: Student = {
+        ...currentStudent,
+        att: nextAttendance,
+        attendanceTotal: Math.max(0, (currentStudent.attendanceTotal || 0) + delta),
+        attendanceMonth: monthlyAttendanceCount,
+        attendanceStatus: isPresent ? 'حاضر' : 'غائب',
+        lastAttendance: latestPresentFriday,
+        version: nextVersion
+      };
+
+      workingStudents.set(studentId, updatedStudent);
+
+      const responseBody = {
+        ok: true,
+        status: 200,
+        mutationId: itemKey,
+        studentId,
+        newVersion: nextVersion,
+        action: 'attendance'
+      };
+      results[i] = responseBody;
+      stagedIdempotencyRecords.push({
+        index: i,
+        key: itemKey,
+        action: 'attendance',
+        studentId,
+        responseBody
+      });
+    }
+
+    // Persist net final modified student records in ONE Google Sheets batch call BEFORE recording idempotency!
+    if (workingStudents.size > 0) {
+      try {
+        await googleSheetsService.upsertStudentsBatch(Array.from(workingStudents.values()));
+      } catch (err: any) {
+        return res.status(502).json({
+          ok: false,
+          error: err?.message || 'تعذر حفظ الدفعة في Google Sheets',
+          serverDurationMs: Date.now() - startedAt
+        });
+      }
+    }
+
+    // Record durable idempotency ONLY after sheet write confirmed
+    for (const rec of stagedIdempotencyRecords) {
+      await dbManager.saveIdempotencyRecord({
+        key: rec.key,
+        action: rec.action,
+        studentId: rec.studentId,
+        status: 'completed',
+        responseBody: rec.responseBody,
+        createdAt: new Date()
+      });
+    }
+
+    if (stagedIdempotencyRecords.length > 0) {
+      await dbManager.logAudit({
+        timestamp: new Date(),
+        userId: user.userId,
+        username: user.username,
+        action: 'MUTATE_BATCH_ATTENDANCE',
+        status: 'success',
+        ipAddress: ip,
+        details: {
+          confirmedCount: stagedIdempotencyRecords.length,
+          studentsTouched: workingStudents.size
+        }
+      });
+    }
+
+    return res.json({
+      ok: true,
+      action: 'batch',
+      results,
+      serverDurationMs: Date.now() - startedAt
     });
   }
 );

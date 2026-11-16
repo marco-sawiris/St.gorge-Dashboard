@@ -32,13 +32,12 @@ import { generateUUID } from '../../utils/uuid';
 import { formatWhatsAppUrl } from '../../utils/arabicUtils';
 
 const QUICK_PROMPTS = [
-  { label: '🎂 أعياد الميلاد', query: 'أعياد الميلاد' },
-  { label: '🎉 رسالة تهنئة', query: 'رسالة عيد ميلاد' },
-  { label: '💙 رسالة افتقاد', query: 'رسالة افتقاد' },
-  { label: '🌟 رسالة تشجيع', query: 'رسالة تشجيع' },
-  { label: '📊 إحصائيات', query: 'إحصائيات' },
-  { label: '⚠️ الغائبون', query: 'الغائبون' },
+  { label: '📝 لم تسجل حضور/غياب', query: 'هات الأسماء اللي لم تسجل حضور أو غياب' },
+  { label: '⚠️ الغائبون', query: 'مين غاب آخر جمعة؟' },
   { label: '✅ الحضور اليوم', query: 'مين حضر النهارده؟' },
+  { label: '📞 لم يتم التواصل', query: 'مين محدش رد عليه؟' },
+  { label: '📊 ملخص الخدمة', query: 'اعرض ملخص الخدمة' },
+  { label: '🎂 أعياد الميلاد', query: 'أعياد الميلاد' },
   { label: '🎂 الشهر القادم', query: 'أعياد الميلاد الشهر القادم' },
   { label: '📞 افتقاد هذا الأسبوع', query: 'مين نسيت افتقدهم الأسبوع ده؟' },
   { label: '📉 حضور ضعيف', query: 'الأولاد اللي حضورهم مش قوي' },
@@ -58,6 +57,7 @@ export const AssistantModal: React.FC = () => {
     syncData,
     isSyncing,
     isOnline,
+    pendingMutationsCount,
     markAttendance,
     recordFollowup,
     processOfflineQueue,
@@ -295,6 +295,8 @@ export const AssistantModal: React.FC = () => {
           lastSyncLabel: lastSuccessfulSyncTime,
           lastSyncError,
           isSyncing,
+          isOnline,
+          pendingMutationsCount,
           followupRecords,
           servantName: filters.servant || user?.assignedServantName || undefined,
           sessionMessages: updatedMessages, // strictly messages from THIS session
@@ -416,6 +418,7 @@ export const AssistantModal: React.FC = () => {
           whatsappPhone: response.whatsappPhone,
           actions: response.actions,
           command: response.command,
+          meta: response.meta,
           timestamp: Date.now()
         };
 
@@ -461,7 +464,7 @@ export const AssistantModal: React.FC = () => {
             <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-[#123fce] via-[#267aff] to-[#20c7e8] flex items-center justify-center text-white shadow-[0_0_16px_rgba(32,199,232,0.45)] shrink-0">
               <Bot className="w-5 h-5" />
               <span
-                className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-[#20c7e8] border-2 border-[#071B3B] shadow-[0_0_8px_#20c7e8]"
+                className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-[#20c7e8] border-2 border-[var(--surface-primary)] shadow-[0_0_8px_#20c7e8]"
                 aria-hidden="true"
               />
             </div>

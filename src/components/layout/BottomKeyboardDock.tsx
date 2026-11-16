@@ -83,7 +83,7 @@ export const BottomKeyboardDock: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="glass-btn px-3 py-1 rounded-full flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold cursor-pointer shrink-0 justify-self-center border border-white/25 whitespace-nowrap"
+          className="glass-btn px-3 py-1 rounded-full flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold cursor-pointer shrink-0 justify-self-center border border-[var(--border-color)] whitespace-nowrap"
           aria-expanded={!isCollapsed}
           title={isCollapsed ? 'إظهار الكيبورد' : 'إخفاء الكيبورد'}
         >
@@ -143,7 +143,7 @@ export const BottomKeyboardDock: React.FC = () => {
                   }}
                   className={`glass-keyboard-key min-w-[40px] sm:min-w-[44px] min-h-[40px] px-2.5 text-xs sm:text-sm font-bold flex items-center justify-center cursor-pointer select-none whitespace-nowrap ${
                     isSelected
-                      ? '!bg-gradient-to-br !from-[#267aff] !to-[#20c7e8] !text-[#030711] font-black shadow-[0_0_15px_rgba(32,199,232,0.55)] scale-105 border-white/45'
+                      ? '!bg-gradient-to-br !from-[#267aff] !to-[#123fce] !text-white font-black shadow-[0_0_15px_rgba(38,122,255,0.45)] scale-105 border-white/45'
                       : ''
                   }`}
                   title={`حرف ${letter} (${count} مخدوم)`}

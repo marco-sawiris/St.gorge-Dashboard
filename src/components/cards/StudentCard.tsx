@@ -23,6 +23,7 @@ import {
 import confetti from 'canvas-confetti';
 import {
   computeMonthlyAttendanceSummary,
+  computeMonthlyFollowupSummary,
   getLatestHeldFridayString,
   formatTelHref,
   formatWhatsAppUrl
@@ -204,10 +205,35 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
     return '';
   }, [matchingFollowups, student.fu, hasFollowup, cleanFollowupStatus]);
 
+  const latestPhoneCallOutcome = useMemo(() => {
+    const phoneRecords = matchingFollowups
+      .filter((r) => r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي')
+      .sort((a, b) => (b.date || b.fridayDate || '').localeCompare(a.date || a.fridayDate || ''));
+    if (phoneRecords.length > 0) {
+      return phoneRecords[0].callOutcome || 'غير مسجل';
+    }
+    if (student.lastCallOutcome) return student.lastCallOutcome;
+    if (latestFollowupMethod === 'تم تليفونياً' || latestFollowupMethod === 'اتصال تليفوني') {
+      return 'غير مسجل';
+    }
+    return null;
+  }, [matchingFollowups, student.lastCallOutcome, latestFollowupMethod]);
+
   // Real Africa/Cairo Monthly Fridays breakdown (supports both 4 & 5 Friday months, excludes future Fridays)
   const monthlySummary = useMemo(
     () => computeMonthlyAttendanceSummary(student.att),
     [student.att]
+  );
+
+  // Real Africa/Cairo Monthly Follow-up Weeks (4 or 5 weeks, closes Friday 23:59 Cairo, never inferred from attendance)
+  const hasFollowupDataAvailable = Boolean(
+    student.fu !== undefined ||
+    student.followupStatus !== undefined ||
+    matchingFollowups.length > 0
+  );
+  const monthlyFollowupSummary = useMemo(
+    () => computeMonthlyFollowupSummary(student, followupRecords, new Date(), hasFollowupDataAvailable),
+    [student, followupRecords, hasFollowupDataAvailable]
   );
 
   const handleAttendanceToggle = async (
@@ -329,7 +355,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
 
         {showUnsavedGuard && (
           <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/35 flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-bold">
-            <span className="text-amber-300">توجد تغييرات غير محفوظة!</span>
+            <span className="text-[var(--warning-text)]">توجد تغييرات غير محفوظة!</span>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -488,8 +514,8 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
   }
 
   return (
-    <div className="perspective-1000 box-border w-full min-w-0 max-w-full overflow-x-clip select-none">
-      {/* CSS Grid Stacking ensures ZERO clipping and ZERO internal scrollbar across any viewport */}
+    <div className="perspective-1000 box-border w-full min-w-0 max-w-full select-none">
+      {/* CSS Grid Stacking with explicit active-face visibility guarantees zero Android WebView blank-card compositing bugs */}
       <div
         className={`grid box-border w-full min-w-0 max-w-full duration-500 ease-[var(--ease-spring)] transform-style-preserve-3d transition-transform ${
           isFlipped ? 'rotate-y-180' : ''
@@ -498,32 +524,37 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
         {/* ==================================================== */}
         {/* FRONT OF CARD (Liquid Glass)                         */}
         {/* ==================================================== */}
-        <div className="col-start-1 row-start-1 backface-hidden box-border w-full min-w-0 max-w-full p-3.5 sm:p-4 rounded-3xl glass shadow-[0_12px_32px_0_rgba(3,7,17,0.7)] flex flex-col justify-between gap-2.5 transition-all duration-300 hover:border-[var(--glass-border-2)] hover:shadow-[0_14px_40px_rgba(32,199,232,0.25)]">
+        <div
+          aria-hidden={isFlipped}
+          className={`col-start-1 row-start-1 backface-hidden box-border w-full min-w-0 max-w-full p-3.5 sm:p-4 rounded-3xl glass shadow-[var(--shadow-card)] flex flex-col justify-between gap-2.5 transition-all duration-300 hover:border-[var(--glass-border-2)] hover:shadow-[var(--shadow-accent)] ${
+            isFlipped ? 'opacity-0 pointer-events-none -z-10' : 'opacity-100 pointer-events-auto relative z-10'
+          }`}
+        >
           <div className="min-w-0 space-y-2.5">
             {/* Top Row: Full Name, Servant, Code & Sheet (No Initials Avatar) */}
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <h3 className="font-extrabold text-sm sm:text-base text-[var(--text)] leading-snug line-clamp-1 m-0">
-                  {student.name}
+                  {student.name || 'مخدوم بدون اسم'}
                 </h3>
                 <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] mt-0.5">
                   <User className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-                  <span className="font-semibold truncate">الأشبين: {student.servant}</span>
+                  <span className="font-semibold truncate">الأشبين: {student.servant || 'غير محدد'}</span>
                 </div>
               </div>
 
               <div className="flex flex-col items-end gap-1 shrink-0">
-                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-[var(--navy)]/80 border border-[var(--glass-border)] text-[var(--accent)]">
-                  {student.code}
+                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-[var(--surface-inset)] border border-[var(--glass-border)] text-[var(--accent)]">
+                  {student.code || '-'}
                 </span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getSheetBadge(student.sourceSheet)}`}>
-                  {student.sourceSheet}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getSheetBadge(student.sourceSheet || 'نشط')}`}>
+                  {student.sourceSheet || 'نشط'}
                 </span>
               </div>
             </div>
 
             {/* Quick Attendance Selector (Single-Click Present / Absent, Zero Ambiguity + Real-Time Sync Indicator) */}
-            <div className="w-full p-2 rounded-2xl bg-[var(--navy)]/60 border border-[var(--glass-border)] flex flex-col gap-1.5 shadow-xs">
+            <div className="w-full p-2 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex flex-col gap-1.5 shadow-xs">
               <div className="flex items-center justify-between gap-2 px-0.5">
                 <div className="flex items-center gap-1.5 min-w-0 pr-0.5 text-right">
                   <Calendar className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
@@ -566,7 +597,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                   className={`px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
                     isPresentToday
                       ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.35)] font-black'
-                      : 'bg-[var(--navy)]/70 border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-emerald-300 hover:border-emerald-500/40'
+                      : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-emerald-300 hover:border-emerald-500/40'
                   }`}
                   title={isPresentToday ? 'حاضر مسجل' : 'تسجيل حضور المخدوم'}
                 >
@@ -592,7 +623,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                   className={`px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
                     isAbsentToday
                       ? 'bg-rose-500/25 border border-rose-400 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.35)] font-black'
-                      : 'bg-[var(--navy)]/70 border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-rose-300 hover:border-rose-500/40'
+                      : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-rose-300 hover:border-rose-500/40'
                   }`}
                   title={isAbsentToday ? 'غائب مسجل' : 'تسجيل غياب المخدوم'}
                 >
@@ -608,11 +639,11 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
 
             {/* Compact Metrics Row */}
             <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="py-1.5 px-2.5 rounded-xl bg-[var(--navy)]/50 border border-[var(--glass-border)] flex items-center justify-between">
+              <div className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex items-center justify-between">
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold">إجمالي الحضور</span>
                 <strong className="text-sm font-mono text-[var(--accent)] tabular-nums">{student.attendanceTotal}</strong>
               </div>
-              <div className="py-1.5 px-2.5 rounded-xl bg-[var(--navy)]/50 border border-[var(--glass-border)] flex items-center justify-between">
+              <div className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex items-center justify-between">
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold">حضور الشهر</span>
                 <strong className="text-sm font-mono text-[var(--primary)] tabular-nums">
                   {`${monthlySummary.presentCount}/${monthlySummary.heldCount}`}
@@ -621,7 +652,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
             </div>
 
             {/* Monthly Attendance (Dynamic 4 or 5 Cairo Fridays: Green/Red/Neutral) & Followup Panel */}
-            <div className="card-dual-tracks flex flex-col gap-2 p-2.5 rounded-2xl bg-[var(--navy)]/55 border border-[var(--glass-border)]">
+            <div className="card-dual-tracks flex flex-col gap-2 p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)]">
               <div className="flex items-center justify-between gap-1 pb-1 border-b border-[var(--glass-border)]/60">
                 <div className="flex items-center gap-1" role="tablist" aria-label={`تبويبات سجل ${student.name}`}>
                   {[
@@ -738,10 +769,10 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                 </div>
               )}
 
-              {/* Track 2: Followup Summary (Status + Count + Method) */}
+              {/* Track 2: Weekly Followup Indicators (4 or 5 Horizontal Bars matching Cairo Month) + Details */}
               {(activeTrackTab === 'all' || activeTrackTab === 'fu') && (
                 <div
-                  className="flex flex-col gap-1.5 pt-1 border-t border-[var(--glass-border)]/45 word-in"
+                  className="flex flex-col gap-1.5 pt-1.5 border-t border-[var(--glass-border)]/45 word-in"
                   style={{ '--i': 1 } as React.CSSProperties}
                 >
                   <div className="flex items-center justify-between gap-1.5 text-[11px]">
@@ -766,17 +797,84 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                     </button>
                   </div>
 
-                  {/* Followup Method & Real Count Row */}
+                  {/* Weekly Followup Horizontal Bars Strip (4 or 5 Cairo Weeks, Friday 23:59 Cairo cutoff) */}
+                  <div
+                    className={`grid ${
+                      monthlyFollowupSummary.totalWeeksInMonth === 5 ? 'grid-cols-5 gap-1' : 'grid-cols-4 gap-1.5'
+                    }`}
+                    aria-label={`متابعة الافتقاد الأسبوعية (${monthlyFollowupSummary.doneCount} من ${monthlyFollowupSummary.totalWeeksInMonth})`}
+                  >
+                    {monthlyFollowupSummary.weeks.map((week) => {
+                      const barClass =
+                        week.status === 'done'
+                          ? 'followup-bar--done'
+                          : week.status === 'missed'
+                            ? 'followup-bar--missed'
+                            : week.status === 'open'
+                              ? 'followup-bar--open'
+                              : week.status === 'no_data'
+                                ? 'followup-bar--empty'
+                                : 'followup-bar--upcoming';
+
+                      const statusDesc =
+                        week.status === 'done'
+                          ? `تم الافتقاد (${week.method || 'مسجل'}${week.recordDate ? ` • ${week.recordDate}` : ''})`
+                          : week.status === 'missed'
+                            ? 'أُغلق الأسبوع بعد الجمعة 11:59 م بتوقيت القاهرة دون تسجيل افتقاد'
+                            : week.status === 'open'
+                              ? 'الأسبوع الحالي مفتوح حتى الجمعة 11:59 م بتوقيت القاهرة'
+                              : week.status === 'no_data'
+                                ? 'لا توجد بيانات كافية لهذا الأسبوع'
+                                : 'أسبوع قادم لم يبدأ بعد';
+
+                      return (
+                        <button
+                          key={week.fridayDate}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenFollowup(student);
+                          }}
+                          title={`أسبوع ${week.weekNumber} (${week.shortLabel}) — ${statusDesc}`}
+                          aria-label={`افتقاد أسبوع ${week.weekNumber} (${week.shortLabel}): ${statusDesc}`}
+                          className={`followup-week-bar ${barClass} cursor-pointer`}
+                        >
+                          <span className="followup-week-line" aria-hidden="true" />
+                          <span className="text-[8.5px] font-mono font-extrabold leading-none">
+                            {`أ${week.weekNumber}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Followup Method, Call Outcome & Real Count Row */}
                   <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px]">
-                    <span className="px-2 py-0.5 rounded-md bg-[var(--navy)]/75 border border-[var(--glass-border)] text-[var(--text-secondary)] font-bold">
+                    <span className="px-2 py-0.5 rounded-md bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-secondary)] font-bold">
                       عدد المرات: <strong className="font-mono text-[var(--accent)]">{studentFollowupCount}</strong>
                     </span>
-                    <span className="px-2 py-0.5 rounded-md bg-[var(--navy)]/75 border border-[var(--glass-border)] text-[var(--text-secondary)] font-bold truncate max-w-[60%]">
+                    <span className="px-2 py-0.5 rounded-md bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-secondary)] font-bold truncate max-w-[60%]">
                       الوسيلة:{' '}
                       <strong className={latestFollowupMethod ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}>
                         {latestFollowupMethod || 'لم تُسجل'}
                       </strong>
                     </span>
+                    {latestPhoneCallOutcome && (
+                      <span className="px-2 py-0.5 rounded-md bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-secondary)] font-bold">
+                        نتيجة الاتصال:{' '}
+                        <strong
+                          className={
+                            latestPhoneCallOutcome === 'تم التواصل'
+                              ? 'text-[var(--accent)]'
+                              : latestPhoneCallOutcome === 'لم يتم التواصل'
+                                ? 'text-rose-400'
+                                : 'text-[var(--text-muted)]'
+                          }
+                        >
+                          {latestPhoneCallOutcome}
+                        </strong>
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -785,7 +883,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
             {/* Area & Address preview */}
             <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] line-clamp-1">
               <MapPin className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-              <span className="truncate">المنطقة: <strong className="text-[var(--text)]">{student.area}</strong>{student.address ? ` - ${student.address}` : ''}</span>
+              <span className="truncate">المنطقة: <strong className="text-[var(--text)]">{student.area || 'غير محددة'}</strong>{student.address ? ` - ${student.address}` : ''}</span>
             </div>
           </div>
 
@@ -869,7 +967,12 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
         {/* ==================================================== */}
         {/* BACK OF CARD (Liquid Glass)                          */}
         {/* ==================================================== */}
-        <div className="col-start-1 row-start-1 backface-hidden rotate-y-180 p-3.5 sm:p-4 rounded-3xl glass-strong shadow-[0_12px_32px_0_rgba(3,7,17,0.8)] flex flex-col justify-between gap-2.5 hover:border-[var(--glass-border-2)] transition-colors">
+        <div
+          aria-hidden={!isFlipped}
+          className={`col-start-1 row-start-1 backface-hidden rotate-y-180 p-3.5 sm:p-4 rounded-3xl glass-strong shadow-[var(--shadow-card)] flex flex-col justify-between gap-2.5 hover:border-[var(--glass-border-2)] transition-all duration-300 ${
+            isFlipped ? 'opacity-100 pointer-events-auto relative z-10' : 'opacity-0 pointer-events-none -z-10'
+          }`}
+        >
           <div>
             {/* Top Back Row: Title + Flip Back Button */}
             <div className="flex items-center justify-between pb-2 border-b border-[var(--glass-border)] mb-2.5">
@@ -890,7 +993,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
             {/* Back Details Grid */}
             <div className="space-y-2 text-xs">
               {/* Phones List */}
-              <div className="p-2.5 rounded-2xl bg-[var(--navy)]/60 border border-[var(--glass-border)] space-y-1.5">
+              <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[var(--text-muted)]">موبايل الطالب:</span>
                   <div className="flex items-center gap-2">
@@ -940,7 +1043,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               </div>
 
               {/* Notes */}
-              <div className="p-2.5 rounded-2xl bg-[var(--navy)]/60 border border-[var(--glass-border)] text-[var(--text-muted)]">
+              <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] text-[var(--text-muted)]">
                 <span className="block text-[10px] font-bold text-[var(--accent)] mb-0.5">ملاحظات الخادم:</span>
                 <p className="m-0 text-[11px] leading-relaxed line-clamp-2 text-[var(--text)]">
                   {student.notes || 'لا توجد ملاحظات مسجلة للمخدوم.'}

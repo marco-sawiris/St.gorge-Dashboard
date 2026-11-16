@@ -544,7 +544,7 @@ export const NotificationsPanel: React.FC = () => {
             </div>
 
             {/* Honest Android OS Battery Optimization Disclosure */}
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2 text-[11px] text-amber-200/90 leading-relaxed">
+            <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2 text-[11px] text-[var(--warning-text)] leading-relaxed">
               <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <span>
                 <strong>تنبيه موثوقية الإشعارات:</strong> قد تؤخر أنظمة توفير البطارية في بعض هواتف أندرويد الإشعارات في الخلفية؛ لضمان دقة التنبيهات يوصى باستثناء التطبيق من قيود البطارية ومنح إذن التنبيهات الدقيقة.

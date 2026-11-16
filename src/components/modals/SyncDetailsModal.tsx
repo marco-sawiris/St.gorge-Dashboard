@@ -23,6 +23,7 @@ export const SyncDetailsModal: React.FC = () => {
     isSyncing,
     isOnline,
     lastSyncError,
+    lastSyncReport,
     lastSuccessfulPullTime,
     lastSuccessfulPushTime,
     pendingMutationsCount,
@@ -148,6 +149,52 @@ export const SyncDetailsModal: React.FC = () => {
               <p className="text-xs m-0 font-mono pr-6">
                 {lastSyncError}
               </p>
+            </div>
+          )}
+
+          {/* Last Queue Execution Outcome & Stage Timings */}
+          {lastSyncReport && (
+            <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="font-extrabold text-xs text-[var(--text-primary)]">
+                  ملخص آخر دورة إرسال للطابور
+                </span>
+                <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full border ${
+                  lastSyncReport.outcome === 'success'
+                    ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/35'
+                    : lastSyncReport.outcome === 'timeout_unknown'
+                    ? 'bg-amber-500/15 text-[var(--warning-text)] border-amber-500/35'
+                    : lastSyncReport.outcome === 'conflict' || lastSyncReport.outcome === 'failed'
+                    ? 'bg-rose-500/15 text-rose-500 border-rose-500/35'
+                    : 'bg-blue-500/15 text-blue-500 border-blue-500/35'
+                }`}>
+                  {lastSyncReport.outcome === 'success'
+                    ? 'تم التأكيد (Success)'
+                    : lastSyncReport.outcome === 'timeout_unknown'
+                    ? 'نتيجة غير مؤكدة Timeout (Unknown Result)'
+                    : lastSyncReport.outcome === 'conflict'
+                    ? 'تعارض إصدار (Conflict)'
+                    : lastSyncReport.outcome === 'failed'
+                    ? 'تعذر الإرسال (Failed)'
+                    : 'قيد الانتظار (Pending)'}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-[var(--text-secondary)]">
+                <span>مؤكد: {lastSyncReport.sentCount}</span>
+                <span>متبقي: {lastSyncReport.remainingCount}</span>
+                {lastSyncReport.verifiedPostTimeoutCount > 0 && (
+                  <span className="text-emerald-500">تحقق بعد Timeout: {lastSyncReport.verifiedPostTimeoutCount}</span>
+                )}
+                <span>الوضع: {lastSyncReport.mode === 'batch' ? 'دفعة مجمعة' : lastSyncReport.mode === 'mixed' ? 'مختلط' : 'فردي'}</span>
+                <span>الزمن الكلي: {lastSyncReport.totalDurationMs}ms</span>
+                {lastSyncReport.stageSummary && (
+                  <span>
+                    (تحضير {lastSyncReport.stageSummary.prepMs}ms · شبكة {lastSyncReport.stageSummary.networkMs}ms
+                    {lastSyncReport.stageSummary.verifyMs > 0 ? ` · تحقق ${lastSyncReport.stageSummary.verifyMs}ms` : ''}
+                    {lastSyncReport.stageSummary.serverMs > 0 ? ` · خادم ${lastSyncReport.stageSummary.serverMs}ms` : ''})
+                  </span>
+                )}
+              </div>
             </div>
           )}
 

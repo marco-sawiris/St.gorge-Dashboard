@@ -93,7 +93,7 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
       role="dialog"
       aria-label="شاشة التحميل والتهيئة"
       onClick={handleDismiss}
-      className={`fixed inset-0 z-50 bg-[#030711] flex flex-col items-center justify-center p-4 cursor-pointer select-none overflow-hidden transition-opacity duration-350 ${
+      className={`fixed inset-0 z-50 bg-[var(--app-bg)] text-[var(--text-primary)] flex flex-col items-center justify-center p-4 cursor-pointer select-none overflow-hidden transition-opacity duration-350 ${
         isExiting ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
     >
@@ -106,13 +106,13 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
           transform: `scale(${phase.scale})`
         }}
       >
-        <div className="absolute inset-0 bg-radial from-[#123FCE]/30 via-[#071B3B]/65 to-[#030711]" />
+        <div className="absolute inset-0 bg-radial from-[var(--primary)]/20 via-[var(--surface-primary)]/45 to-[var(--app-bg)]" />
         <img
           src={stGeorgeIcon}
           alt=""
-          className="w-[340px] sm:w-[460px] h-auto object-cover rounded-full opacity-18 mix-blend-screen"
+          className="w-[340px] sm:w-[460px] h-auto object-cover rounded-full opacity-15"
         />
-        <div className="absolute w-[520px] h-[520px] rounded-full bg-radial from-[#20C7E8]/20 via-[#123FCE]/10 to-transparent blur-3xl" />
+        <div className="absolute w-[520px] h-[520px] rounded-full bg-radial from-[var(--accent-secondary)]/18 via-[var(--primary)]/10 to-transparent blur-3xl" />
       </div>
 
       {/* Main Optical Glass Focus Stage */}
@@ -122,44 +122,44 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
       >
         {/* 100% Crisp Crest Card (Razor sharp from first frame) */}
         <div className="relative mb-6">
-          <div className="relative w-44 sm:w-52 p-2 rounded-3xl glass-strong border border-[#20C7E8]/35 shadow-[0_0_55px_rgba(32,199,232,0.28)]">
+          <div className="relative w-44 sm:w-52 p-2 rounded-3xl glass-strong border border-[var(--border-strong)] shadow-[0_0_55px_rgba(32,199,232,0.22)]">
             <img
               src={stGeorgeIcon}
               alt="الشهيد العظيم مارجرجس"
-              className="w-full h-auto object-contain rounded-2xl drop-shadow-[0_14px_28px_rgba(0,0,0,0.85)]"
+              className="w-full h-auto object-contain rounded-2xl drop-shadow-[0_12px_24px_rgba(15,23,42,0.35)]"
             />
           </div>
         </div>
 
         {/* Service Identity (wordIn per-word spring reveal matching Ainmation_code_8feeba97.html) */}
         <div className="space-y-1.5 mb-5">
-          <h1 className="word-in-text text-2xl sm:text-3xl font-black text-[#F4F7FC] drop-shadow-md m-0 tracking-tight flex flex-wrap justify-center gap-x-1.5">
+          <h1 className="word-in-text text-2xl sm:text-3xl font-black text-[var(--text-primary)] m-0 tracking-tight flex flex-wrap justify-center gap-x-1.5">
             {['فصل', 'الشهيد', 'العظيم', 'مارجرجس'].map((word, idx) => (
               <span key={word} style={{ '--w': idx } as React.CSSProperties}>
                 {word}
               </span>
             ))}
           </h1>
-          <p className="text-xs sm:text-sm font-bold text-[#8ECFFF] m-0 word-in" style={{ '--i': 4 } as React.CSSProperties}>
+          <p className="text-xs sm:text-sm font-bold text-[var(--accent-secondary)] m-0 word-in" style={{ '--i': 4 } as React.CSSProperties}>
             بكنيسة السيدة العذراء مريم بالزيتون
           </p>
 
         </div>
 
         {/* Real Initialization Status Capsule (Honest milestone indicator — NO fake 0-100% loop) */}
-        <div className="w-full max-w-xs p-3.5 rounded-2xl glass border border-[#20C7E8]/30 space-y-2.5 shadow-[0_10px_28px_rgba(3,7,17,0.75)]">
-          <div className="flex items-center justify-center gap-2 text-xs font-extrabold text-[#F4F7FC]">
+        <div className="w-full max-w-xs p-3.5 rounded-2xl glass border border-[var(--border-color)] space-y-2.5 shadow-[var(--shadow-card)]">
+          <div className="flex items-center justify-center gap-2 text-xs font-extrabold text-[var(--text-primary)]">
             {phase.stage === 'ready' ? (
-              <CheckCircle2 className="w-4 h-4 text-[#20C7E8] shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-[var(--accent-secondary)] shrink-0" />
             ) : (
-              <RefreshCw className="w-4 h-4 text-[#20C7E8] animate-spin shrink-0" />
+              <RefreshCw className="w-4 h-4 text-[var(--accent-secondary)] animate-spin shrink-0" />
             )}
             <span className="truncate">{phase.label}</span>
           </div>
 
           {/* Optical Loading Indicator (Honest indeterminate shimmer during load, full bar only on completion) */}
           <div
-            className="relative w-full h-1.5 rounded-full bg-[#071B3B] overflow-hidden border border-[#267AFF]/25"
+            className="relative w-full h-1.5 rounded-full bg-[var(--surface-inset)] overflow-hidden border border-[var(--border-color)]"
             aria-hidden="true"
           >
             {phase.stage === 'ready' ? (
@@ -180,7 +180,7 @@ export const SplashScreen: React.FC<{ onDismiss: () => void }> = ({ onDismiss })
         </div>
       </div>
 
-      <div className="relative z-10 mt-6 text-[11px] text-[#A6B1C2]/70 tracking-wide">
+      <div className="relative z-10 mt-6 text-[11px] text-[var(--text-muted)] tracking-wide">
         <span>اضغط في أي مكان للمتابعة</span>
       </div>
     </div>

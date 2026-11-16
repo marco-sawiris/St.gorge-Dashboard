@@ -1,6 +1,11 @@
 import { Student } from '../types/student';
 import { FollowupRecord } from '../types/followup';
-import { OfflineMutation } from '../types/auth';
+import {
+  MutationQueueStatus,
+  MutationStageTimings,
+  OfflineMutation,
+  SyncOutcomeStatus
+} from '../types/auth';
 
 const DB_NAME = 'StGorgeServiceDB';
 const DB_VERSION = 2;
@@ -239,6 +244,65 @@ export async function idbAtomicRecordAttendanceWithMutation(
         safeReject(err);
       }
     };
+  });
+}
+
+// 2c. Atomic Batch Record Attendance + History + Sequential FIFO Mutations in ONE transaction
+export async function idbAtomicBatchRecordAttendanceWithMutations(
+  updatedStudents: Student[],
+  historyRecords: AttendanceHistoryRecord[],
+  mutations: OfflineMutation[]
+): Promise<void> {
+  if (updatedStudents.length === 0 && historyRecords.length === 0 && mutations.length === 0) {
+    return;
+  }
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+    const safeResolve = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+
+    const tx = db.transaction(['students', 'attendance_history', 'mutations'], 'readwrite');
+    const studentStore = tx.objectStore('students');
+    const historyStore = tx.objectStore('attendance_history');
+    const mutationStore = tx.objectStore('mutations');
+
+    tx.oncomplete = () => safeResolve();
+    tx.onerror = () => safeReject(tx.error || new Error('فشلت المعاملة الذرية لاستيراد سجلات الحضور'));
+    tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء معاملة استيراد سجلات الحضور'));
+
+    try {
+      for (const student of updatedStudents) {
+        const studentReq = studentStore.put(student);
+        studentReq.onerror = () => tx.abort();
+      }
+
+      for (const historyRecord of historyRecords) {
+        const historyReq = historyStore.put({
+          ...historyRecord,
+          id: `${historyRecord.studentId}__${historyRecord.fridayDate}`
+        });
+        historyReq.onerror = () => tx.abort();
+      }
+
+      for (const mutation of mutations) {
+        const mutReq = mutationStore.put(mutation);
+        mutReq.onerror = () => tx.abort();
+      }
+    } catch (err) {
+      tx.abort();
+      safeReject(err);
+    }
   });
 }
 
@@ -816,6 +880,33 @@ export async function idbRemoveMutation(id: string): Promise<void> {
   });
 }
 
+export async function idbRemoveMutationsBatch(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+
+    const tx = db.transaction('mutations', 'readwrite');
+    const store = tx.objectStore('mutations');
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => safeReject(tx.error || new Error('فشل حذف العمليات المؤكدة من الطابور'));
+    tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء حذف العمليات المؤكدة من الطابور'));
+
+    for (const id of ids) {
+      if (!id) continue;
+      const delReq = store.delete(id);
+      delReq.onerror = () => tx.abort();
+    }
+  });
+}
+
 // Mark mutation as conflicted without deleting it (zero data loss)
 export async function idbMarkMutationConflict(id: string, errorMessage: string): Promise<void> {
   const db = await getIndexedDB();
@@ -840,7 +931,9 @@ export async function idbMarkMutationConflict(id: string, errorMessage: string):
         return;
       }
       mutation.status = 'conflict';
+      mutation.syncOutcome = 'conflict';
       mutation.lastError = errorMessage;
+      mutation.nextRetryAt = undefined;
       const putReq = store.put(mutation);
       putReq.onerror = () => tx.abort();
     };
@@ -851,11 +944,20 @@ export async function idbMarkMutationConflict(id: string, errorMessage: string):
   });
 }
 
-// Persist failure details (error message, retry count, attempt timestamp) without deleting mutation (Zero Data Loss)
+export interface MutationErrorUpdateMeta {
+  nextRetryAt?: number;
+  lastDurationMs?: number;
+  stageTimingsMs?: MutationStageTimings;
+  syncOutcome?: SyncOutcomeStatus;
+  incrementRetry?: boolean;
+}
+
+// Persist failure/timeout details without ever altering idempotency key or deleting mutation (Zero Data Loss)
 export async function idbUpdateMutationError(
   id: string,
   errorMessage: string,
-  status: 'pending' | 'conflict' | 'failed' = 'failed'
+  status: MutationQueueStatus = 'failed',
+  meta?: MutationErrorUpdateMeta
 ): Promise<void> {
   const db = await getIndexedDB();
   return new Promise((resolve, reject) => {
@@ -879,9 +981,29 @@ export async function idbUpdateMutationError(
         return;
       }
       mutation.status = status;
+      mutation.syncOutcome =
+        meta?.syncOutcome ||
+        (status === 'timeout_unknown'
+          ? 'timeout_unknown'
+          : status === 'conflict'
+          ? 'conflict'
+          : status === 'pending' || status === 'retrying'
+          ? 'pending'
+          : 'failed');
       mutation.lastError = errorMessage;
-      mutation.retryCount = (mutation.retryCount || 0) + 1;
+      if (meta?.incrementRetry !== false) {
+        mutation.retryCount = (mutation.retryCount || 0) + 1;
+      }
       mutation.lastAttemptAt = Date.now();
+      if (meta?.nextRetryAt !== undefined) {
+        mutation.nextRetryAt = meta.nextRetryAt;
+      }
+      if (meta?.lastDurationMs !== undefined) {
+        mutation.lastDurationMs = meta.lastDurationMs;
+      }
+      if (meta?.stageTimingsMs !== undefined) {
+        mutation.stageTimingsMs = meta.stageTimingsMs;
+      }
       const putReq = store.put(mutation);
       putReq.onerror = () => tx.abort();
     };
@@ -892,7 +1014,72 @@ export async function idbUpdateMutationError(
   });
 }
 
-// Reset mutation status to pending for intentional retry
+// Batch update multiple mutations in one atomic IndexedDB transaction (for timeout_unknown / backoff state)
+export async function idbUpdateMutationsBatchState(
+  updates: Array<{
+    id: string;
+    errorMessage: string;
+    status: MutationQueueStatus;
+    meta?: MutationErrorUpdateMeta;
+  }>
+): Promise<void> {
+  if (!updates || updates.length === 0) return;
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+
+    const tx = db.transaction('mutations', 'readwrite');
+    const store = tx.objectStore('mutations');
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => safeReject(tx.error || new Error('فشلت معاملة تحديث حالات الدفعة في الطابور'));
+    tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء معاملة تحديث حالات الدفعة في الطابور'));
+
+    const now = Date.now();
+    for (const item of updates) {
+      const getReq = store.get(item.id);
+      getReq.onerror = () => tx.abort();
+      getReq.onsuccess = () => {
+        const mutation: OfflineMutation = getReq.result;
+        if (!mutation) return;
+        mutation.status = item.status;
+        mutation.syncOutcome =
+          item.meta?.syncOutcome ||
+          (item.status === 'timeout_unknown'
+            ? 'timeout_unknown'
+            : item.status === 'conflict'
+            ? 'conflict'
+            : item.status === 'pending' || item.status === 'retrying'
+            ? 'pending'
+            : 'failed');
+        mutation.lastError = item.errorMessage;
+        if (item.meta?.incrementRetry !== false) {
+          mutation.retryCount = (mutation.retryCount || 0) + 1;
+        }
+        mutation.lastAttemptAt = now;
+        if (item.meta?.nextRetryAt !== undefined) {
+          mutation.nextRetryAt = item.meta.nextRetryAt;
+        }
+        if (item.meta?.lastDurationMs !== undefined) {
+          mutation.lastDurationMs = item.meta.lastDurationMs;
+        }
+        if (item.meta?.stageTimingsMs !== undefined) {
+          mutation.stageTimingsMs = item.meta.stageTimingsMs;
+        }
+        const putReq = store.put(mutation);
+        putReq.onerror = () => tx.abort();
+      };
+    }
+  });
+}
+
+// Reset mutation status to pending for intentional retry (never changes immutable mutation.id!)
 export async function idbResetMutationRetry(id: string): Promise<void> {
   const db = await getIndexedDB();
   return new Promise((resolve, reject) => {
@@ -916,6 +1103,8 @@ export async function idbResetMutationRetry(id: string): Promise<void> {
         return;
       }
       mutation.status = 'pending';
+      mutation.syncOutcome = 'pending';
+      mutation.nextRetryAt = undefined;
       const putReq = store.put(mutation);
       putReq.onerror = () => tx.abort();
     };

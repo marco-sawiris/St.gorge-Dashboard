@@ -21,6 +21,8 @@ export interface Student {
   version: number; // Concurrency version
   att: Record<string, boolean>; // date (YYYY-MM-DD) -> boolean
   fu: Record<string, string>; // date (YYYY-MM-DD) -> followup status
+  fuOutcomes?: Record<string, 'تم التواصل' | 'لم يتم التواصل'>; // date (YYYY-MM-DD) -> phone call outcome
+  lastCallOutcome?: 'تم التواصل' | 'لم يتم التواصل';
 }
 
 export const ALL_SHEETS_SENTINEL = '__ALL__' as const;
