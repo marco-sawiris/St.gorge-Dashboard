@@ -1,0 +1,109 @@
+name: Android Debug APK Build
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "Final App/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android-apk:
+    name: Build and Commit Android Debug APK
+    if: ${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip ci]') && github.actor != 'github-actions[bot]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android SDK platform and build-tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install dependencies (npm ci)
+        run: npm ci --no-audit --no-fund
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Capacitor sync Android
+        run: npx cap sync android
+
+      - name: Build Android Debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleDebug --no-daemon
+
+      - name: Copy APK to Final App directory
+        if: ${{ success() }}
+        run: |
+          APK_SRC="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK_SRC"
+          if [ ! -d "Final App" ]; then
+            mkdir -p "Final App"
+          fi
+          cp "$APK_SRC" "Final App/StGeorge-Dashboard.apk"
+          ls -lh "Final App/StGeorge-Dashboard.apk"
+
+      - name: Upload Android APK artifact
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: st-george-dashboard-android-debug-apk
+          path: Final App/StGeorge-Dashboard.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit and push APK to main
+        if: ${{ success() }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp "Final App/StGeorge-Dashboard.apk" /tmp/StGeorge-Dashboard.apk
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            if [ ! -d "Final App" ]; then
+              mkdir -p "Final App"
+            fi
+            cp /tmp/StGeorge-Dashboard.apk "Final App/StGeorge-Dashboard.apk"
+            git add -f "Final App/StGeorge-Dashboard.apk"
+            if git diff --cached --quiet; then
+              echo "Final App/StGeorge-Dashboard.apk is already up to date."
+              exit 0
+            fi
+            git commit -m "chore(release): update Final App/StGeorge-Dashboard.apk [skip ci]"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push attempt $attempt conflicted with a newer commit on main; retrying..."
+            sleep 3
+          done
+          exit 1
