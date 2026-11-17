@@ -215,8 +215,8 @@ export const QueueDetailsModal: React.FC = () => {
               <Database className="w-5 h-5 shrink-0" />
             </div>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0 leading-snug">
+              <div className="flex flex-row items-center gap-2 flex-nowrap">
+                <h3 className="font-extrabold text-sm sm:text-base text-[var(--text-primary)] m-0 leading-snug truncate">
                   طابور العمليات المعلقة
                 </h3>
                 <span className="text-xs font-mono font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-[var(--warning-text)] border border-amber-500/30 shrink-0">
@@ -345,26 +345,26 @@ export const QueueDetailsModal: React.FC = () => {
                     className="p-4 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] shadow-xs space-y-3 transition-all duration-200 hover:border-[var(--primary)]/30"
                   >
                     {/* Header Row: Action Title & Status Badge */}
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border ${actionMeta.badgeColor}`}>
+                    <div className="flex flex-row items-center justify-between gap-2 flex-nowrap">
+                      <div className="flex flex-row items-center gap-1.5 min-w-0">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold border whitespace-nowrap ${actionMeta.badgeColor}`}>
                           <ActionIcon className="w-3.5 h-3.5 shrink-0" />
                           <span>{actionMeta.title}</span>
                         </span>
-                        <span className="text-[11px] font-mono text-[var(--text-muted)]">
+                        <span className="text-[11px] font-mono text-[var(--text-muted)] shrink-0">
                           #{idx + 1}
                         </span>
                       </div>
 
-                      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusMeta.badgeClass}`}>
+                      <span className={`text-[10.5px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${statusMeta.badgeClass}`}>
                         {statusMeta.label}
                       </span>
                     </div>
 
                     {/* Student Info Row */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 bg-[var(--app-bg)]/40 p-2.5 rounded-xl border border-[var(--border-color)]/60">
-                      <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
-                        <span className="font-extrabold text-xs sm:text-sm text-[var(--text-primary)] break-words">
+                    <div className="flex flex-row items-center justify-between gap-2 flex-nowrap bg-[var(--app-bg)]/40 p-2.5 rounded-xl border border-[var(--border-color)]/60">
+                      <div className="flex flex-row items-center gap-1.5 min-w-0 flex-1">
+                        <span className="font-extrabold text-xs sm:text-sm text-[var(--text-primary)] truncate">
                           {mutation.studentName || 'مخدوم غير محدد'}
                         </span>
                         {mutation.studentCode && (
@@ -374,7 +374,7 @@ export const QueueDetailsModal: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-[var(--accent-secondary)] shrink-0">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-[var(--accent-secondary)] whitespace-nowrap shrink-0">
                         <FileSpreadsheet className="w-3 h-3 shrink-0" />
                         <span>فصل {mutation.sourceSheet || 'نشط'}</span>
                       </div>
@@ -458,14 +458,14 @@ export const QueueDetailsModal: React.FC = () => {
                     )}
 
                     {/* Action Row */}
-                    <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                    <div className="flex flex-row items-center justify-end gap-2 flex-nowrap pt-1">
                       <button
                         type="button"
                         onClick={() => handleRetrySingle(mutation.id)}
                         disabled={isItemRetrying || !isOnline || isClearingAll}
-                        className="glass-btn min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--primary)] hover:border-[var(--primary)]/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        className="glass-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--primary)] hover:border-[var(--primary)]/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                       >
-                        <RefreshCw className={`w-3 h-3 shrink-0 ${isItemRetrying ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isItemRetrying ? 'animate-spin' : ''}`} />
                         <span>{isItemRetrying ? 'جاري الإرسال...' : 'إعادة محاولة هذه العملية'}</span>
                       </button>
                     </div>
@@ -477,17 +477,17 @@ export const QueueDetailsModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="px-4 sm:px-5 py-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 bg-[var(--surface-primary)]/40 shrink-0">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="px-3 sm:px-5 py-3 border-t border-[var(--border-color)] flex flex-row items-center justify-between gap-1.5 sm:gap-2 flex-nowrap overflow-x-auto no-scrollbar bg-[var(--surface-primary)]/40 shrink-0">
+          <div className="flex flex-row items-center gap-1.5 sm:gap-2 flex-nowrap shrink-0">
             {mutations.length > 0 && (
               <button
                 type="button"
                 onClick={handleRetryAll}
                 disabled={isFlushing || !isOnline || isClearingAll}
-                className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50 min-h-[38px]"
+                className="glass-btn--primary btn--lens px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px] whitespace-nowrap shrink-0"
               >
                 <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isFlushing ? 'animate-spin' : ''}`} />
-                <span>{isFlushing ? 'جاري إرسال العمليات...' : `إعادة إرسال الكل (${mutations.length})`}</span>
+                <span>{isFlushing ? 'جاري الإرسال...' : `إعادة إرسال الكل (${mutations.length})`}</span>
               </button>
             )}
 
@@ -499,7 +499,7 @@ export const QueueDetailsModal: React.FC = () => {
                   setShowClearConfirm(true);
                 }}
                 disabled={isFlushing || isClearingAll}
-                className="glass-btn px-3.5 py-2 rounded-xl text-xs font-extrabold text-rose-500 dark:text-rose-400 border-rose-500/35 hover:bg-rose-500/12 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px]"
+                className="glass-btn px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-rose-500 dark:text-rose-400 border-rose-500/35 hover:bg-rose-500/12 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px] whitespace-nowrap shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5 shrink-0" />
                 <span>مسح كل العمليات</span>
@@ -510,10 +510,10 @@ export const QueueDetailsModal: React.FC = () => {
               type="button"
               onClick={loadMutations}
               disabled={isLoading || isFlushing || isClearingAll}
-              className="glass-btn px-3 py-2 rounded-xl text-xs font-bold text-[var(--text-secondary)] flex items-center gap-1.5 cursor-pointer min-h-[38px]"
+              className="glass-btn px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-[var(--text-secondary)] flex items-center gap-1.5 cursor-pointer min-h-[38px] whitespace-nowrap shrink-0"
               title="تحديث قائمة الطابور"
             >
-              <RefreshCw className={`w-3 h-3 shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">تحديث</span>
             </button>
           </div>
@@ -521,7 +521,7 @@ export const QueueDetailsModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsQueueModalOpen(false)}
-            className="glass-btn px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer min-h-[38px]"
+            className="glass-btn px-3 sm:px-4 py-2 rounded-xl font-bold text-[11px] sm:text-xs text-[var(--text-secondary)] cursor-pointer min-h-[38px] whitespace-nowrap shrink-0"
           >
             إغلاق
           </button>

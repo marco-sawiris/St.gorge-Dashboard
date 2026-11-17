@@ -30,8 +30,20 @@ const UPDATABLE_STUDENT_FIELDS: (keyof Student)[] = [
   'lastFollowup'
 ];
 
+function resolveSafeSheetName(candidates: unknown[], fallback: string = ALL_SHEETS_SENTINEL): string {
+  for (const raw of candidates) {
+    if (raw === undefined || raw === null) continue;
+    const trimmed = String(raw).trim();
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (lower === 'undefined' || lower === 'null' || lower === 'nan') continue;
+    return trimmed;
+  }
+  return fallback;
+}
+
 async function handleGetSheetStudents(req: AuthenticatedRequest, res: Response) {
-  const targetSheet = (req.query.sheet as string) || ALL_SHEETS_SENTINEL;
+  const targetSheet = resolveSafeSheetName([req.query.sheet, req.query.tab, req.query.sourceSheet], ALL_SHEETS_SENTINEL);
 
   if (targetSheet !== ALL_SHEETS_SENTINEL && !APPROVED_SHEETS.includes(targetSheet as any)) {
     return res.status(400).json({
@@ -252,7 +264,7 @@ router.post(
       }
     } else if (action === 'add') {
       const candidate = payload?.newStudent && typeof payload.newStudent === 'object' ? payload.newStudent : payload || {};
-      const targetSheet = candidate.sourceSheet || sourceSheet || 'نشط';
+      const targetSheet = resolveSafeSheetName([candidate.sourceSheet, sourceSheet, req.body?.sheet, req.body?.tab], 'نشط');
       if (!APPROVED_SHEETS.includes(targetSheet as any)) {
         return res.status(400).json({ error: `فصل غير معتمد: ${targetSheet}` });
       }

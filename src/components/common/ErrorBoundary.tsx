@@ -53,8 +53,8 @@ export class ErrorBoundary extends React.Component<
           role="alert"
           className="min-h-screen bg-[var(--app-bg,#030711)] text-[var(--text-primary,#f4f7fc)] flex items-center justify-center p-4"
         >
-          <div className="max-w-md w-full glass-strong rounded-3xl p-6 border border-rose-500/40 shadow-2xl space-y-4 text-center">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/40 flex items-center justify-center text-rose-400">
+          <div className="max-w-md w-full glass-strong rounded-3xl p-6 border border-[var(--danger-border)] shadow-2xl space-y-4 text-center">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-[var(--danger-bg)] border border-[var(--danger-border)] flex items-center justify-center text-[var(--danger-text)]">
               <AlertTriangle className="w-7 h-7" />
             </div>
 
@@ -62,11 +62,11 @@ export class ErrorBoundary extends React.Component<
               <h1 className="text-lg font-extrabold m-0">
                 حدث خطأ غير متوقع في الواجهة
               </h1>
-              <p className="text-xs text-[var(--text-secondary,#a6b1c2)] leading-relaxed m-0">
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed m-0">
                 لا تقلق — جميع بيانات المخدومين وسجل الحضور والعمليات المعلقة في IndexedDB محفوظة بأمان ولن يتم مسح أي بيانات.
               </p>
               {this.state.errorMessage && (
-                <p className="text-[11px] font-mono text-rose-300/90 bg-rose-500/10 border border-rose-500/25 rounded-xl p-2 mt-2 break-words m-0">
+                <p className="text-[11px] font-mono text-[var(--danger-text)] bg-[var(--danger-bg)] border border-[var(--danger-border)] rounded-xl p-2 mt-2 break-words m-0">
                   {this.state.errorMessage}
                 </p>
               )}
@@ -76,7 +76,7 @@ export class ErrorBoundary extends React.Component<
               <button
                 type="button"
                 onClick={this.handleReset}
-                className="btn--lens px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+                className="btn--lens px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#123fce] to-[#1d4ed8] text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>إعادة المحاولة</span>
@@ -86,7 +86,7 @@ export class ErrorBoundary extends React.Component<
                 onClick={this.handleReload}
                 className="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
-                <RefreshCw className="w-4 h-4 text-[#20c7e8]" />
+                <RefreshCw className="w-4 h-4 text-[var(--accent-secondary)]" />
                 <span>تحديث التطبيق</span>
               </button>
             </div>

@@ -214,7 +214,7 @@ export const NotificationsPanel: React.FC = () => {
       {/* Panel Container */}
       <div className="fixed top-20 left-3 right-3 sm:right-auto sm:left-6 sm:w-[440px] max-h-[82vh] z-50 glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] flex flex-col overflow-hidden animate-wordIn select-none">
         {/* Header */}
-        <div className="flex flex-col gap-3 p-4 border-b border-[var(--border-color)] bg-[var(--surface-primary)]/40 shrink-0">
+        <div className="flex flex-col gap-3 p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/75 shrink-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-8 h-8 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs shrink-0">
@@ -226,7 +226,7 @@ export const NotificationsPanel: React.FC = () => {
                     {activeTab === 'settings' ? 'إعدادات التذكير الأسبوعي' : 'التنبيهات'}
                   </h3>
                   {unreadCount > 0 && activeTab === 'feed' && (
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent-secondary)]/15 text-[var(--accent-secondary)] border border-[var(--accent-secondary)]/30 shrink-0">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--info-bg)] text-[var(--info-text)] border border-[var(--info-border)] shrink-0">
                       {unreadCount} غير مقروء
                     </span>
                   )}
@@ -244,7 +244,7 @@ export const NotificationsPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={markAllNotificationsRead}
-                  className="min-h-[36px] text-xs font-bold text-[var(--accent-secondary)] hover:text-[var(--primary)] flex items-center gap-1 cursor-pointer transition-colors px-2 py-1 rounded-lg hover:bg-[var(--surface-primary)]"
+                  className="min-h-[36px] text-xs font-bold text-[var(--info-text)] hover:text-[var(--text-primary)] flex items-center gap-1 cursor-pointer transition-colors px-2 py-1 rounded-lg hover:bg-[var(--surface-primary)]"
                   title="تحديد كل التنبيهات كمقروءة"
                 >
                   <CheckCheck className="w-3.5 h-3.5 shrink-0" />
@@ -267,7 +267,7 @@ export const NotificationsPanel: React.FC = () => {
           <div
             role="tablist"
             aria-label="تبويبات التنبيهات"
-            className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[var(--app-bg)]/45 border border-[var(--border-color)]/60"
+            className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[var(--surface-inset)] border border-[var(--border-color)]"
           >
             {[
               { id: 'feed' as const, label: 'سجل التنبيهات', icon: Bell },
@@ -308,7 +308,7 @@ export const NotificationsPanel: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5 text-[11px]">
               <span className="text-[var(--text-muted)] font-semibold tabular-nums">
                 الإجمالي: <strong className="text-[var(--text-primary)]">{notifications.length}</strong> · غير مقروء:{' '}
-                <strong className="text-[var(--accent-secondary)]">{unreadCount}</strong> · مقروء:{' '}
+                <strong className="text-[var(--info-text)]">{unreadCount}</strong> · مقروء:{' '}
                 <strong className="text-[var(--text-secondary)]">{readCount}</strong>
               </span>
 
@@ -316,7 +316,7 @@ export const NotificationsPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={clearReadNotifications}
-                  className="glass-btn min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] font-bold text-rose-500 dark:text-rose-400 border-rose-500/35 hover:bg-rose-500/12 inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                  className="glass-btn min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] font-bold text-[var(--danger-text)] border-[var(--danger-border)] hover:bg-[var(--danger-bg)] inline-flex items-center gap-1.5 cursor-pointer shrink-0"
                   title="حذف الإشعارات المقروءة فقط والاحتفاظ بغير المقروءة"
                 >
                   <Trash2 className="w-3.5 h-3.5 shrink-0" />
@@ -346,22 +346,22 @@ export const NotificationsPanel: React.FC = () => {
                   info: {
                     border: 'border-r-4 border-r-[var(--primary)]',
                     icon: Info,
-                    iconColor: 'text-[var(--primary)]'
+                    iconColor: 'text-[var(--info-text)]'
                   },
                   warn: {
                     border: 'border-r-4 border-r-amber-500',
                     icon: Clock,
-                    iconColor: 'text-amber-500'
+                    iconColor: 'text-[var(--warning-text)]'
                   },
                   success: {
-                    border: 'border-r-4 border-r-[var(--accent-secondary)]',
+                    border: 'border-r-4 border-r-[var(--success)]',
                     icon: Sparkles,
-                    iconColor: 'text-[var(--accent-secondary)]'
+                    iconColor: 'text-[var(--success-text)]'
                   },
                   danger: {
                     border: 'border-r-4 border-r-[var(--danger)]',
                     icon: AlertCircle,
-                    iconColor: 'text-[var(--danger)]'
+                    iconColor: 'text-[var(--danger-text)]'
                   }
                 }[notif.type || 'info'];
 
@@ -374,12 +374,12 @@ export const NotificationsPanel: React.FC = () => {
                     onClick={() => notif.unread && markNotificationRead(notif.id)}
                     className={`word-in p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer text-right flex items-start gap-3 ${
                       notif.unread
-                        ? 'bg-[var(--surface-primary)] border-[var(--accent-secondary)]/55 shadow-[0_2px_12px_rgba(32,199,232,0.14)]'
-                        : 'bg-[var(--surface-inset)]/75 border-[var(--border-color)] opacity-85 hover:opacity-100 hover:bg-[var(--surface-primary)]'
+                        ? 'bg-[var(--surface-primary)] border-[var(--info-border)] shadow-[0_2px_12px_rgba(32,199,232,0.14)]'
+                        : 'bg-[var(--surface-inset)] border-[var(--border-color)] hover:bg-[var(--surface-primary)]'
                     } ${typeConfig.border}`}
                   >
                     <div
-                      className={`w-7 h-7 rounded-lg bg-[var(--app-bg)]/50 flex items-center justify-center shrink-0 mt-0.5 ${typeConfig.iconColor}`}
+                      className={`w-7 h-7 rounded-lg bg-[var(--surface-secondary)] border border-[var(--border-color)] flex items-center justify-center shrink-0 mt-0.5 ${typeConfig.iconColor}`}
                     >
                       <TypeIcon className="w-4 h-4" />
                     </div>
@@ -409,8 +409,8 @@ export const NotificationsPanel: React.FC = () => {
 
                       {notif.unread ? (
                         <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[var(--accent-secondary)]/15 text-[var(--accent-secondary)] border border-[var(--accent-secondary)]/35 shrink-0">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-secondary)] animate-pulse shrink-0" />
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[var(--info-bg)] text-[var(--info-text)] border border-[var(--info-border)] shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--info-text)] animate-pulse shrink-0" />
                             <span>غير مقروء</span>
                           </span>
 
@@ -420,7 +420,7 @@ export const NotificationsPanel: React.FC = () => {
                               e.stopPropagation();
                               markNotificationRead(notif.id);
                             }}
-                            className="min-h-[32px] px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[var(--surface-inset)] text-[var(--accent-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)] flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                            className="min-h-[32px] px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[var(--surface-secondary)] text-[var(--info-text)] hover:text-[var(--text-primary)] border border-[var(--border-color)] flex items-center gap-1 cursor-pointer transition-colors shrink-0"
                             title="تحديد كمقروء"
                           >
                             <Check className="w-3 h-3 shrink-0" />
@@ -429,7 +429,7 @@ export const NotificationsPanel: React.FC = () => {
                         </div>
                       ) : (
                         <div className="pt-1 flex items-center justify-start">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/12 text-[var(--text-muted)] border border-[var(--border-color)]">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface-secondary)] text-[var(--text-muted)] border border-[var(--border-color)]">
                             <CheckCheck className="w-3 h-3 shrink-0" />
                             <span>مقروء</span>
                           </span>
@@ -474,18 +474,18 @@ export const NotificationsPanel: React.FC = () => {
             </div>
 
             {/* Android / Browser Notification Permission Banner */}
-            <div className="p-2.5 rounded-2xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <BellRing className="w-4 h-4 text-[var(--accent-secondary)] shrink-0" />
+                <BellRing className="w-4 h-4 text-[var(--info-text)] shrink-0" />
                 <span className="font-bold text-[var(--text-secondary)] break-words">
                   حالة إذن الإشعارات:{' '}
                   <strong
                     className={
                       permissionState === 'granted'
-                        ? 'text-[var(--accent-secondary)]'
+                        ? 'text-[var(--success-text)]'
                         : permissionState === 'denied'
-                          ? 'text-rose-400'
-                          : 'text-amber-400'
+                          ? 'text-[var(--danger-text)]'
+                          : 'text-[var(--warning-text)]'
                     }
                   >
                     {permissionState === 'granted'
@@ -502,7 +502,7 @@ export const NotificationsPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleRequestPermission}
-                  className="glass-btn--primary min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] font-extrabold shrink-0 cursor-pointer"
+                  className="glass-btn--primary min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] font-extrabold text-white shrink-0 cursor-pointer"
                 >
                   طلب الإذن
                 </button>
@@ -522,13 +522,13 @@ export const NotificationsPanel: React.FC = () => {
                     style={{ '--i': idx } as React.CSSProperties}
                     className={`word-in p-3 rounded-2xl border transition-all flex flex-wrap items-start justify-between gap-3 ${
                       settings.masterEnabled && isRuleEnabled
-                        ? 'bg-[var(--surface-primary)] border-[var(--accent-secondary)]/35'
-                        : 'bg-[var(--surface-primary)]/40 border-[var(--border-color)] opacity-70'
+                        ? 'bg-[var(--surface-primary)] border-[var(--info-border)]'
+                        : 'bg-[var(--surface-inset)] border-[var(--border-color)]'
                     }`}
                   >
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-full bg-[var(--accent-secondary)]/15 text-[var(--accent-secondary)] border border-[var(--accent-secondary)]/30">
+                        <span className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-full bg-[var(--info-bg)] text-[var(--info-text)] border border-[var(--info-border)]">
                           {rule.dayLabel} • {rule.timeLabel}
                         </span>
                         <span className="text-xs font-extrabold text-[var(--text-primary)]">
@@ -573,7 +573,7 @@ export const NotificationsPanel: React.FC = () => {
                 type="button"
                 onClick={handleResetDefaults}
                 disabled={isUpdatingSchedule}
-                className="glass-btn w-full min-h-[40px] py-2 px-3 rounded-xl text-xs font-extrabold text-[var(--accent-secondary)] flex items-center justify-center gap-1.5 cursor-pointer"
+                className="glass-btn w-full min-h-[40px] py-2 px-3 rounded-xl text-xs font-extrabold text-[var(--info-text)] flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                 <span>استعادة المواعيد الافتراضية</span>
@@ -581,8 +581,8 @@ export const NotificationsPanel: React.FC = () => {
             </div>
 
             {/* Honest Android OS Battery Optimization Disclosure */}
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2 text-[11px] text-[var(--warning-text)] leading-relaxed">
-              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-2.5 rounded-2xl bg-[var(--warning-bg)] border border-[var(--warning-border)] flex items-start gap-2 text-[11px] text-[var(--warning-text)] leading-relaxed">
+              <ShieldAlert className="w-4 h-4 text-[var(--warning-text)] shrink-0 mt-0.5" />
               <span>
                 <strong>تنبيه موثوقية الإشعارات:</strong> قد تؤخر أنظمة توفير البطارية في بعض هواتف أندرويد الإشعارات في الخلفية؛ لضمان دقة التنبيهات يوصى باستثناء التطبيق من قيود البطارية ومنح إذن التنبيهات الدقيقة.
               </span>

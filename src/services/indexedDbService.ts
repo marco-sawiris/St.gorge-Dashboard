@@ -282,14 +282,11 @@ export async function idbAtomicBatchRecordAttendanceWithMutations(
     tx.onerror = () => safeReject(tx.error || new Error('فشلت المعاملة الذرية لاستيراد سجلات الحضور'));
     tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء معاملة استيراد سجلات الحضور'));
 
-    const incomingKeys = new Set<string>();
-    for (const h of historyRecords) {
-      incomingKeys.add(`${h.studentId}__${h.fridayDate}`);
-    }
+    const incomingMutationByKey = new Map<string, OfflineMutation>();
     for (const mut of mutations) {
       const fri = String(mut.payload?.friday || mut.payload?.date || '');
       if (mut.studentId && fri) {
-        incomingKeys.add(`${mut.studentId}__${fri}`);
+        incomingMutationByKey.set(`${mut.studentId}__${fri}`, mut);
       }
     }
 
@@ -298,16 +295,25 @@ export async function idbAtomicBatchRecordAttendanceWithMutations(
     getExistingMutReq.onsuccess = () => {
       try {
         const existingMutations: OfflineMutation[] = getExistingMutReq.result || [];
-        // Replace any superseded pending attendance mutation for identical (studentId, fridayDate)
+        const skipPutMutationIds = new Set<string>();
+
+        // Deduplicate against ALL active queue statuses without deleting failed/retrying/timeout_unknown ops
         for (const existing of existingMutations) {
+          if (existing.action !== 'attendance') continue;
           const existingFriday = String(existing.payload?.friday || existing.payload?.date || '');
           const existingLogicalKey = `${existing.studentId}__${existingFriday}`;
-          if (
-            existing.action === 'attendance' &&
-            existing.status === 'pending' &&
-            incomingKeys.has(existingLogicalKey)
-          ) {
+          const incomingMut = incomingMutationByKey.get(existingLogicalKey);
+          if (!incomingMut) continue;
+
+          const existingPresent = Boolean(existing.payload?.isPresent ?? existing.payload?.present);
+          const incomingPresent = Boolean(incomingMut.payload?.isPresent ?? incomingMut.payload?.present);
+
+          if (existing.status === 'pending' && existingPresent !== incomingPresent) {
+            // Only supersede a still-pending mutation when the user intentionally flipped its state before sync
             mutationStore.delete(existing.id);
+          } else {
+            // Identical state OR in-flight/failed/timeout_unknown/conflict: keep existing queued op untouched & skip duplicate write
+            skipPutMutationIds.add(incomingMut.id);
           }
         }
 
@@ -325,6 +331,7 @@ export async function idbAtomicBatchRecordAttendanceWithMutations(
         }
 
         for (const mutation of mutations) {
+          if (skipPutMutationIds.has(mutation.id)) continue;
           const mutReq = mutationStore.put(mutation);
           mutReq.onerror = () => tx.abort();
         }

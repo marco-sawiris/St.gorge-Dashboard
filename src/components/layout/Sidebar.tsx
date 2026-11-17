@@ -238,7 +238,7 @@ export const Sidebar: React.FC = () => {
             }`}
             title="وضع الخدمة المباشر — مزامنة Google Sheets ودعم الأوفلاين"
           >
-            <div className="w-7 h-7 rounded-lg bg-[#20c7e8]/15 border border-[#20c7e8]/35 flex items-center justify-center text-[#20c7e8] shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-[var(--info-bg)] border border-[var(--info-border)] flex items-center justify-center text-[var(--accent-secondary)] shrink-0">
               <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
             </div>
             <div className={`min-w-0 flex-1 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
@@ -262,7 +262,7 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(activeView === 'cards')}
             >
               {renderActiveBar(activeView === 'cards')}
-              <CreditCard className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'cards' ? 'text-[#20c7e8] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <CreditCard className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'cards' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
               <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 كروت المخدومين
               </span>
@@ -277,7 +277,7 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(activeView === 'table')}
             >
               {renderActiveBar(activeView === 'table')}
-              <TableIcon className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'table' ? 'text-[#20c7e8] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <TableIcon className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'table' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
               <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 جدول الحضور
               </span>
@@ -292,7 +292,7 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(activeView === 'charts')}
             >
               {renderActiveBar(activeView === 'charts')}
-              <PieChart className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'charts' ? 'text-[#20c7e8] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <PieChart className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'charts' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
               <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 الإحصائيات الذكية
               </span>
@@ -307,7 +307,7 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(activeView === 'followup')}
             >
               {renderActiveBar(activeView === 'followup')}
-              <PhoneCall className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'followup' ? 'text-[#20c7e8] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <PhoneCall className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'followup' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
               <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 سجل الافتقاد
               </span>
@@ -325,7 +325,7 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 4 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <MapPin className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <MapPin className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
               <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 المناطق السكنية
               </span>
@@ -342,7 +342,7 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(false)}
             >
               <RefreshCw
-                className={`w-4 h-4 shrink-0 text-[#20c7e8] ${syncState === 'syncing' ? 'animate-spin' : ''}`}
+                className={`w-4 h-4 shrink-0 text-[var(--accent-secondary)] ${syncState === 'syncing' ? 'animate-spin' : ''}`}
               />
               <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 حالة المزامنة
@@ -357,7 +357,7 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 6 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <ExternalLink className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <ExternalLink className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
               <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 فتح ملف الشيت
               </span>
@@ -373,7 +373,7 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 7 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <Bot className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <Bot className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
               <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 المساعد الذكي
               </span>
@@ -389,7 +389,7 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 8 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <FileUp className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <FileUp className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
               <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 استيراد كشف PDF
               </span>
@@ -405,7 +405,7 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 9 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <Palette className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <Palette className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
               <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 مظهر وسمة التطبيق
               </span>
@@ -432,7 +432,7 @@ export const Sidebar: React.FC = () => {
           <div className={`pt-2 border-t border-[var(--border-color)]/70 shrink-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
             <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
               <p className="text-[10.5px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5 m-0 min-w-0">
-                <ShieldAlert className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
+                <ShieldAlert className="w-3.5 h-3.5 text-[var(--accent-secondary)] shrink-0" />
                 <span>أشابين وخدام الفصل</span>
               </p>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -440,7 +440,7 @@ export const Sidebar: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowAllServants((v) => !v)}
-                    className="text-[10px] font-bold text-[#20c7e8] hover:underline cursor-pointer"
+                    className="text-[10px] font-bold text-[var(--accent-secondary)] hover:underline cursor-pointer"
                   >
                     {showAllServants ? 'أقل' : `+${uniqueServants.length - 6}`}
                   </button>
@@ -463,8 +463,8 @@ export const Sidebar: React.FC = () => {
                       onClick={() => handleToggleServant(servantName)}
                       className={`min-h-[28px] px-2 py-0.5 rounded-lg text-[10.5px] font-bold leading-snug max-w-full break-words text-right cursor-pointer select-none border transition-all duration-200 active:scale-95 ${
                         isActive
-                          ? 'bg-gradient-to-r from-[#123FCE] to-[#20C7E8] text-white border-[#20C7E8]/65 shadow-[0_2px_10px_rgba(32,199,232,0.35)]'
-                          : 'bg-[var(--surface-primary)]/45 border-[var(--border-color)]/60 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[#20C7E8]/45'
+                          ? 'bg-gradient-to-r from-[#123FCE] to-[#0369A1] text-white border-[#38BDF8]/65 shadow-[0_2px_10px_rgba(18,63,206,0.35)]'
+                          : 'bg-[var(--surface-primary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-secondary)]'
                       }`}
                     >
                       {servantName}

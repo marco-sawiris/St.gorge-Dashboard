@@ -274,27 +274,27 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="min-w-0 p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                  <div className="min-w-0 p-2 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
                     <span className="block text-[10px] text-[var(--text-muted)]">المنطقة</span>
                     <strong className="block text-[var(--text-primary)] break-words">{s.area || 'غير محددة'}</strong>
                   </div>
-                  <div className="p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                  <div className="p-2 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
                     <span className="block text-[10px] text-[var(--text-muted)]">إجمالي الحضور</span>
                     <strong className="block font-mono text-[var(--accent)]">{s.attendanceTotal ?? 0}</strong>
                   </div>
-                  <div className="p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                  <div className="p-2 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
                     <span className="block text-[10px] text-[var(--text-muted)]">حضور الشهر</span>
-                    <strong className="block font-mono text-[var(--primary)]">{s.attendanceMonth ?? 0}</strong>
+                    <strong className="block font-mono text-[var(--accent-primary)]">{s.attendanceMonth ?? 0}</strong>
                   </div>
-                  <div className="p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                  <div className="p-2 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
                     <span className="block text-[10px] text-[var(--text-muted)]">آخر حضور</span>
                     <strong className="block font-mono text-[var(--text-primary)] break-words">{s.lastAttendance || '-'}</strong>
                   </div>
-                  <div className="p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                  <div className="p-2 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
                     <span className="block text-[10px] text-[var(--text-muted)]">حضور الجمعة ({currentFriday})</span>
-                    <strong className={`block ${isPresent ? 'text-[#20c7e8]' : 'text-rose-400'}`}>{isPresent ? 'حاضر' : 'غائب'}</strong>
+                    <strong className={`block ${isPresent ? 'text-[var(--success-text)]' : 'text-[var(--danger-text)]'}`}>{isPresent ? 'حاضر' : 'غائب'}</strong>
                   </div>
-                  <div className="min-w-0 p-2 rounded-xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]">
+                  <div className="min-w-0 p-2 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
                     <span className="block text-[10px] text-[var(--text-muted)]">حالة الافتقاد</span>
                     <strong className="block text-[var(--accent)] break-words">{s.followupStatus || 'بدون'}</strong>
                   </div>
@@ -450,7 +450,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                     <td className="py-3.5 px-3.5 text-center font-mono font-bold text-[var(--accent)] tabular-nums">
                       {s.attendanceTotal}
                     </td>
-                    <td className="py-3.5 px-3.5 text-center font-mono font-bold text-[var(--primary)] tabular-nums">
+                    <td className="py-3.5 px-3.5 text-center font-mono font-bold text-[var(--accent-primary)] tabular-nums">
                       {s.attendanceMonth}
                     </td>
                     <td className="py-3.5 px-3.5 font-mono text-[var(--text-secondary)] break-words">
@@ -481,7 +481,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                           </span>
                         ) : (
                           <span key="a" className="badge-pop inline-flex items-center gap-1.5">
-                            <XCircle className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                            <XCircle className="w-3.5 h-3.5 text-[var(--danger-text)]" />
                             <span>غائب</span>
                           </span>
                         )}

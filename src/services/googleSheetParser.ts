@@ -341,7 +341,17 @@ export async function fetchSheetStudentsViaGviz(
   targetSheet: string,
   existingById?: Map<string, Student>
 ): Promise<GvizFetchResult> {
-  const sheetsToRead = targetSheet === ALL_SHEETS_SENTINEL ? [...APPROVED_SHEETS] : [targetSheet];
+  const cleanedTarget = String(targetSheet || '').trim();
+  const safeTarget =
+    !cleanedTarget ||
+    cleanedTarget.toLowerCase() === 'undefined' ||
+    cleanedTarget.toLowerCase() === 'null'
+      ? ALL_SHEETS_SENTINEL
+      : cleanedTarget;
+  if (safeTarget !== ALL_SHEETS_SENTINEL && !APPROVED_SHEETS.includes(safeTarget as any)) {
+    throw new Error(`اسم التاب غير معتمد في Google Sheets: "${safeTarget}"`);
+  }
+  const sheetsToRead = safeTarget === ALL_SHEETS_SENTINEL ? [...APPROVED_SHEETS] : [safeTarget];
   const allStudents: Student[] = [];
   const confirmedSheets: string[] = [];
   const confirmedEmptySheets: string[] = [];
@@ -351,7 +361,7 @@ export async function fetchSheetStudentsViaGviz(
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
     const res = await fetch(url, { method: 'GET' });
     if (!res.ok) {
-      throw new Error(`تعذر تحميل البيانات من Google Sheets (HTTP ${res.status})`);
+      throw new Error(`تعذر تحميل بيانات تاب "${sheetName}" من Google Sheets (HTTP ${res.status})`);
     }
     const text = await res.text();
     const tabStudents = parseGoogleVisualizationResponse(text, sheetName, existingById);

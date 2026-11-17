@@ -87,9 +87,9 @@ export const BottomKeyboardDock: React.FC = () => {
           title={isCollapsed ? 'إظهار الكيبورد' : 'إخفاء الكيبورد'}
         >
           {isCollapsed ? (
-            <ChevronUp className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
+            <ChevronUp className="w-3.5 h-3.5 text-[var(--accent-secondary)] shrink-0" />
           ) : (
-            <ChevronDown className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
+            <ChevronDown className="w-3.5 h-3.5 text-[var(--accent-secondary)] shrink-0" />
           )}
           <span>الكيبورد</span>
         </button>
@@ -142,7 +142,7 @@ export const BottomKeyboardDock: React.FC = () => {
                   }}
                   className={`glass-keyboard-key w-[34px] min-w-[34px] h-[34px] sm:w-[38px] sm:min-w-[38px] sm:h-[38px] px-1 text-[13px] sm:text-sm font-extrabold leading-none flex items-center justify-center shrink-0 cursor-pointer select-none whitespace-nowrap ${
                     isSelected
-                      ? '!bg-gradient-to-br !from-[#267aff] !to-[#123fce] !text-white font-black shadow-[0_0_12px_rgba(38,122,255,0.45)] scale-[1.03] border-white/45'
+                      ? '!bg-gradient-to-br !from-[#1d4ed8] !to-[#123fce] !text-white font-black shadow-[0_0_12px_rgba(18,63,206,0.45)] scale-[1.03] border-white/45'
                       : ''
                   }`}
                   title={`حرف ${letter} (${count} مخدوم)`}

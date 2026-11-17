@@ -261,6 +261,22 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+export function resolveValidSheetName(rawSheet: unknown, fallback: string = 'نشط'): string {
+  if (rawSheet === null || rawSheet === undefined) return fallback;
+  const s = String(rawSheet).trim();
+  if (
+    !s ||
+    s === '__ALL__' ||
+    /^undefined$/i.test(s) ||
+    /^null$/i.test(s) ||
+    /^nan$/i.test(s) ||
+    /^\[object\s+object\]$/i.test(s)
+  ) {
+    return fallback;
+  }
+  return s;
+}
+
 export function normalizeStudentRecord(raw: Partial<Student>): Student {
   const safeAtt: Record<string, boolean> =
     raw.att && typeof raw.att === 'object' ? { ...raw.att } : {};
@@ -290,7 +306,7 @@ export function normalizeStudentRecord(raw: Partial<Student>): Student {
     attendanceStatus: raw.attendanceStatus === 'حاضر' ? 'حاضر' : 'غائب',
     lastAttendance: raw.lastAttendance || undefined,
     lastFollowup: raw.lastFollowup || undefined,
-    sourceSheet: raw.sourceSheet || 'نشط',
+    sourceSheet: resolveValidSheetName(raw.sourceSheet, 'نشط'),
     version: Number.isFinite(parsedVersion) && parsedVersion >= 1 ? parsedVersion : 1,
     att: safeAtt,
     fu: safeFu,
@@ -327,11 +343,20 @@ export function prepareBatchAttendanceMutations(
   students: ReadonlyArray<Student>,
   canPerformAction: (action: 'attendance', servantName?: string) => { allowed: boolean; reason?: string },
   cairoTodayIso: string = getCairoDateParts().isoDate,
-  operationId?: string
+  operationId?: string,
+  existingQueuedMutations: ReadonlyArray<OfflineMutation> = []
 ): PreparedBatchAttendancePlan {
   const studentsById = new Map(students.map((s) => [s.id, s]));
   const grouped = new Map<string, BatchAttendanceEntryInput[]>();
   const seenKeys = new Set<string>();
+  const queuedAttendanceByLogicalKey = new Map<string, OfflineMutation>();
+  for (const m of existingQueuedMutations) {
+    if (m.action !== 'attendance') continue;
+    const mFri = String(m.payload?.friday || m.payload?.date || '').trim();
+    if (m.studentId && mFri) {
+      queuedAttendanceByLogicalKey.set(`${m.studentId}__${mFri}`, m);
+    }
+  }
 
   let skippedDuplicateCount = 0;
   let blockedCount = 0;
@@ -344,6 +369,15 @@ export function prepareBatchAttendanceMutations(
     const logicalKey = `${rawEntry.studentId}__${friday}`;
     if (seenKeys.has(logicalKey)) continue;
     seenKeys.add(logicalKey);
+
+    const queuedExisting = queuedAttendanceByLogicalKey.get(logicalKey);
+    if (queuedExisting) {
+      const queuedPresent = Boolean(queuedExisting.payload?.isPresent ?? queuedExisting.payload?.present);
+      if (queuedPresent === Boolean(rawEntry.isPresent) || queuedExisting.status !== 'pending') {
+        skippedDuplicateCount++;
+        continue;
+      }
+    }
 
     const student = studentsById.get(rawEntry.studentId);
     if (!student) continue;
@@ -388,6 +422,7 @@ export function prepareBatchAttendanceMutations(
     const baseVersion = student.version || 1;
     let totalDelta = 0;
     const safeStudentId = toSafeHeaderAscii(studentId);
+    const validSheet = resolveValidSheetName(student.sourceSheet, 'نشط');
 
     studentEntries.forEach((entry, idx) => {
       const prevVal = nextAtt[entry.fridayDate];
@@ -405,7 +440,7 @@ export function prepareBatchAttendanceMutations(
         studentId,
         studentCode: student.code,
         studentName: student.name,
-        sourceSheet: student.sourceSheet,
+        sourceSheet: validSheet,
         payload: { friday: entry.fridayDate, isPresent: entry.isPresent },
         expectedVersion: baseVersion + idx,
         timestamp: seqTimestamp++,
@@ -420,7 +455,7 @@ export function prepareBatchAttendanceMutations(
         fridayDate: entry.fridayDate,
         status: entry.isPresent,
         recordedAt: seqTimestamp,
-        sourceSheet: student.sourceSheet
+        sourceSheet: validSheet
       });
 
       appliedCount++;
@@ -571,9 +606,12 @@ function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: strin
     ...(typeof mutation.payload === 'object' && mutation.payload !== null ? mutation.payload : {})
   };
 
+  const safeSheet = resolveValidSheetName(mutation.sourceSheet, 'نشط');
+
   return {
-    sheet: mutation.sourceSheet || 'نشط',
-    sourceSheet: mutation.sourceSheet || 'نشط',
+    sheet: safeSheet,
+    sourceSheet: safeSheet,
+    tab: safeSheet,
     name: mutation.studentName || '',
     studentName: mutation.studentName || '',
     studentId: mutation.studentId || '',
@@ -598,7 +636,7 @@ function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: strin
     mutation: {
       ...mutation,
       id: mutation.id,
-      sourceSheet: mutation.sourceSheet || 'نشط',
+      sourceSheet: safeSheet,
       studentName: mutation.studentName || '',
       payload: {
         ...(mutation.payload || {}),
@@ -2446,25 +2484,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncReport?: SyncQueueExecutionReport;
       error?: string;
     }> => {
-      // Guard against duplicate queue submissions for identical (studentId, fridayDate, isPresent) already queued
       const existingPending = await idbGetPendingMutations().catch(() => [] as OfflineMutation[]);
-      const alreadyQueuedAttendanceSet = new Set(
-        existingPending
-          .filter((m) => m.action === 'attendance')
-          .map((m) => `${m.studentId}__${String(m.payload?.friday || m.payload?.date || '')}__${Boolean(m.payload?.isPresent ?? m.payload?.present)}`)
-      );
-      const nonQueuedEntries = entries.filter(
-        (e) => !alreadyQueuedAttendanceSet.has(`${e.studentId}__${e.fridayDate}__${Boolean(e.isPresent)}`)
-      );
-      const extraQueuedSkipped = entries.length - nonQueuedEntries.length;
-
       const plan = prepareBatchAttendanceMutations(
-        nonQueuedEntries,
+        entries,
         students,
         canPerformAction,
         getCairoDateParts().isoDate,
-        options?.operationId
+        options?.operationId,
+        existingPending
       );
+      const extraQueuedSkipped = 0;
 
       if (plan.appliedCount === 0) {
         if (plan.blockedCount > 0 && plan.skippedDuplicateCount === 0) {

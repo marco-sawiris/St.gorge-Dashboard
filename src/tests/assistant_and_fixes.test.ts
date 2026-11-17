@@ -8,15 +8,19 @@ import { Student } from '../types/student';
 import { FollowupRecord } from '../types/followup';
 import { AuthProvider } from '../context/AuthContext';
 import { ThemeProvider } from '../context/ThemeContext';
-import { AppProvider, normalizeStudentRecord } from '../context/AppContext';
+import { AppProvider, normalizeStudentRecord, prepareBatchAttendanceMutations } from '../context/AppContext';
 import { StudentCard } from '../components/cards/StudentCard';
 import { QuickFollowupModal } from '../components/modals/QuickFollowupModal';
+import { AssistantModal } from '../components/modals/AssistantModal';
 import { FollowupLogView } from '../components/followup/FollowupLogView';
 import { parseGoogleVisualizationFollowupLog } from '../services/googleSheetParser';
 import {
+  idbAtomicBatchRecordAttendanceWithMutations,
   idbAtomicRecordFollowupWithMutation,
+  idbClearMutations,
   idbGetFollowupRecords,
   idbGetPendingMutations,
+  idbGetStudents,
   idbRemoveMutation,
   idbSaveStudents
 } from '../services/indexedDbService';
@@ -24,8 +28,10 @@ import {
   AssistantIntentEngine,
   AssistantMessage,
   detectAssistantIntent,
+  prepareVerifiedAssistantAttendanceBatch,
   processAssistantQuery
 } from '../services/assistantEngine';
+import { createFreshAssistantSession } from '../services/assistantSessionService';
 import { getLatestHeldFridayString, getNearestFridayString } from '../utils/arabicUtils';
 
 function readProjectFile(relPath: string): string {
@@ -472,6 +478,351 @@ async function runTests() {
   assert.strictEqual(AssistantIntentEngine.detectIntent('هات الأسماء اللي لم تسجل حضور أو غياب'), 'attendance_unrecorded');
 
   console.log('✅ Part 4 Passed: Smart Assistant 5 Domains, Duplicate-Name Safety, Multi-Turn Context & Ambiguity verified');
+
+  // --------------------------------------------------------------------------
+  // PART 5: Unrecorded Attendance (20 Present / 11 Unrecorded / Explicit Absent),
+  //         Multi-Turn Context, Bulk & Individual Pre-Save Confirmation & Queue Safety
+  // --------------------------------------------------------------------------
+  const p5Present: Student[] = Array.from({ length: 20 }, (_, i) =>
+    makeStudent({
+      id: `p5_p_${i + 1}`,
+      code: `SG-3${String(i + 1).padStart(2, '0')}`,
+      name: `حاضر_${i + 1}`,
+      servant: 'ماركو',
+      sourceSheet: 'نشط',
+      att: { [latestFriday]: true }
+    })
+  );
+  const p5Unrecorded: Student[] = Array.from({ length: 11 }, (_, i) =>
+    makeStudent({
+      id: `p5_u_${i + 1}`,
+      code: `SG-4${String(i + 1).padStart(2, '0')}`,
+      name: `ناقص_${i + 1}`,
+      servant: 'ماركو',
+      sourceSheet: 'نشط',
+      att: { [prevFriday]: true } // Unrecorded on latestFriday!
+    })
+  );
+  const p5Absent: Student[] = Array.from({ length: 3 }, (_, i) =>
+    makeStudent({
+      id: `p5_a_${i + 1}`,
+      code: `SG-5${String(i + 1).padStart(2, '0')}`,
+      name: `غايب_${i + 1}`,
+      servant: 'ماركو',
+      sourceSheet: 'نشط',
+      att: { [latestFriday]: false }
+    })
+  );
+  const p5Inactive: Student[] = Array.from({ length: 2 }, (_, i) =>
+    makeStudent({
+      id: `p5_in_${i + 1}`,
+      code: `SG-9${String(i + 1).padStart(2, '0')}`,
+      name: `غير_نشط_${i + 1}`,
+      servant: 'ماركو',
+      sourceSheet: 'غير نشط',
+      att: {}
+    })
+  );
+  const p5Students = [...p5Present, ...p5Unrecorded, ...p5Absent, ...p5Inactive];
+
+  // 5A. Turn 1: "مين اللي حضر؟"
+  const attSession: AssistantMessage[] = [{ id: 'p5_u1', role: 'user', text: 'مين اللي حضر؟', timestamp: 1 }];
+  const presentTurn = processAssistantQuery('مين اللي حضر؟', p5Students, {
+    referenceDate: refDate,
+    selectedFridayDate: latestFriday,
+    sessionMessages: attSession
+  });
+  assert(
+    presentTurn.text.includes('20') &&
+      presentTurn.text.includes('11') &&
+      !presentTurn.text.includes('ناقص_1') &&
+      !presentTurn.text.includes('غير_نشط_1'),
+    'P5A: Present query counts exact 20 recorded, mentions 11 unrecorded, excludes inactive'
+  );
+  attSession.push({ id: 'p5_b1', role: 'bot', text: presentTurn.text, meta: presentTurn.meta, timestamp: 2 });
+
+  // 5B. Turn 2: Direct + Contextual unrecorded attendance queries (must never fall through to search/faq)
+  const unrecVariations = [
+    'مين اللي لم يسجل بعد؟',
+    'مين اللي ناقص تسجيله؟',
+    'مين اللي لسه متسجلش؟',
+    'اعرض اللي حضورهم مش متسجل',
+    'مين اللي فاضل؟'
+  ];
+  let lastUnrecRes = presentTurn;
+  for (const q of unrecVariations) {
+    assert.strictEqual(
+      detectAssistantIntent(q, presentTurn.meta),
+      'attendance_unrecorded',
+      `P5B: Intent detects attendance_unrecorded cleanly for "${q}"`
+    );
+    const res = processAssistantQuery(q, p5Students, {
+      referenceDate: refDate,
+      selectedFridayDate: latestFriday,
+      sessionMessages: [...attSession, { id: 'uq', role: 'user', text: q, timestamp: 3 }]
+    });
+    assert.strictEqual(res.meta?.unrecordedStudentIds?.length, 11, `P5B: Exact 11 unrecorded IDs for "${q}"`);
+    assert.strictEqual(res.meta?.interactiveAttendance?.targetFriday, latestFriday, `P5B: Target Friday preserved for "${q}"`);
+    for (const u of p5Unrecorded) {
+      assert(res.text.includes(u.name), `P5B: Lists unrecorded ${u.name} for "${q}"`);
+    }
+    assert(!res.text.includes('حاضر_1') && !res.text.includes('غايب_1') && !res.text.includes('غير_نشط_1'), `P5B: Excludes present/absent/inactive for "${q}"`);
+    assert(!res.command, `P5B: ZERO writes performed while listing unrecorded students for "${q}"`);
+    assert(
+      res.actions?.some((a) => a.label === 'تسجيل الكل حضور') &&
+        res.actions?.some((a) => a.label === 'تسجيل الكل غياب'),
+      `P5B: Presents interactive bulk present & absent options for "${q}"`
+    );
+    lastUnrecRes = res;
+  }
+
+  // 5C. Absent query must strictly exclude unrecorded students
+  const absentStrictRes = processAssistantQuery('مين الغايب؟', p5Students, {
+    referenceDate: refDate,
+    selectedFridayDate: latestFriday
+  });
+  assert(
+    absentStrictRes.text.includes('غايب_1') &&
+      absentStrictRes.text.includes('غايب_3') &&
+      !absentStrictRes.text.includes('ناقص_1') &&
+      !absentStrictRes.text.includes('غير_نشط_1'),
+    'P5C: Absent query returns strictly explicit false attendance and never mixes unrecorded'
+  );
+
+  // 5D. Conversational Bulk Prepare ("تسجيل الكل حضور" / "خليهم حضور") -> Pre-confirmation only (NO write command)
+  const bulkSession: AssistantMessage[] = [
+    ...attSession,
+    { id: 'p5_u2', role: 'user', text: 'مين اللي لم يسجل بعد؟', timestamp: 3 },
+    { id: 'p5_b2', role: 'bot', text: lastUnrecRes.text, meta: lastUnrecRes.meta, timestamp: 4 }
+  ];
+  const prepPresent = processAssistantQuery('خليهم حضور', p5Students, {
+    referenceDate: refDate,
+    selectedFridayDate: latestFriday,
+    sessionMessages: [...bulkSession, { id: 'p5_u3', role: 'user', text: 'خليهم حضور', timestamp: 5 }]
+  });
+  assert.strictEqual(prepPresent.meta?.intent, 'attendance_bulk_prepare', 'P5D: "خليهم حضور" triggers confirmation preparation');
+  assert.strictEqual(prepPresent.meta?.pendingBulkAttendance?.isPresent, true, 'P5D: Pending state captures present=true');
+  assert.strictEqual(prepPresent.meta?.pendingBulkAttendance?.studentIds.length, 11, 'P5D: Pending state includes exact 11 students');
+  assert(!prepPresent.command, 'P5D: Zero DB write command before explicit confirmation');
+
+  const prepAbsent = processAssistantQuery('تسجيل الكل غياب', p5Students, {
+    referenceDate: refDate,
+    selectedFridayDate: latestFriday,
+    sessionMessages: [...bulkSession, { id: 'p5_u3b', role: 'user', text: 'تسجيل الكل غياب', timestamp: 5 }]
+  });
+  assert.strictEqual(prepAbsent.meta?.intent, 'attendance_bulk_prepare', 'P5D: "تسجيل الكل غياب" triggers confirmation preparation');
+  assert.strictEqual(prepAbsent.meta?.pendingBulkAttendance?.isPresent, false, 'P5D: Pending state captures present=false');
+  assert(!prepAbsent.command, 'P5D: Zero DB write command before explicit confirmation for absent');
+
+  // 5E. Simulate 1 of 11 students recorded in live DB BEFORE user confirms -> Confirmation re-checks live state!
+  const p5StudentsAfterExternalUpdate = p5Students.map((s) =>
+    s.id === 'p5_u_1' ? { ...s, att: { ...s.att, [latestFriday]: true }, attendanceStatus: 'حاضر' as const } : s
+  );
+  const confirmBulk = processAssistantQuery('تأكيد', p5StudentsAfterExternalUpdate, {
+    referenceDate: refDate,
+    selectedFridayDate: latestFriday,
+    sessionMessages: [
+      ...bulkSession,
+      { id: 'p5_u3', role: 'user', text: 'تسجيل الكل حضور', timestamp: 5 },
+      { id: 'p5_b3', role: 'bot', text: prepPresent.text, meta: prepPresent.meta, timestamp: 6 },
+      { id: 'p5_u4', role: 'user', text: 'تأكيد', timestamp: 7 }
+    ]
+  });
+  assert.strictEqual(confirmBulk.meta?.intent, 'attendance_bulk_confirm', 'P5E: Confirmation triggers attendance_bulk_confirm');
+  assert.strictEqual(confirmBulk.command?.type, 'markAttendanceBatch', 'P5E: Emits markAttendanceBatch command on confirm');
+  if (confirmBulk.command?.type === 'markAttendanceBatch') {
+    assert.strictEqual(confirmBulk.command.entries.length, 10, 'P5E: Excludes student p5_u_1 who was already recorded before confirmation');
+    assert.strictEqual(confirmBulk.command.skippedAlreadyRecordedCount, 1, 'P5E: Reports 1 skipped already-recorded student');
+    assert(!confirmBulk.command.entries.some((e) => e.studentId === 'p5_u_1'), 'P5E: Already-recorded student never in write entries');
+  }
+
+  // 5F. Re-verification & Atomic IndexedDB + Queue Write (including queued 'failed'/'timeout_unknown' protection)
+  await idbClearMutations();
+  await idbSaveStudents(
+    p5StudentsAfterExternalUpdate.filter((s) => s.sourceSheet === 'نشط'),
+    'نشط',
+    true
+  );
+  await idbSaveStudents(p5Inactive, 'غير نشط', true);
+
+  // Put p5_u_2 in IndexedDB queue as a prior 'timeout_unknown' mutation to ensure it is NOT duplicated or deleted
+  const preQueuedMut = {
+    id: `ATT_p5_u_2_${latestFriday}_existing-queue-op`,
+    action: 'attendance' as const,
+    studentId: 'p5_u_2',
+    studentCode: 'SG-402',
+    studentName: 'ناقص_2',
+    sourceSheet: 'نشط',
+    payload: { friday: latestFriday, isPresent: true },
+    expectedVersion: 1,
+    timestamp: Date.now() - 10000,
+    retryCount: 2,
+    status: 'timeout_unknown' as const
+  };
+  await idbAtomicBatchRecordAttendanceWithMutations(
+    [],
+    [],
+    [preQueuedMut]
+  );
+
+  const liveQueueBefore = await idbGetPendingMutations();
+  const batchCheck = prepareVerifiedAssistantAttendanceBatch(
+    p5Unrecorded.map((u) => ({ studentId: u.id, isPresent: true })),
+    p5StudentsAfterExternalUpdate,
+    latestFriday,
+    liveQueueBefore,
+    () => ({ allowed: true })
+  );
+  assert.strictEqual(batchCheck.skippedAlreadyRecorded.length, 1, 'P5F: prepareVerifiedAssistantAttendanceBatch excludes live recorded student p5_u_1');
+  assert.strictEqual(batchCheck.skippedAlreadyQueued.length, 1, 'P5F: prepareVerifiedAssistantAttendanceBatch excludes queued student p5_u_2');
+  assert.strictEqual(batchCheck.validEntries.length, 9, 'P5F: Only the 9 truly unrecorded + unqueued students proceed to write');
+
+  const prepared = prepareBatchAttendanceMutations(
+    batchCheck.validEntries.map((e) => ({ studentId: e.studentId, fridayDate: e.fridayDate, isPresent: e.isPresent })),
+    p5StudentsAfterExternalUpdate,
+    () => ({ allowed: true }),
+    '2026-11-14',
+    `AST_${latestFriday}_test`,
+    liveQueueBefore
+  );
+  assert.strictEqual(prepared.mutations.length, 9, 'P5F: Prepares exact 9 offline queue mutations');
+  await idbAtomicBatchRecordAttendanceWithMutations(
+    prepared.updatedStudents,
+    prepared.historyRecords,
+    prepared.mutations
+  );
+
+  const savedStudentsAfterBatch = await idbGetStudents();
+  const queueAfterBatch = await idbGetPendingMutations();
+  assert(
+    queueAfterBatch.some((m) => m.id === preQueuedMut.id && m.status === 'timeout_unknown'),
+    'P5F: Pre-existing timeout_unknown queued mutation preserved untouched'
+  );
+  assert.strictEqual(
+    queueAfterBatch.filter((m) => m.action === 'attendance').length,
+    10,
+    'P5F: Total queued mutations = 1 preserved + 9 new (zero duplicates)'
+  );
+  for (const written of batchCheck.validEntries) {
+    const stored = savedStudentsAfterBatch.find((s) => s.id === written.studentId);
+    assert.strictEqual(stored?.att?.[latestFriday], true, `P5F: ${written.studentName} persisted as present in IndexedDB`);
+  }
+
+  // Re-running verification now must produce ZERO valid entries (100% idempotent)
+  const secondCheck = prepareVerifiedAssistantAttendanceBatch(
+    p5Unrecorded.map((u) => ({ studentId: u.id, isPresent: true })),
+    savedStudentsAfterBatch,
+    latestFriday,
+    queueAfterBatch,
+    () => ({ allowed: true })
+  );
+  assert.strictEqual(secondCheck.validEntries.length, 0, 'P5F: Second run yields 0 valid entries (no duplicate attendance possible)');
+
+  // 5G. Individual / Multi-Select subset (select only 2 students: one present, one absent; others untouched)
+  const indStudents: Student[] = ['ind_1', 'ind_2', 'ind_3', 'ind_4'].map((id, idx) =>
+    makeStudent({
+      id,
+      code: `SG-60${idx + 1}`,
+      name: `مخدوم_فردي_${idx + 1}`,
+      sourceSheet: 'نشط',
+      att: {}
+    })
+  );
+  const indCheck = prepareVerifiedAssistantAttendanceBatch(
+    [
+      { studentId: 'ind_1', isPresent: true },
+      { studentId: 'ind_3', isPresent: false }
+    ],
+    indStudents,
+    latestFriday,
+    [],
+    () => ({ allowed: true })
+  );
+  assert.strictEqual(indCheck.validEntries.length, 2, 'P5G: Individual selection includes only the 2 selected students');
+  const indPrepared = prepareBatchAttendanceMutations(
+    indCheck.validEntries.map((e) => ({ studentId: e.studentId, fridayDate: e.fridayDate, isPresent: e.isPresent })),
+    indStudents,
+    () => ({ allowed: true }),
+    '2026-11-14',
+    `AST_${latestFriday}_ind`,
+    []
+  );
+  const indUpdatedMap = new Map(indPrepared.updatedStudents.map((s) => [s.id, s]));
+  assert.strictEqual(indUpdatedMap.get('ind_1')?.att?.[latestFriday], true, 'P5G: Selected ind_1 marked present');
+  assert.strictEqual(indUpdatedMap.get('ind_3')?.att?.[latestFriday], false, 'P5G: Selected ind_3 marked absent');
+  assert(!indUpdatedMap.has('ind_2') && !indUpdatedMap.has('ind_4'), 'P5G: Unselected ind_2 & ind_4 remain completely untouched');
+
+  await idbClearMutations();
+  console.log('✅ Part 5 Passed: 20/11 Unrecorded Accuracy, Multi-Turn Context, Pre-Save Confirmation & Queue Safety verified');
+
+  // --------------------------------------------------------------------------
+  // PART 6: Smart Assistant UI Grid Layout, Closed SSR & Horizontal Rows
+  // --------------------------------------------------------------------------
+  const closedAssistantHtml = renderToString(
+    React.createElement(
+      ThemeProvider,
+      null,
+      React.createElement(
+        AuthProvider,
+        null,
+        React.createElement(AppProvider, null, React.createElement(AssistantModal))
+      )
+    )
+  );
+  assert.strictEqual(closedAssistantHtml, '', 'P6a: Closed AssistantModal renders zero stray markup');
+
+  const freshSession = createFreshAssistantSession();
+  assert.strictEqual(
+    freshSession.messages[0].actions?.length,
+    4,
+    'P6b: Fresh assistant welcome message provides symmetric 4-card starter grid'
+  );
+
+  const assistantModalSrc = readProjectFile('src/components/modals/AssistantModal.tsx');
+  assert(
+    assistantModalSrc.includes('grid-cols-2 sm:grid-cols-4') &&
+      assistantModalSrc.includes('min-h-[38px] sm:min-h-[40px]') &&
+      assistantModalSrc.includes('w-4 h-4 shrink-0'),
+    'P6c: Quick Prompts strip uses balanced CSS Grid (2 cols mobile, 4 cols desktop) with unified button heights & icons'
+  );
+  assert(
+    assistantModalSrc.includes('grid-cols-2') &&
+      assistantModalSrc.includes('grid-cols-2 sm:grid-cols-3') &&
+      assistantModalSrc.includes('getActionIcon'),
+    'P6d: Bot response actions render in balanced CSS Grid with uniform lucide-react icons'
+  );
+  assert(
+    assistantModalSrc.includes('تسجيل الكل حضور') &&
+      assistantModalSrc.includes('تسجيل الكل غياب') &&
+      assistantModalSrc.includes('تحديد فردي أو اختيار عدة مخدومين') &&
+      assistantModalSrc.includes('role="alertdialog"'),
+    'P6e: Interactive unrecorded attendance panel offers Bulk Present, Bulk Absent, Individual Multi-Select & AlertDialog Confirmation'
+  );
+
+  const queueModalSrc = readProjectFile('src/components/modals/QueueDetailsModal.tsx');
+  assert(
+    queueModalSrc.includes('flex flex-row items-center') &&
+      queueModalSrc.includes('flex-nowrap') &&
+      queueModalSrc.includes('overflow-x-auto no-scrollbar'),
+    'P6f: QueueDetailsModal maintains non-wrapping horizontal alignment for icon/button strips'
+  );
+
+  const indCardStart = assistantModalSrc.indexOf('data-testid="assistant-individual-student-card"');
+  const indCardEnd = assistantModalSrc.indexOf('Review Draft Before Confirming', indCardStart);
+  assert(indCardStart > -1 && indCardEnd > indCardStart, 'P6g: AssistantModal renders independent individual student card elements');
+  const indCardBlock = assistantModalSrc.slice(indCardStart, indCardEnd);
+  assert(
+    indCardBlock.includes('flex flex-col gap-2.5') &&
+      indCardBlock.includes('whitespace-normal break-words') &&
+      !/\btruncate\b/.test(indCardBlock) &&
+      indCardBlock.includes('grid grid-cols-2 gap-2 w-full') &&
+      indCardBlock.includes('<span>حاضر</span>') &&
+      indCardBlock.includes('<span>غائب</span>') &&
+      indCardBlock.includes('aria-pressed='),
+    'P6g: Individual student card places full untruncated name on row 1 and side-by-side حاضر/غائب buttons on row 2'
+  );
+
+  console.log('✅ Part 6 Passed: Smart Assistant CSS Grid Layout, Interactive Controls & Queue Row Alignment verified');
   console.log('\n======================================================');
   console.log('🎉 ALL COMPREHENSIVE FIXES & 5-DOMAIN ASSISTANT TESTS PASSED!');
   console.log('======================================================');

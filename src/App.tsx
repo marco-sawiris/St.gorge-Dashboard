@@ -146,19 +146,19 @@ export default function App() {
               transition={{ duration: 0.28, ease: SPRING_EASE }}
               className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[60] glass-strong rounded-2xl p-3.5 border shadow-[var(--shadow-lg)] flex items-start gap-3 ${
                 activeToast.type === 'danger'
-                  ? 'border-rose-500/50 bg-rose-500/15'
+                  ? 'border-[var(--danger-border)] bg-[var(--danger-bg)]'
                   : activeToast.type === 'warn'
-                  ? 'border-amber-400/50 bg-amber-500/15'
-                  : 'border-[#20c7e8]/50 bg-[#20c7e8]/15'
+                  ? 'border-[var(--warning-border)] bg-[var(--warning-bg)]'
+                  : 'border-[var(--info-border)] bg-[var(--info-bg)]'
               }`}
             >
               <div className="shrink-0 mt-0.5">
                 {activeToast.type === 'danger' || activeToast.type === 'warn' ? (
-                  <AlertTriangle className={`w-4 h-4 ${activeToast.type === 'danger' ? 'text-rose-400' : 'text-[var(--warning-text)]'}`} />
+                  <AlertTriangle className={`w-4 h-4 ${activeToast.type === 'danger' ? 'text-[var(--danger-text)]' : 'text-[var(--warning-text)]'}`} />
                 ) : activeToast.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-[#20c7e8]" />
+                  <CheckCircle2 className="w-4 h-4 text-[var(--success-text)]" />
                 ) : (
-                  <Info className="w-4 h-4 text-[#267aff]" />
+                  <Info className="w-4 h-4 text-[var(--info-text)]" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -208,7 +208,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setFilters((p) => ({ ...p, area: '' }))}
-                  className="glass-btn min-h-[36px] px-3 py-1.5 rounded-lg text-rose-400 flex items-center gap-1.5 cursor-pointer shrink-0"
+                  className="glass-btn min-h-[36px] px-3 py-1.5 rounded-lg text-[var(--danger-text)] flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <X className="w-3.5 h-3.5 shrink-0" />
                   <span>إلغاء التصفية</span>
@@ -229,7 +229,7 @@ export default function App() {
             {/* Authoritative Data Loading / Failure States (Zero Fake/Mock Fallbacks) */}
             {(isInitialLoading || (isSyncing && students.length === 0)) && students.length === 0 ? (
               <div className="glass p-10 text-center rounded-3xl border border-[var(--border-color)] space-y-3 my-4 word-in">
-                <RefreshCw className="w-8 h-8 text-[#20c7e8] animate-spin mx-auto" />
+                <RefreshCw className="w-8 h-8 text-[var(--accent-secondary)] animate-spin mx-auto" />
                 <p className="text-sm font-extrabold text-[var(--text-primary)] m-0">
                   جاري تحميل البيانات الحقيقية من Google Sheets...
                 </p>
@@ -238,8 +238,8 @@ export default function App() {
                 </p>
               </div>
             ) : students.length === 0 ? (
-              <div className="glass p-8 sm:p-10 text-center rounded-3xl border border-rose-500/35 bg-rose-500/[0.06] space-y-4 my-4 word-in">
-                <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/35 flex items-center justify-center text-rose-400 mx-auto">
+              <div className="glass p-8 sm:p-10 text-center rounded-3xl border border-[var(--danger-border)] bg-[var(--danger-bg)] space-y-4 my-4 word-in">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--danger-bg)] border border-[var(--danger-border)] flex items-center justify-center text-[var(--danger-text)] mx-auto">
                   <AlertTriangle className="w-6 h-6" />
                 </div>
                 <div className="space-y-1.5">
@@ -255,7 +255,7 @@ export default function App() {
                     type="button"
                     onClick={() => syncData('__ALL__')}
                     disabled={isSyncing}
-                    className="btn--lens px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-xs font-extrabold flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                    className="btn--lens px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#123fce] to-[#1d4ed8] text-white text-xs font-extrabold flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                     <span>إعادة تحميل من Google Sheets</span>
@@ -265,7 +265,7 @@ export default function App() {
                     onClick={() => setIsSyncModalOpen(true)}
                     className="glass-btn px-4 py-2.5 rounded-xl text-[var(--text-primary)] text-xs font-bold flex items-center gap-2 cursor-pointer"
                   >
-                    <Activity className="w-4 h-4 text-[#20c7e8]" />
+                    <Activity className="w-4 h-4 text-[var(--accent-secondary)]" />
                     <span>حالة المزامنة</span>
                   </button>
                 </div>

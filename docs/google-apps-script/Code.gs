@@ -25,6 +25,27 @@
 var APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط'];
 var ALL_SHEETS_SENTINEL = '__ALL__';
 
+function isMissingOrLiteralUndefined(val) {
+  if (val === undefined || val === null) return true;
+  var str = String(val).trim();
+  if (!str) return true;
+  var lower = str.toLowerCase();
+  return lower === 'undefined' || lower === 'null' || lower === 'nan';
+}
+
+function resolveTargetSheetName(candidates, fallbackSheet) {
+  for (var i = 0; i < candidates.length; i++) {
+    var raw = candidates[i];
+    if (!isMissingOrLiteralUndefined(raw)) {
+      var trimmed = String(raw).trim();
+      if (trimmed !== ALL_SHEETS_SENTINEL) {
+        return trimmed;
+      }
+    }
+  }
+  return fallbackSheet || 'نشط';
+}
+
 function jsonResponse(payload) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
@@ -89,7 +110,8 @@ function doGet(e) {
     }
 
     if (action === 'getStudents') {
-      var targetSheet = (e && e.parameter && e.parameter.sheet) || ALL_SHEETS_SENTINEL;
+      var rawReadSheet = e && e.parameter ? (e.parameter.sheet || e.parameter.tab || e.parameter.sourceSheet) : '';
+      var targetSheet = isMissingOrLiteralUndefined(rawReadSheet) ? ALL_SHEETS_SENTINEL : String(rawReadSheet).trim();
       if (targetSheet !== ALL_SHEETS_SENTINEL && APPROVED_SHEETS.indexOf(targetSheet) === -1) {
         return jsonResponse({ ok: false, status: 400, error: 'اسم الفصل غير معتمد: ' + targetSheet });
       }
@@ -212,8 +234,21 @@ function doPost(e) {
       return jsonResponse(batchRes);
     }
 
-    // Target Sheet resolution
-    var targetSheetName = body.sheet || body.sourceSheet || mutation.sourceSheet || mutation.sheet || 'نشط';
+    // Target Sheet resolution (rejects literal 'undefined'/'null'/empty and resolves approved tab safely)
+    var mutPayload = (mutation && mutation.payload) || {};
+    var targetSheetName = resolveTargetSheetName([
+      body.sheet,
+      body.sourceSheet,
+      body.tab,
+      body.sheetName,
+      mutation.sourceSheet,
+      mutation.sheet,
+      mutation.tab,
+      mutation.sheetName,
+      mutPayload.sourceSheet,
+      mutPayload.sheet,
+      mutPayload.tab
+    ], 'نشط');
     if (APPROVED_SHEETS.indexOf(targetSheetName) === -1) {
       return jsonResponse({ ok: false, status: 400, error: 'اسم الفصل غير معتمد: ' + targetSheetName });
     }
@@ -707,7 +742,20 @@ function processBatchMutations(batchItems, postStartMs) {
       continue;
     }
 
-    var sheetName = String(item.sheet || item.sourceSheet || 'نشط').trim();
+    var itemMutation = item.mutation || {};
+    var itemPayload = item.payload || {};
+    var sheetName = resolveTargetSheetName([
+      item.sheet,
+      item.sourceSheet,
+      item.tab,
+      item.sheetName,
+      itemMutation.sourceSheet,
+      itemMutation.sheet,
+      itemMutation.tab,
+      itemPayload.sourceSheet,
+      itemPayload.sheet,
+      itemPayload.tab
+    ], 'نشط');
     if (APPROVED_SHEETS.indexOf(sheetName) === -1) {
       results[idx] = { ok: false, status: 400, mutationId: mutKey, error: 'اسم الفصل غير معتمد: ' + sheetName };
       continue;
@@ -729,6 +777,13 @@ function processBatchMutations(batchItems, postStartMs) {
   for (var sIdx = 0; sIdx < sheetNames.length; sIdx++) {
     var targetSheetName = sheetNames[sIdx];
     var itemIndices = pendingIndicesBySheet[targetSheetName];
+    if (isMissingOrLiteralUndefined(targetSheetName) || APPROVED_SHEETS.indexOf(targetSheetName) === -1) {
+      for (var mErr = 0; mErr < itemIndices.length; mErr++) {
+        var rErrIdx = itemIndices[mErr];
+        results[rErrIdx] = { ok: false, status: 400, mutationId: String(batchItems[rErrIdx].idempotencyKey || batchItems[rErrIdx].id || ''), error: 'اسم الفصل غير محدد أو غير معتمد' };
+      }
+      continue;
+    }
     var sheet = ss.getSheetByName(targetSheetName);
     if (!sheet) {
       for (var m = 0; m < itemIndices.length; m++) {

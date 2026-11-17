@@ -98,10 +98,25 @@ export class GoogleSheetsService {
     return this.tokenCache.accessToken;
   }
 
+  private resolveApprovedTab(rawTab: unknown, fallback: string = 'نشط'): string {
+    if (rawTab !== undefined && rawTab !== null) {
+      const trimmed = String(rawTab).trim();
+      const lower = trimmed.toLowerCase();
+      if (trimmed && lower !== 'undefined' && lower !== 'null' && trimmed !== ALL_SHEETS_SENTINEL) {
+        if (!APPROVED_SHEETS.includes(trimmed as any)) {
+          throw new Error(`اسم التاب غير معتمد: "${trimmed}". التابات المتاحة: ${APPROVED_SHEETS.join('، ')}`);
+        }
+        return trimmed;
+      }
+    }
+    return fallback;
+  }
+
   private async fetchFromGoogleSheetTab(sheetName: string): Promise<Student[]> {
+    const safeSheetName = this.resolveApprovedTab(sheetName);
     const accessToken = await this.getGoogleAccessToken();
     const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
-    const range = encodeURIComponent(`'${sheetName}'!A1:AZ1000`);
+    const range = encodeURIComponent(`'${safeSheetName}'!A1:AZ1000`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`;
 
     const res = await fetch(url, {
@@ -109,7 +124,7 @@ export class GoogleSheetsService {
     });
 
     if (!res.ok) {
-      throw new Error(`Google Sheets read failed for "${sheetName}" (${res.status})`);
+      throw new Error(`تعذر قراءة التاب "${safeSheetName}" من Google Sheets (${res.status})`);
     }
 
     const data = (await res.json()) as { values?: string[][] };
@@ -117,7 +132,7 @@ export class GoogleSheetsService {
     if (rows.length <= 1) return [];
 
     const headers = rows[0].map((h) => String(h || '').trim());
-    return parse2DRowsToStudents(headers, rows.slice(1), sheetName, this.students);
+    return parse2DRowsToStudents(headers, rows.slice(1), safeSheetName, this.students);
   }
 
   public async getStudents(targetSheet: string): Promise<Student[]> {
@@ -189,22 +204,23 @@ export class GoogleSheetsService {
   }
 
   private async syncStudentUpdateToGoogle(student: Student, _isNew: boolean): Promise<void> {
+    const safeTab = this.resolveApprovedTab(student.sourceSheet);
     const accessToken = await this.getGoogleAccessToken();
     const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
     const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
-    const lookupRange = encodeURIComponent(`'${student.sourceSheet}'!A1:AZ1000`);
+    const lookupRange = encodeURIComponent(`'${safeTab}'!A1:AZ1000`);
     const lookupResponse = await fetch(`${sheetPrefix}/${lookupRange}`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!lookupResponse.ok) {
-      throw new Error(`Google Sheets row lookup failed (${lookupResponse.status})`);
+      throw new Error(`تعذر الوصول إلى التاب "${safeTab}" في Google Sheets (${lookupResponse.status})`);
     }
 
     const lookupData = (await lookupResponse.json()) as { values?: string[][] };
     const rows = lookupData.values || [];
     const headers = (rows[0] || []).map((value) => String(value || '').trim());
     if (!headers.length) {
-      throw new Error(`Google Sheets tab "${student.sourceSheet}" has no header row`);
+      throw new Error(`التاب "${safeTab}" في Google Sheets لا يحتوي على صف عناوين`);
     }
 
     const headerColumnName = (index: number): string => {
@@ -404,9 +420,9 @@ export class GoogleSheetsService {
 
     const bySheet = new Map<string, Student[]>();
     for (const st of studentsToSave) {
-      const tab = st.sourceSheet || 'نشط';
+      const tab = this.resolveApprovedTab(st.sourceSheet);
       if (!bySheet.has(tab)) bySheet.set(tab, []);
-      bySheet.get(tab)!.push(st);
+      bySheet.get(tab)!.push({ ...st, sourceSheet: tab });
     }
 
     for (const [sheetName, sheetStudents] of bySheet.entries()) {

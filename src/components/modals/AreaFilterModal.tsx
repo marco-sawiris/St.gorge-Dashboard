@@ -32,7 +32,7 @@ export const AreaFilterModal: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between gap-2 p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-xl bg-[#20c7e8]/10 border border-[#20c7e8]/30 flex items-center justify-center text-[#20c7e8] shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-[var(--info-bg)] border border-[var(--info-border)] flex items-center justify-center text-[var(--accent-secondary)] shrink-0">
               <MapPin className="w-4 h-4 shrink-0" />
             </div>
             <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0 leading-snug min-w-0">
@@ -87,7 +87,7 @@ export const AreaFilterModal: React.FC = () => {
           <button
             type="button"
             onClick={handleClear}
-            className="glass-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold text-rose-400 cursor-pointer"
+            className="glass-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--danger-text)] border-[var(--danger-border)] hover:bg-[var(--danger-bg)] cursor-pointer"
           >
             إلغاء تصفية المنطقة
           </button>

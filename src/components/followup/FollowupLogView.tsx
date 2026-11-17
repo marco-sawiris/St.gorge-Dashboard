@@ -227,8 +227,8 @@ export const FollowupLogView: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[var(--surface-primary)]/85 rounded-2xl p-3.5 space-y-3.5 border border-[var(--border-color)] relative z-10 shadow-xs">
-          <div className="text-xs sm:text-[13px] font-mono whitespace-pre-wrap break-words leading-relaxed text-[var(--text-primary)] bg-[var(--surface-secondary)]/80 p-3.5 rounded-xl border border-[var(--border-color)] select-text">
+        <div className="bg-[var(--surface-primary)] rounded-2xl p-3.5 space-y-3.5 border border-[var(--border-color)] relative z-10 shadow-xs">
+          <div className="text-xs sm:text-[13px] font-mono whitespace-pre-wrap break-words leading-relaxed text-[var(--text-primary)] bg-[var(--surface-inset)] p-3.5 rounded-xl border border-[var(--border-color)] select-text">
             {generatedWhatsAppReport}
           </div>
 
@@ -249,7 +249,7 @@ export const FollowupLogView: React.FC = () => {
               disabled={filteredRecords.length === 0}
               className="glass-btn w-full min-h-[44px] h-auto px-3 py-2 rounded-xl text-[var(--text-primary)] text-xs font-bold flex items-center justify-center gap-2 cursor-pointer text-center leading-snug"
             >
-              <Printer className="w-4 h-4 shrink-0 text-[var(--primary)]" />
+              <Printer className="w-4 h-4 shrink-0 text-[var(--accent-primary)]" />
               <span>طباعة / PDF</span>
             </button>
 
@@ -364,20 +364,20 @@ export const FollowupLogView: React.FC = () => {
                 <div className="space-y-1.5 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-extrabold text-sm text-[var(--text-primary)]">{r.studentName}</span>
-                    <span className="font-mono text-xs font-bold text-[var(--accent-secondary)] bg-[var(--accent-secondary)]/10 px-2 py-0.5 rounded-md border border-[var(--accent-secondary)]/25">
+                    <span className="font-mono text-xs font-bold text-[var(--info-text)] bg-[var(--info-bg)] px-2 py-0.5 rounded-md border border-[var(--info-border)]">
                       {r.studentCode}
                     </span>
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30">
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--info-bg)] text-[var(--accent-primary)] border border-[var(--info-border)]">
                       {r.type === 'تم تليفونياً' ? 'اتصال تليفوني' : r.type}
                     </span>
                     {(r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي' || r.callOutcome) && (
                       <span
                         className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                           r.callOutcome === 'تم التواصل'
-                            ? 'bg-[#20c7e8]/15 text-[#20c7e8] border-[#20c7e8]/35'
+                            ? 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]'
                             : r.callOutcome === 'لم يتم التواصل'
-                            ? 'bg-rose-500/15 text-rose-400 border-rose-500/35'
-                            : 'bg-[var(--surface-primary)] text-[var(--text-muted)] border-[var(--border-color)]'
+                            ? 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)]'
+                            : 'bg-[var(--surface-inset)] text-[var(--text-muted)] border-[var(--border-color)]'
                         }`}
                       >
                         نتيجة الاتصال: {r.callOutcome || 'غير مسجل'}
@@ -391,7 +391,7 @@ export const FollowupLogView: React.FC = () => {
                       <span>الأشبين: {r.servant}</span>
                     </span>
                     <span className="flex items-center gap-1.5 font-mono">
-                      <Calendar className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
+                      <Calendar className="w-3.5 h-3.5 text-[var(--accent-primary)] shrink-0" />
                       <span>{r.date}</span>
                     </span>
                   </div>

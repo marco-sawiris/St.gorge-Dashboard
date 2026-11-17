@@ -14,10 +14,18 @@ export interface AssistantAction {
   type: 'prompt' | 'sync' | 'copy' | 'whatsapp';
   payload: string;
   phone?: string;
+  variant?: 'primary' | 'present' | 'absent' | 'danger' | 'neutral';
 }
 
 export type AssistantCommand =
   | { type: 'markAttendance'; studentId: string; studentName: string; isPresent: boolean; targetFridayDate: string }
+  | {
+      type: 'markAttendanceBatch';
+      entries: Array<{ studentId: string; studentName: string; studentCode: string; fridayDate: string; isPresent: boolean }>;
+      isPresent: boolean;
+      targetFridayDate: string;
+      skippedAlreadyRecordedCount: number;
+    }
   | { type: 'openEdit'; studentId: string; studentName: string }
   | {
       type: 'recordFollowupBatch';
@@ -31,6 +39,9 @@ export type AssistantIntent =
   | 'birthdayMessage'
   | 'message'
   | 'attendance_unrecorded'
+  | 'attendance_bulk_prepare'
+  | 'attendance_bulk_confirm'
+  | 'attendance_bulk_cancel'
   | 'attendance_comparison'
   | 'attendance_percentage'
   | 'attendance_summary'
@@ -66,10 +77,19 @@ export type AssistantIntent =
   | 'search'
   | 'help';
 
+export interface AssistantInteractiveAttendanceStudent {
+  id: string;
+  code: string;
+  name: string;
+  servant: string;
+  sourceSheet: string;
+}
+
 export interface AssistantMeta {
   intent: AssistantIntent;
   studentIds?: string[];
   cohortStudentIds?: string[];
+  unrecordedStudentIds?: string[];
   targetFriday?: string;
   secondaryFriday?: string;
   followupFriday?: string;
@@ -81,6 +101,19 @@ export interface AssistantMeta {
   pendingFollowupTimeframe?: 'today' | 'currentWeek' | 'specificWeek';
   pendingWantsCountOnly?: boolean;
   domain?: 'attendance' | 'followup' | 'students' | 'stats' | 'classes' | 'other';
+  interactiveAttendance?: {
+    targetFriday: string;
+    classScope?: string;
+    servantScope?: string;
+    students: AssistantInteractiveAttendanceStudent[];
+  };
+  pendingBulkAttendance?: {
+    targetFriday: string;
+    isPresent: boolean;
+    studentIds: string[];
+    classScope?: string;
+    servantScope?: string;
+  };
 }
 
 export interface AssistantMessage {
@@ -843,22 +876,117 @@ export function detectAssistantIntent(query: string, prevMeta?: AssistantMeta | 
     return 'chatHistory';
   }
 
+  // Contextual Bulk Attendance Confirmation / Cancellation (only when awaiting confirmation)
+  if (prevMeta?.intent === 'attendance_bulk_prepare' && prevMeta.pendingBulkAttendance) {
+    const isCancel =
+      /^(?:الغاء|إلغاء|الغاء العمليه|لا|تراجع|بلاش|مش دلوقتي|خلاص|الغي|إلغاء التسجيل)$/.test(q) ||
+      q.includes('الغاء التسجيل') ||
+      q.includes('الغاء العمليه');
+    if (isCancel) {
+      return 'attendance_bulk_cancel';
+    }
+    const isConfirm =
+      /^(?:تاكيد|تأكيد|اكد|أكد|ايوه|أيوه|ايوة|أيوة|نعم|موافق|تمام|نفذ|ماشي)$/.test(q) ||
+      q.startsWith('تاكيد تسجيل') ||
+      q.includes('تاكيد التسجيل');
+    if (isConfirm) {
+      return 'attendance_bulk_confirm';
+    }
+  }
+
+  // Bulk Attendance Preparation Triggers (always shows confirmation before any write)
+  const isExplicitBulkAttendance =
+    q.includes('تسجيل الكل حضور') ||
+    q.includes('تسجيل الكل غياب') ||
+    q.includes('سجل الكل حضور') ||
+    q.includes('سجل الكل غياب') ||
+    q.includes('تسجيل غير المسجلين حضور') ||
+    q.includes('تسجيل غير المسجلين غياب') ||
+    q.includes('تسجيل كل غير المسجلين') ||
+    q.includes('حضور للكل') ||
+    q.includes('غياب للكل');
+
+  const isContextualBulkFollowup =
+    prevMeta?.domain === 'attendance' &&
+    Boolean((prevMeta.unrecordedStudentIds && prevMeta.unrecordedStudentIds.length > 0) || prevMeta.intent === 'attendance_unrecorded') &&
+    (q.includes('خليهم حضور') ||
+      q.includes('خليهم غياب') ||
+      q.includes('سجلهم حضور') ||
+      q.includes('سجلهم غياب') ||
+      q.includes('سجلهم كلهم حضور') ||
+      q.includes('سجلهم كلهم غياب') ||
+      q.includes('خليهم كلهم حضور') ||
+      q.includes('خليهم كلهم غياب') ||
+      q === 'حضور' ||
+      q === 'حاضر' ||
+      q === 'حاضرين' ||
+      q === 'غياب' ||
+      q === 'غائب' ||
+      q === 'غائبين');
+
+  if (isExplicitBulkAttendance || isContextualBulkFollowup) {
+    return 'attendance_bulk_prepare';
+  }
+
   // HIGHEST PRIORITY ATTENDANCE DOMAIN: Unrecorded attendance/absence
+  const isPhoneOrFollowupOrCallContext =
+    q.includes('تليفون') ||
+    q.includes('موبايل') ||
+    q.includes('رقم') ||
+    q.includes('بيانات') ||
+    q.includes('اتصال') ||
+    q.includes('تواصل') ||
+    q.includes('افتقاد') ||
+    q.includes('افتقد') ||
+    q.includes('اتفتقد') ||
+    q.includes('متفتقد') ||
+    q.includes('كيف') ||
+    q.includes('ازاي');
+
+  const hasExplicitUnrecordedCue =
+    q.includes('لم تسجل') ||
+    q.includes('لم يسجل') ||
+    q.includes('لم يتم التسجيل') ||
+    q.includes('لم يتم تسجيل') ||
+    q.includes('ما سجلش') ||
+    q.includes('ماسجلش') ||
+    q.includes('متسجلش') ||
+    q.includes('ماتسجلش') ||
+    q.includes('ما اتسجلش') ||
+    q.includes('مسجلش') ||
+    q.includes('مش متسجل') ||
+    q.includes('مش مسجل') ||
+    q.includes('غير مسجل') ||
+    q.includes('الغير مسجل') ||
+    q.includes('من غير تسجيل') ||
+    q.includes('بدون تسجيل') ||
+    q.includes('ناقص تسجيل') ||
+    q.includes('ناقصه تسجيل') ||
+    q.includes('ناقص في التسجيل') ||
+    q.includes('مش موجوده في كشف الحضور') ||
+    q.includes('مش موجودين في كشف الحضور') ||
+    q.includes('مش موجود في كشف الحضور');
+
+  const hasAttendanceRemainingContextualCue =
+    prevMeta?.domain === 'attendance' &&
+    (q.includes('مين اللي فاضل') ||
+      q.includes('مين فاضل') ||
+      q.includes('فاضل مين') ||
+      q.includes('اللي فاضل') ||
+      q.includes('مين اللي باقي') ||
+      q.includes('مين باقي') ||
+      q.includes('باقي مين') ||
+      q.includes('اللي باقي') ||
+      q.includes('طب والباقي') ||
+      q.includes('ومين الباقي') ||
+      q.includes('ومين لسه') ||
+      q === 'والباقي' ||
+      q === 'مين لسه' ||
+      q === 'مين ناقص');
+
   const asksUnrecordedAttendance =
-    ((q.includes('لم تسجل') ||
-      q.includes('لم يسجل') ||
-      q.includes('لم يتم تسجيل') ||
-      q.includes('ما سجلش') ||
-      q.includes('متسجلش') ||
-      q.includes('مسجلش') ||
-      q.includes('مش متسجل') ||
-      q.includes('مش مسجل') ||
-      q.includes('غير مسجل') ||
-      q.includes('من غير تسجيل') ||
-      q.includes('بدون تسجيل') ||
-      q.includes('مش موجوده في كشف الحضور') ||
-      q.includes('مش موجودين في كشف الحضور')) &&
-      (q.includes('حضور') || q.includes('غياب') || q.includes('تسجيل') || q.includes('كشف') || q.includes('لسه') || q.includes('اسماء') || q.includes('واحد')));
+    !isPhoneOrFollowupOrCallContext &&
+    (hasExplicitUnrecordedCue || hasAttendanceRemainingContextualCue);
 
   if (asksUnrecordedAttendance) {
     return 'attendance_unrecorded';
@@ -1454,6 +1582,8 @@ export function parseAssistantCommand(
 
 export interface AssistantQueryContext {
   referenceDate?: Date;
+  selectedFridayDate?: string;
+  classScope?: string | null;
   lastSyncLabel?: string | null;
   lastSyncError?: string | null;
   isSyncing?: boolean;
@@ -1557,7 +1687,7 @@ function isStudentFollowedUpToday(
 function buildSyncFootnotes(options?: AssistantQueryContext): string {
   const parts: string[] = [];
   if (options?.lastSyncError) {
-    parts.push(`⚠️ المزامنة الأخيرة غير مكتملة (${options.lastSyncError})؛ النتائج من البيانات المحلية.`);
+    parts.push(`⚠️ تعذر إكمال المزامنة (${options.lastSyncError})؛ النتائج من البيانات المحلية وقد تكون القائمة غير مكتملة لحين تحديث الشيت.`);
   }
   if (options?.pendingMutationsCount && options.pendingMutationsCount > 0) {
     parts.push(`⏳ توجد ${options.pendingMutationsCount} عملية محلية قيد الانتظار للمزامنة مع Google Sheets.`);
@@ -1650,12 +1780,35 @@ export function processAssistantQuery(
     }
   }
 
-  // Handle intra-session referential context strictly from THIS active session's previous turn
-  const usingContextualSubset = Boolean(
-    scope.isReferential && prevMeta && ((prevMeta.cohortStudentIds && prevMeta.cohortStudentIds.length > 0) || (prevMeta.studentIds && prevMeta.studentIds.length > 0))
-  );
+  // Determine effective date, class, and servant scope with multi-turn attendance context continuity
+  const effectiveAttendanceDate = !scope.dateRange.hasExplicitDateMarker
+    ? prevMeta?.domain === 'attendance' && prevMeta.targetFriday && /^\d{4}-\d{2}-\d{2}$/.test(prevMeta.targetFriday)
+      ? prevMeta.targetFriday
+      : options?.selectedFridayDate && /^\d{4}-\d{2}-\d{2}$/.test(options.selectedFridayDate)
+        ? options.selectedFridayDate
+        : scope.dateRange.primaryFriday
+    : scope.dateRange.primaryFriday;
 
-  // Persist servantScope across active session follow-up turns unless another servant or all-servants is explicitly requested
+  const effectiveDateLabel =
+    effectiveAttendanceDate === scope.dateRange.primaryFriday
+      ? scope.dateRange.label
+      : prevMeta?.domain === 'attendance' && prevMeta.targetFriday === effectiveAttendanceDate && prevMeta.dateLabel
+        ? prevMeta.dateLabel
+        : `تاريخ ${effectiveAttendanceDate}`;
+
+  const explicitAllClassesRequested =
+    scope.normalizedQuery.includes('كل الفصول') || scope.normalizedQuery.includes('جميع الفصول');
+
+  let effectiveClassScope = scope.classScope;
+  if (!effectiveClassScope && !scope.unknownClassRequested && !explicitAllClassesRequested) {
+    if (prevMeta?.domain === 'attendance' && prevMeta.classScope) {
+      effectiveClassScope = prevMeta.classScope;
+    } else if (options?.classScope && options.classScope !== '__ALL__') {
+      effectiveClassScope = options.classScope;
+    }
+  }
+
+  // Persist servantScope across active session follow-up OR attendance turns unless another servant or all-servants is explicitly requested
   if (
     !answeredServantSelection &&
     !activeServantFilter &&
@@ -1663,13 +1816,34 @@ export function processAssistantQuery(
     !scope.unknownServantRequested &&
     !(scope.ambiguousServantMatches && scope.ambiguousServantMatches.length > 1) &&
     prevMeta?.servantScope &&
-    (prevMeta.domain === 'followup' || scope.isReferential)
+    (prevMeta.domain === 'followup' || prevMeta.domain === 'attendance' || scope.isReferential)
   ) {
     activeServantFilter = prevMeta.servantScope;
   }
 
+  const attendanceDomainIntents = new Set<AssistantIntent>([
+    'attendance_unrecorded',
+    'attendance_bulk_prepare',
+    'attendance_bulk_confirm',
+    'attendance_bulk_cancel',
+    'present',
+    'absent',
+    'attendance_summary',
+    'attendance_percentage',
+    'attendance_comparison'
+  ]);
+
+  const usingContextualSubset = Boolean(
+    scope.isReferential &&
+      prevMeta &&
+      ((prevMeta.studentIds && prevMeta.studentIds.length > 0) ||
+        (prevMeta.cohortStudentIds && prevMeta.cohortStudentIds.length > 0)) &&
+      !answeredServantSelection &&
+      !attendanceDomainIntents.has(intent)
+  );
+
   let workingStudents = students;
-  if (usingContextualSubset && prevMeta && !answeredServantSelection) {
+  if (usingContextualSubset && prevMeta) {
     const prefersCohort =
       intent === 'missingFollowup' ||
       intent === 'followup_not_contacted' ||
@@ -1699,14 +1873,14 @@ export function processAssistantQuery(
     }
     if (options?.lastSyncError) {
       return {
-        text: `تعذر عرض النتائج لأن المزامنة فشلت ولم يتم تحميل بيانات المخدومين (${options.lastSyncError}). اضغط «مزامنة الآن» لإعادة المحاولة.`,
-        actions: [{ label: '🔄 مزامنة الآن', type: 'sync', payload: '' }],
+        text: `تعذر عرض النتائج لأن المزامنة فشلت ولم يتم تحميل بيانات المخدومين (${options.lastSyncError}). القائمة قد تكون غير مكتملة — اضغط «مزامنة الآن» لإعادة المحاولة.`,
+        actions: [{ label: 'مزامنة الآن', type: 'sync', payload: '' }],
         meta: { intent, domain: 'other' }
       };
     }
     return {
       text: 'لا توجد بيانات مخدومين محملة حالياً في التطبيق. اضغط «مزامنة الآن» للاتصال بملف Google Sheets وجلب البيانات الحقيقية أولاً.',
-      actions: [{ label: '🔄 مزامنة الآن', type: 'sync', payload: '' }],
+      actions: [{ label: 'مزامنة الآن', type: 'sync', payload: '' }],
       meta: { intent, domain: 'other' }
     };
   }
@@ -1718,7 +1892,7 @@ export function processAssistantQuery(
       text: `الفصل المطلوب «${scope.unknownClassRequested}» غير موجود في البيانات المحملة حالياً.\n\nالفصول الموجودة فعلياً في قاعدة البيانات (${existing.length}):\n${existing
         .map((c, i) => `${i + 1}. ${c} (${students.filter((s) => s.sourceSheet === c).length} مخدوم)`)
         .join('\n')}`,
-      actions: [{ label: '🏫 عرض الفصول', type: 'prompt', payload: 'إيه الفصول الموجودة؟' }],
+      actions: [{ label: 'عرض الفصول', type: 'prompt', payload: 'إيه الفصول الموجودة؟' }],
       meta: { intent: 'class_list', domain: 'classes' }
     };
   }
@@ -1774,10 +1948,20 @@ export function processAssistantQuery(
   }
 
   // Apply explicit class scope if not contextual
-  if (scope.classScope && !usingContextualSubset) {
-    workingStudents = workingStudents.filter((s) => s.sourceSheet === scope.classScope);
+  if (effectiveClassScope && (!usingContextualSubset || attendanceDomainIntents.has(intent))) {
+    const classFiltered = workingStudents.filter((s) => s.sourceSheet === effectiveClassScope);
+    if (classFiltered.length > 0 || scope.classScope) {
+      workingStudents = classFiltered;
+    }
+  } else if (attendanceDomainIntents.has(intent) && !explicitAllClassesRequested) {
+    // Exclude inactive students ("غير نشط") from default active attendance evaluation
+    const activeAttendancePool = workingStudents.filter((s) => s.sourceSheet !== 'غير نشط');
+    if (activeAttendancePool.length > 0) {
+      workingStudents = activeAttendancePool;
+    }
   }
-  if (activeServantFilter && !usingContextualSubset && !['class_students', 'class_attendance', 'class_comparison', 'class_list', 'students_count'].includes(intent)) {
+
+  if (activeServantFilter && (!usingContextualSubset || attendanceDomainIntents.has(intent)) && !['class_students', 'class_attendance', 'class_comparison', 'class_list', 'students_count'].includes(intent)) {
     const srvNorm = normalizeAssistantInput(activeServantFilter);
     const matchedSrv = workingStudents.filter((s) => normalizeAssistantInput(s.servant || '') === srvNorm || normalizeAssistantInput(s.servant || '').includes(srvNorm));
     if (matchedSrv.length > 0) {
@@ -1863,17 +2047,24 @@ export function processAssistantQuery(
     !usingContextualSubset &&
     /^مين\s+(?:ما\s*حضرش|محضرش|مش\s*حاضر)[؟?]*$/.test(scope.normalizedQuery)
   ) {
-    const targetFriday = scope.dateRange.primaryFriday;
+    const targetFriday = effectiveAttendanceDate;
     const unrecordedCount = workingStudents.filter((s) => typeof s.att?.[targetFriday] !== 'boolean').length;
     const recordedAbsentCount = workingStudents.filter((s) => s.att?.[targetFriday] === false).length;
     if (unrecordedCount > 0) {
       return {
-        text: `تقصد الغائبين المسجلين، ولا الأسماء اللي لسه ما سجلتش حضور أو غياب؟\n\nفي ${scope.dateRange.label}:\n• غياب مسجل صراحةً: ${recordedAbsentCount}\n• لم يسجل حضور أو غياب بعد: ${unrecordedCount}`,
+        text: `تقصد الغائبين المسجلين، ولا الأسماء اللي لسه ما سجلتش حضور أو غياب؟\n\nفي ${effectiveDateLabel}:\n• غياب مسجل صراحةً: ${recordedAbsentCount}\n• لم يسجل حضور أو غياب بعد: ${unrecordedCount}`,
         actions: [
-          { label: `⚠️ الغائبون المسجلون (${recordedAbsentCount})`, type: 'prompt', payload: 'مين غاب آخر جمعة؟' },
-          { label: `📝 لم تسجل حضور أو غياب (${unrecordedCount})`, type: 'prompt', payload: 'هات الأسماء اللي لم تسجل حضور أو غياب' }
+          { label: `الغائبون المسجلون (${recordedAbsentCount})`, type: 'prompt', payload: 'مين غاب؟', variant: 'absent' },
+          { label: `لم تسجل بعد (${unrecordedCount})`, type: 'prompt', payload: 'مين اللي لم يسجل بعد؟', variant: 'primary' }
         ],
-        meta: { intent: 'absent', domain: 'attendance', targetFriday }
+        meta: {
+          intent: 'absent',
+          domain: 'attendance',
+          targetFriday,
+          dateLabel: effectiveDateLabel,
+          classScope: effectiveClassScope,
+          servantScope: activeServantFilter
+        }
       };
     }
   }
@@ -1883,134 +2074,363 @@ export function processAssistantQuery(
     // DOMAIN 1: ATTENDANCE & ABSENCE
     // ========================================================================
     case 'attendance_unrecorded': {
-      const targetFriday = scope.dateRange.primaryFriday;
+      const targetFriday = effectiveAttendanceDate;
       const unrecorded = workingStudents.filter((s) => typeof s.att?.[targetFriday] !== 'boolean');
       const scopeLabel = [
-        scope.classScope ? `فصل: ${scope.classScope}` : '',
-        usingContextualSubset ? 'من القائمة السابقة' : ''
+        effectiveClassScope ? `فصل: ${effectiveClassScope}` : '',
+        activeServantFilter ? `الأشبين: ${activeServantFilter}` : ''
       ]
         .filter(Boolean)
         .join(' • ');
-      const header = `📝 الأسماء التي لم يُسجَّل لها حضور أو غياب — ${scope.dateRange.label}${scopeLabel ? ` (${scopeLabel})` : ''}`;
 
       if (unrecorded.length === 0) {
         return {
-          text: `${header} (0): جميع المخدومين في هذا النطاق (${workingStudents.length}) مسجل لهم حضور أو غياب بالفعل.${syncFootnotes}`,
+          text: `✅ الأسماء التي لم يُسجَّل لها حضور أو غياب — ${effectiveDateLabel}${scopeLabel ? ` (${scopeLabel})` : ''} (0): جميع المخدومين النشطين في هذا النطاق (${workingStudents.length}) مسجل لهم حضور أو غياب بالفعل.${syncFootnotes}`,
           meta: {
             intent: 'attendance_unrecorded',
             domain: 'attendance',
             studentIds: [],
-            cohortStudentIds: [],
+            unrecordedStudentIds: [],
+            cohortStudentIds: workingStudents.map((s) => s.id),
             targetFriday,
-            dateLabel: scope.dateRange.label
+            dateLabel: effectiveDateLabel,
+            classScope: effectiveClassScope,
+            servantScope: activeServantFilter
           }
         };
       }
 
       const listLines = unrecorded.map((s, idx) => formatUniqueStudentLine(s, idx)).join('\n');
+      const header = `📝 متبقي ${unrecorded.length} مخدومًا لم يتم تسجيل حالتهم حتى الآن (${targetFriday})${scopeLabel ? ` • ${scopeLabel}` : ''}:`;
       return {
-        text: `${header} (${unrecorded.length} من ${workingStudents.length}):\n\n${listLines}${syncFootnotes}`,
+        text: `${header}\n\n${listLines}\n\nتحب تسجلهم حضور ولا غياب؟${syncFootnotes}`,
         copyText: unrecorded.map((s) => s.name).join('\n'),
         actions: [
-          { label: '📊 كشف الحضور كامل', type: 'prompt', payload: 'اعرض كشف الحضور كامل' },
-          { label: '⚠️ الغائبون المسجلون', type: 'prompt', payload: 'مين غاب آخر جمعة؟' }
+          { label: 'تسجيل الكل حضور', type: 'prompt', payload: 'تسجيل الكل حضور', variant: 'present' },
+          { label: 'تسجيل الكل غياب', type: 'prompt', payload: 'تسجيل الكل غياب', variant: 'absent' },
+          { label: 'كشف الحضور كامل', type: 'prompt', payload: 'اعرض كشف الحضور كامل', variant: 'neutral' },
+          { label: 'الغائبون المسجلون', type: 'prompt', payload: 'مين غاب؟', variant: 'neutral' }
         ],
         meta: {
           intent: 'attendance_unrecorded',
           domain: 'attendance',
           studentIds: unrecorded.map((s) => s.id),
-          cohortStudentIds: unrecorded.map((s) => s.id),
+          unrecordedStudentIds: unrecorded.map((s) => s.id),
+          cohortStudentIds: workingStudents.map((s) => s.id),
           targetFriday,
-          dateLabel: scope.dateRange.label,
-          classScope: scope.classScope
+          dateLabel: effectiveDateLabel,
+          classScope: effectiveClassScope,
+          servantScope: activeServantFilter,
+          interactiveAttendance: {
+            targetFriday,
+            classScope: effectiveClassScope,
+            servantScope: activeServantFilter,
+            students: unrecorded.map((s) => ({
+              id: s.id,
+              code: s.code,
+              name: s.name,
+              servant: s.servant || 'غير محدد',
+              sourceSheet: s.sourceSheet || 'نشط'
+            }))
+          }
+        }
+      };
+    }
+
+    case 'attendance_bulk_prepare': {
+      const targetFriday = prevMeta?.targetFriday && /^\d{4}-\d{2}-\d{2}$/.test(prevMeta.targetFriday)
+        ? prevMeta.targetFriday
+        : effectiveAttendanceDate;
+      const desiredPresent =
+        !scope.normalizedQuery.includes('غياب') &&
+        !scope.normalizedQuery.includes('غائب') &&
+        !scope.normalizedQuery.includes('غائبين');
+
+      // Always re-verify live database state so already-recorded students are NEVER included or touched
+      const scopedUnrecordedPool = workingStudents.filter((s) => typeof s.att?.[targetFriday] !== 'boolean');
+      const prevUnrecSet =
+        prevMeta?.unrecordedStudentIds && prevMeta.unrecordedStudentIds.length > 0
+          ? new Set(prevMeta.unrecordedStudentIds)
+          : null;
+      const verifiedTargets = prevUnrecSet
+        ? scopedUnrecordedPool.filter((s) => prevUnrecSet.has(s.id))
+        : scopedUnrecordedPool;
+      const targets = verifiedTargets.length > 0 ? verifiedTargets : scopedUnrecordedPool;
+
+      if (targets.length === 0) {
+        return {
+          text: `ℹ️ لا يوجد أي مخدوم غير مسجل في هذا النطاق لتاريخ ${targetFriday}. جميع المخدومين مسجلون بالفعل ولم يتم إنشاء أي سجلات مكررة.${syncFootnotes}`,
+          meta: {
+            intent: 'attendance_unrecorded',
+            domain: 'attendance',
+            targetFriday,
+            dateLabel: effectiveDateLabel,
+            classScope: effectiveClassScope,
+            servantScope: activeServantFilter,
+            unrecordedStudentIds: [],
+            studentIds: []
+          }
+        };
+      }
+
+      const statusLabel = desiredPresent ? 'حضور' : 'غياب';
+      const scopeDetails = [
+        effectiveClassScope ? `الفصل: ${effectiveClassScope}` : '',
+        activeServantFilter ? `الأشبين: ${activeServantFilter}` : ''
+      ]
+        .filter(Boolean)
+        .join(' • ');
+
+      return {
+        text: [
+          `⚠️ تأكيد قبل تنفيذ التسجيل الجماعي:`,
+          `• عدد المخدومين غير المسجلين: ${targets.length} مخدوم`,
+          `• التاريخ المحدد للتسجيل: ${targetFriday}`,
+          `• الحالة المختارة: ${statusLabel}`,
+          scopeDetails ? `• النطاق: ${scopeDetails}` : '',
+          '',
+          `لن يتم تنفيذ التسجيل إلا بعد موافقتك، وسيُعاد التحقق من عدم وجود سجلات مسبقة قبل الحفظ.${syncFootnotes}`
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        actions: [
+          {
+            label: `تأكيد تسجيل الكل (${statusLabel})`,
+            type: 'prompt',
+            payload: `تأكيد تسجيل الكل ${statusLabel}`,
+            variant: desiredPresent ? 'present' : 'absent'
+          },
+          {
+            label: 'إلغاء',
+            type: 'prompt',
+            payload: 'إلغاء العملية',
+            variant: 'danger'
+          }
+        ],
+        meta: {
+          intent: 'attendance_bulk_prepare',
+          domain: 'attendance',
+          targetFriday,
+          dateLabel: effectiveDateLabel,
+          classScope: effectiveClassScope,
+          servantScope: activeServantFilter,
+          unrecordedStudentIds: targets.map((s) => s.id),
+          studentIds: targets.map((s) => s.id),
+          pendingBulkAttendance: {
+            targetFriday,
+            isPresent: desiredPresent,
+            studentIds: targets.map((s) => s.id),
+            classScope: effectiveClassScope,
+            servantScope: activeServantFilter
+          }
+        }
+      };
+    }
+
+    case 'attendance_bulk_confirm': {
+      const pending = prevMeta?.pendingBulkAttendance;
+      if (!pending || pending.studentIds.length === 0) {
+        return {
+          text: 'لا توجد عملية تسجيل جماعي معلقة للتأكيد حالياً. يمكنك عرض قائمة غير المسجلين أولاً ثم اختيار الحالة.',
+          meta: { intent: 'attendance_unrecorded', domain: 'attendance', targetFriday: effectiveAttendanceDate }
+        };
+      }
+
+      const targetFriday = pending.targetFriday;
+      const isPresent = pending.isPresent;
+      const entries: Array<{
+        studentId: string;
+        studentName: string;
+        studentCode: string;
+        fridayDate: string;
+        isPresent: boolean;
+      }> = [];
+      let skippedAlreadyRecordedCount = 0;
+
+      for (const sid of pending.studentIds) {
+        const liveStudent = studentsById.get(sid);
+        if (!liveStudent) continue;
+        // Re-verify against latest loaded state before writing (never overwrite or duplicate existing records)
+        if (typeof liveStudent.att?.[targetFriday] === 'boolean') {
+          skippedAlreadyRecordedCount++;
+          continue;
+        }
+        entries.push({
+          studentId: liveStudent.id,
+          studentName: liveStudent.name,
+          studentCode: liveStudent.code,
+          fridayDate: targetFriday,
+          isPresent
+        });
+      }
+
+      if (entries.length === 0) {
+        return {
+          text: `ℹ️ عند إعادة التحقق تبين أن جميع المخدومين المحددين (${skippedAlreadyRecordedCount}) تم تسجيل حالتهم بالفعل لتاريخ ${targetFriday}. لم أُضف أي سجلات مكررة.`,
+          meta: {
+            intent: 'attendance_unrecorded',
+            domain: 'attendance',
+            targetFriday,
+            classScope: pending.classScope,
+            servantScope: pending.servantScope,
+            unrecordedStudentIds: [],
+            studentIds: []
+          }
+        };
+      }
+
+      const statusLabel = isPresent ? 'حضور' : 'غياب';
+      return {
+        text: `⏳ جاري تسجيل ${statusLabel} لـ ${entries.length} مخدومًا عن ${targetFriday}...`,
+        command: {
+          type: 'markAttendanceBatch',
+          entries,
+          isPresent,
+          targetFridayDate: targetFriday,
+          skippedAlreadyRecordedCount
+        },
+        meta: {
+          intent: 'attendance_bulk_confirm',
+          domain: 'attendance',
+          targetFriday,
+          classScope: pending.classScope,
+          servantScope: pending.servantScope,
+          studentIds: entries.map((e) => e.studentId)
+        }
+      };
+    }
+
+    case 'attendance_bulk_cancel': {
+      return {
+        text: 'تم إلغاء التسجيل الجماعي. لم يتم تعديل أي سجل حضور أو غياب في قاعدة البيانات.',
+        actions: [
+          { label: 'عرض غير المسجلين', type: 'prompt', payload: 'مين اللي لم يسجل بعد؟', variant: 'primary' }
+        ],
+        meta: {
+          intent: 'attendance_bulk_cancel',
+          domain: 'attendance',
+          targetFriday: prevMeta?.targetFriday || effectiveAttendanceDate,
+          classScope: prevMeta?.classScope || effectiveClassScope,
+          servantScope: prevMeta?.servantScope || activeServantFilter
         }
       };
     }
 
     case 'present': {
-      const targetFriday = scope.dateRange.primaryFriday;
+      const targetFriday = effectiveAttendanceDate;
       const presentList = workingStudents.filter((s) => s.att?.[targetFriday] === true);
-      const unrecorded = workingStudents.filter((s) => typeof s.att?.[targetFriday] !== 'boolean').length;
+      const unrecordedList = workingStudents.filter((s) => typeof s.att?.[targetFriday] !== 'boolean');
+      const unrecorded = unrecordedList.length;
       const prefix =
-        scope.dateRange.kind === 'latestHeldFriday' ? 'الحاضرون آخر جمعة' : `الحاضرون (${scope.dateRange.label})`;
+        targetFriday === scope.dateRange.primaryFriday && scope.dateRange.kind === 'latestHeldFriday'
+          ? 'الحاضرون آخر جمعة'
+          : `الحاضرون (${effectiveDateLabel})`;
 
       if (presentList.length === 0) {
         return {
           text: `${prefix} (0): لا يوجد${unrecorded > 0 ? `\n• لم يُسجل بعد: ${unrecorded}` : ''}${syncFootnotes}`,
+          actions:
+            unrecorded > 0
+              ? [{ label: `غير المسجلين (${unrecorded})`, type: 'prompt', payload: 'مين اللي لم يسجل بعد؟', variant: 'primary' }]
+              : undefined,
           meta: {
             intent: 'present',
             domain: 'attendance',
             studentIds: [],
-            cohortStudentIds: [],
+            unrecordedStudentIds: unrecordedList.map((s) => s.id),
+            cohortStudentIds: workingStudents.map((s) => s.id),
             targetFriday,
-            dateLabel: scope.dateRange.label
+            dateLabel: effectiveDateLabel,
+            classScope: effectiveClassScope,
+            servantScope: activeServantFilter
           }
         };
       }
 
-      const namesList = presentList.map((s, i) => `${i + 1}. ${s.name}${s.sourceSheet && !scope.classScope ? ` (${s.sourceSheet})` : ''}`).join('\n');
+      const namesList = presentList
+        .map((s, i) => `${i + 1}. ${s.name}${s.sourceSheet && !effectiveClassScope ? ` (${s.sourceSheet})` : ''}`)
+        .join('\n');
       return {
-        text: `${prefix} (${presentList.length}):\n${namesList}${unrecorded > 0 ? `\n\n• لم يُسجل بعد: ${unrecorded}` : ''}${syncFootnotes}`,
+        text: `${prefix} (${presentList.length}):\n${namesList}${unrecorded > 0 ? `\n\n• لم يُسجل بعد: ${unrecorded} مخدومًا` : ''}${syncFootnotes}`,
         copyText: presentList.map((s) => s.name).join('\n'),
         actions: [
-          { label: '⚠️ الغائبون', type: 'prompt', payload: 'مين غاب آخر جمعة؟' },
-          { label: '📝 بدون تسجيل', type: 'prompt', payload: 'هات الأسماء اللي لم تسجل حضور أو غياب' }
+          { label: 'الغائبون المسجلون', type: 'prompt', payload: 'مين غاب؟', variant: 'absent' },
+          { label: `غير المسجلين (${unrecorded})`, type: 'prompt', payload: 'مين اللي لم يسجل بعد؟', variant: 'primary' }
         ],
         meta: {
           intent: 'present',
           domain: 'attendance',
           studentIds: presentList.map((s) => s.id),
-          cohortStudentIds: presentList.map((s) => s.id),
+          unrecordedStudentIds: unrecordedList.map((s) => s.id),
+          cohortStudentIds: workingStudents.map((s) => s.id),
           targetFriday,
-          dateLabel: scope.dateRange.label,
-          classScope: scope.classScope
+          dateLabel: effectiveDateLabel,
+          classScope: effectiveClassScope,
+          servantScope: activeServantFilter
         }
       };
     }
 
     case 'absent': {
-      const targetFriday = scope.dateRange.primaryFriday;
+      const targetFriday = effectiveAttendanceDate;
       const absentList = workingStudents.filter((s) => s.att?.[targetFriday] === false);
-      const unrecorded = workingStudents.filter((s) => typeof s.att?.[targetFriday] !== 'boolean').length;
+      const unrecordedList = workingStudents.filter((s) => typeof s.att?.[targetFriday] !== 'boolean');
+      const unrecorded = unrecordedList.length;
       const prefix =
-        scope.dateRange.kind === 'latestHeldFriday' ? 'الغائبون آخر جمعة' : `الغائبون (${scope.dateRange.label})`;
+        targetFriday === scope.dateRange.primaryFriday && scope.dateRange.kind === 'latestHeldFriday'
+          ? 'الغائبون آخر جمعة'
+          : `الغائبون (${effectiveDateLabel})`;
 
       if (absentList.length === 0) {
         return {
-          text: `${prefix} (0): لا يوجد${unrecorded > 0 ? `\n• لم يُسجل بعد: ${unrecorded}` : ''}${syncFootnotes}`,
+          text: `${prefix} (0): لا يوجد غياب مسجل${unrecorded > 0 ? `\n• لم يُسجل بعد: ${unrecorded}` : ''}${syncFootnotes}`,
+          actions:
+            unrecorded > 0
+              ? [{ label: `غير المسجلين (${unrecorded})`, type: 'prompt', payload: 'مين اللي لم يسجل بعد؟', variant: 'primary' }]
+              : undefined,
           meta: {
             intent: 'absent',
             domain: 'attendance',
             studentIds: [],
+            unrecordedStudentIds: unrecordedList.map((s) => s.id),
             cohortStudentIds: [],
             targetFriday,
-            dateLabel: scope.dateRange.label
+            dateLabel: effectiveDateLabel,
+            classScope: effectiveClassScope,
+            servantScope: activeServantFilter
           }
         };
       }
 
-      const namesList = absentList.map((s, idx) => `${idx + 1}. ${s.name}${s.sourceSheet && !scope.classScope ? ` (${s.sourceSheet})` : ''}`).join('\n');
+      const namesList = absentList
+        .map((s, idx) => `${idx + 1}. ${s.name}${s.sourceSheet && !effectiveClassScope ? ` (${s.sourceSheet})` : ''}`)
+        .join('\n');
       return {
-        text: `${prefix} (${absentList.length}):\n${namesList}${unrecorded > 0 ? `\n\n• لم يُسجل بعد: ${unrecorded}` : ''}${syncFootnotes}`,
+        text: `${prefix} (${absentList.length}):\n${namesList}${unrecorded > 0 ? `\n\n• لم يُسجل بعد: ${unrecorded} (منفصلون عن الغياب المسجل)` : ''}${syncFootnotes}`,
         copyText: absentList.map((s) => s.name).join('\n'),
         actions: [
-          { label: '📞 مين فيهم اتعمله افتقاد؟', type: 'prompt', payload: 'مين فيهم اتعمله افتقاد؟' },
-          { label: '💙 رسالة افتقاد جاهزة', type: 'prompt', payload: 'رسالة افتقاد' }
+          { label: 'مين فيهم اتعمله افتقاد؟', type: 'prompt', payload: 'مين فيهم اتعمله افتقاد؟' },
+          { label: 'رسالة افتقاد جاهزة', type: 'prompt', payload: 'رسالة افتقاد' },
+          ...(unrecorded > 0
+            ? [{ label: `غير المسجلين (${unrecorded})`, type: 'prompt' as const, payload: 'مين اللي لم يسجل بعد؟', variant: 'primary' as const }]
+            : [])
         ],
         meta: {
           intent: 'absent',
           domain: 'attendance',
           studentIds: absentList.map((s) => s.id),
+          unrecordedStudentIds: unrecordedList.map((s) => s.id),
           cohortStudentIds: absentList.map((s) => s.id),
           targetFriday,
-          dateLabel: scope.dateRange.label,
-          classScope: scope.classScope
+          dateLabel: effectiveDateLabel,
+          classScope: effectiveClassScope,
+          servantScope: activeServantFilter
         }
       };
     }
 
     case 'attendance_summary': {
-      const targetFriday = scope.dateRange.primaryFriday;
+      const targetFriday = effectiveAttendanceDate;
       const present = workingStudents.filter((s) => s.att?.[targetFriday] === true);
       const absent = workingStudents.filter((s) => s.att?.[targetFriday] === false);
       const unrecorded = workingStudents.filter((s) => typeof s.att?.[targetFriday] !== 'boolean');
@@ -2018,7 +2438,7 @@ export function processAssistantQuery(
       const recordedPct = recordedTotal > 0 ? Math.round((present.length / recordedTotal) * 100) : 0;
 
       const text = [
-        `📋 كشف الحضور الكامل — ${scope.dateRange.label} (${workingStudents.length} مخدوم):`,
+        `📋 كشف الحضور الكامل — ${effectiveDateLabel} (${workingStudents.length} مخدوم):`,
         `• حاضر: ${present.length} | غائب مسجل: ${absent.length} | لم يُسجل: ${unrecorded.length}`,
         recordedTotal > 0 ? `• نسبة الحضور من المسجلين: ${recordedPct}% (${present.length}/${recordedTotal})` : '• لم يُسجل حضور أو غياب لأي مخدوم في هذا التاريخ بعد.',
         '',
@@ -2035,12 +2455,20 @@ export function processAssistantQuery(
       return {
         text: `${text}${syncFootnotes}`,
         copyText: text,
+        actions:
+          unrecorded.length > 0
+            ? [{ label: `غير المسجلين (${unrecorded.length})`, type: 'prompt', payload: 'مين اللي لم يسجل بعد؟', variant: 'primary' }]
+            : undefined,
         meta: {
           intent: 'attendance_summary',
           domain: 'attendance',
           studentIds: workingStudents.map((s) => s.id),
+          unrecordedStudentIds: unrecorded.map((s) => s.id),
           cohortStudentIds: workingStudents.map((s) => s.id),
-          targetFriday
+          targetFriday,
+          dateLabel: effectiveDateLabel,
+          classScope: effectiveClassScope,
+          servantScope: activeServantFilter
         }
       };
     }
@@ -3251,10 +3679,131 @@ export function processAssistantQuery(
   }
 }
 
+export interface VerifiedAttendanceSelectionInput {
+  studentId: string;
+  isPresent: boolean;
+}
+
+export interface VerifiedAttendanceBatchPlan {
+  validEntries: Array<{
+    studentId: string;
+    studentName: string;
+    studentCode: string;
+    fridayDate: string;
+    isPresent: boolean;
+  }>;
+  skippedAlreadyRecorded: Array<{
+    studentId: string;
+    studentName: string;
+    existingPresent: boolean;
+    reason: string;
+  }>;
+  skippedAlreadyQueued: Array<{
+    studentId: string;
+    studentName: string;
+    reason: string;
+  }>;
+  blockedUnauthorized: Array<{
+    studentId: string;
+    studentName: string;
+    reason: string;
+  }>;
+  notFoundIds: string[];
+}
+
+export function prepareVerifiedAssistantAttendanceBatch(
+  requestedSelections: ReadonlyArray<VerifiedAttendanceSelectionInput>,
+  liveStudents: ReadonlyArray<Student>,
+  targetFridayDate: string,
+  existingQueuedMutations: ReadonlyArray<{
+    action: string;
+    studentId: string;
+    status?: string;
+    payload?: Record<string, any>;
+  }> = [],
+  canPerformAction: (action: 'attendance', servantName?: string) => { allowed: boolean; reason?: string } = () => ({ allowed: true })
+): VerifiedAttendanceBatchPlan {
+  const studentsById = new Map(liveStudents.map((s) => [s.id, s]));
+  const queuedAttendanceKeys = new Set<string>();
+  for (const m of existingQueuedMutations) {
+    if (m.action !== 'attendance') continue;
+    const mFri = String(m.payload?.friday || m.payload?.date || '').trim();
+    if (m.studentId && mFri) {
+      queuedAttendanceKeys.add(`${m.studentId}__${mFri}`);
+    }
+  }
+
+  const validEntries: VerifiedAttendanceBatchPlan['validEntries'] = [];
+  const skippedAlreadyRecorded: VerifiedAttendanceBatchPlan['skippedAlreadyRecorded'] = [];
+  const skippedAlreadyQueued: VerifiedAttendanceBatchPlan['skippedAlreadyQueued'] = [];
+  const blockedUnauthorized: VerifiedAttendanceBatchPlan['blockedUnauthorized'] = [];
+  const notFoundIds: string[] = [];
+  const seenLogicalKeys = new Set<string>();
+
+  for (const sel of requestedSelections) {
+    const logicalKey = `${sel.studentId}__${targetFridayDate}`;
+    if (seenLogicalKeys.has(logicalKey)) continue;
+    seenLogicalKeys.add(logicalKey);
+
+    const liveStudent = studentsById.get(sel.studentId);
+    if (!liveStudent) {
+      notFoundIds.push(sel.studentId);
+      continue;
+    }
+
+    const perm = canPerformAction('attendance', liveStudent.servant);
+    if (!perm.allowed) {
+      blockedUnauthorized.push({
+        studentId: liveStudent.id,
+        studentName: liveStudent.name,
+        reason: perm.reason || 'غير مصرح بتعديل سجلات هذا المخدوم'
+      });
+      continue;
+    }
+
+    const existingVal = liveStudent.att?.[targetFridayDate];
+    if (typeof existingVal === 'boolean') {
+      skippedAlreadyRecorded.push({
+        studentId: liveStudent.id,
+        studentName: liveStudent.name,
+        existingPresent: existingVal,
+        reason: `مسجل بالفعل (${existingVal ? 'حاضر' : 'غائب'})`
+      });
+      continue;
+    }
+
+    if (queuedAttendanceKeys.has(logicalKey)) {
+      skippedAlreadyQueued.push({
+        studentId: liveStudent.id,
+        studentName: liveStudent.name,
+        reason: 'موجود بالفعل في طابور المزامنة لهذا التاريخ'
+      });
+      continue;
+    }
+
+    validEntries.push({
+      studentId: liveStudent.id,
+      studentName: liveStudent.name,
+      studentCode: liveStudent.code,
+      fridayDate: targetFridayDate,
+      isPresent: Boolean(sel.isPresent)
+    });
+  }
+
+  return {
+    validEntries,
+    skippedAlreadyRecorded,
+    skippedAlreadyQueued,
+    blockedUnauthorized,
+    notFoundIds
+  };
+}
+
 export const AssistantIntentEngine = {
   normalizeInput: normalizeAssistantInput,
   detectIntent: detectAssistantIntent,
   extractScope: extractQueryScope,
   resolveDateRange: resolveAssistantDateRange,
-  query: processAssistantQuery
+  query: processAssistantQuery,
+  prepareVerifiedBatch: prepareVerifiedAssistantAttendanceBatch
 };

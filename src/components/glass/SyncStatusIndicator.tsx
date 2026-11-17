@@ -26,49 +26,49 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
       label: 'متصل • لم تتم مزامنة بعد',
       mobileLabel: 'متصل',
       icon: Wifi,
-      colorClass: 'text-[var(--accent-secondary)]',
-      bgClass: 'bg-[var(--accent-secondary)]/10 border-[var(--accent-secondary)]/30',
-      dotClass: 'bg-[var(--accent-secondary)]'
+      colorClass: 'text-[var(--info-text)]',
+      bgClass: 'bg-[var(--info-bg)] border-[var(--info-border)]',
+      dotClass: 'bg-[var(--info-text)]'
     },
     syncing: {
       label: 'جاري المزامنة...',
       mobileLabel: 'مزامنة...',
       icon: RefreshCw,
-      colorClass: 'text-[var(--primary)]',
-      bgClass: 'bg-[var(--primary)]/15 border-[var(--primary)]/40',
-      dotClass: 'bg-[var(--primary)] animate-ping'
+      colorClass: 'text-[var(--accent-primary)]',
+      bgClass: 'bg-[var(--info-bg)] border-[var(--info-border)]',
+      dotClass: 'bg-[var(--accent-primary)] animate-ping'
     },
     synced: {
       label: lastSuccessfulSyncTime ? `متصل • ${lastSuccessfulSyncTime}` : 'متصل • تمت المزامنة',
       mobileLabel: 'متصل',
       icon: CheckCircle2,
-      colorClass: 'text-[var(--accent-secondary)]',
-      bgClass: 'bg-[var(--accent-secondary)]/10 border-[var(--accent-secondary)]/30',
-      dotClass: 'bg-[var(--accent-secondary)]'
+      colorClass: 'text-[var(--success-text)]',
+      bgClass: 'bg-[var(--success-bg)] border-[var(--success-border)]',
+      dotClass: 'bg-[var(--success-text)]'
     },
     failed: {
       label: lastSuccessfulSyncCompact ? `فشلت المزامنة • آخر نجاح ${lastSuccessfulSyncCompact}` : 'فشلت المزامنة',
       mobileLabel: 'فشل',
       icon: AlertCircle,
-      colorClass: 'text-[var(--danger)]',
-      bgClass: 'bg-red-500/15 border-red-500/30',
-      dotClass: 'bg-red-500 animate-pulse'
+      colorClass: 'text-[var(--danger-text)]',
+      bgClass: 'bg-[var(--danger-bg)] border-[var(--danger-border)]',
+      dotClass: 'bg-[var(--danger-text)] animate-pulse'
     },
     offline: {
       label: lastSuccessfulSyncCompact ? `أوفلاين • آخر نجاح ${lastSuccessfulSyncCompact}` : 'غير متصل',
       mobileLabel: 'أوفلاين',
       icon: WifiOff,
-      colorClass: 'text-[var(--text-muted)]',
-      bgClass: 'bg-[var(--glass-bg)] border-[var(--border-color)]',
+      colorClass: 'text-[var(--text-secondary)]',
+      bgClass: 'bg-[var(--surface-inset)] border-[var(--border-color)]',
       dotClass: 'bg-[var(--text-muted)]'
     },
     pending: {
       label: `${pendingMutationsCount} تغيير معلق`,
       mobileLabel: `${pendingMutationsCount} معلق`,
       icon: CloudUpload,
-      colorClass: 'text-amber-500 dark:text-amber-400',
-      bgClass: 'bg-amber-500/15 border-amber-500/30',
-      dotClass: 'bg-amber-500 animate-pulse'
+      colorClass: 'text-[var(--warning-text)]',
+      bgClass: 'bg-[var(--warning-bg)] border-[var(--warning-border)]',
+      dotClass: 'bg-[var(--warning-text)] animate-pulse'
     }
   }[syncState];
 

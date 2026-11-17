@@ -107,7 +107,7 @@ export const SearchFilterBar: React.FC = () => {
               type="button"
               onClick={handleClearFilters}
               title="مسح كل الفلاتر المحددة"
-              className="glass-btn min-h-[44px] h-auto py-2 px-3 rounded-xl border-rose-500/40 text-rose-400 hover:bg-rose-500/15 text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shrink-0 leading-snug"
+              className="glass-btn min-h-[44px] h-auto py-2 px-3 rounded-xl border-[var(--danger-border)] text-[var(--danger-text)] hover:bg-[var(--danger-bg)] text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shrink-0 leading-snug"
             >
               <X className="w-3.5 h-3.5 shrink-0" />
               <span>مسح الفلاتر</span>

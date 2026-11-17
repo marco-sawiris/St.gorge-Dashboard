@@ -36,11 +36,11 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
   if (!isOpen || !student) return null;
 
   const methodsList = [
-    { id: 'تم تليفونياً', label: 'اتصال تليفوني', icon: Phone, color: 'text-[#20c7e8]' },
-    { id: 'تم بزيارة', label: 'افتقاد منزلي (زيارة)', icon: Home, color: 'text-amber-400' },
-    { id: 'واتساب', label: 'رسالة واتساب', icon: MessageSquare, color: 'text-[#267aff]' },
-    { id: 'رسالة نصية', label: 'رسالة SMS', icon: Mail, color: 'text-[#6548f5]' },
-    { id: 'اعتذار', label: 'اعتذار عن الحضور', icon: CheckCircle2, color: 'text-rose-400' }
+    { id: 'تم تليفونياً', label: 'اتصال تليفوني', icon: Phone, color: 'text-[var(--info-text)]' },
+    { id: 'تم بزيارة', label: 'افتقاد منزلي (زيارة)', icon: Home, color: 'text-[var(--warning-text)]' },
+    { id: 'واتساب', label: 'رسالة واتساب', icon: MessageSquare, color: 'text-[var(--accent-primary)]' },
+    { id: 'رسالة نصية', label: 'رسالة SMS', icon: Mail, color: 'text-[var(--violet)]' },
+    { id: 'اعتذار', label: 'اعتذار عن الحضور', icon: CheckCircle2, color: 'text-[var(--danger-text)]' }
   ] as const;
 
   const isPhoneCallMethod = method === 'تم تليفونياً';
@@ -121,7 +121,7 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-500 flex items-center gap-2 text-xs font-bold">
+            <div className="p-3 rounded-xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] flex items-center gap-2 text-xs font-bold">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -152,9 +152,9 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
           </div>
 
           {isPhoneCallMethod && (
-            <div className="p-3 rounded-2xl bg-[var(--surface-primary)]/75 border border-[#20c7e8]/30 space-y-2">
+            <div className="p-3 rounded-2xl bg-[var(--surface-inset)] border border-[var(--info-border)] space-y-2">
               <label className="block text-xs font-extrabold text-[var(--text-primary)]">
-                نتيجة الاتصال <span className="text-rose-400">*</span>
+                نتيجة الاتصال <span className="text-[var(--danger-text)]">*</span>
               </label>
               <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="نتيجة الاتصال">
                 <button
@@ -167,7 +167,7 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
                   }}
                   className={`p-2.5 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     callOutcome === 'تم التواصل'
-                      ? 'bg-[#20c7e8]/20 border-[#20c7e8] text-[#20c7e8] shadow-[0_0_12px_rgba(32,199,232,0.25)]'
+                      ? 'bg-[var(--info-bg)] border-[var(--info-text)] text-[var(--info-text)] shadow-sm'
                       : 'bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -184,7 +184,7 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
                   }}
                   className={`p-2.5 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     callOutcome === 'لم يتم التواصل'
-                      ? 'bg-rose-500/20 border-rose-400 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.25)]'
+                      ? 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger-text)] shadow-sm'
                       : 'bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -223,7 +223,7 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
                   {telHref && (
                     <a
                       href={telHref}
-                      className="min-h-[34px] inline-flex items-center px-2.5 py-1 rounded-lg bg-[var(--surface-secondary)] border border-[var(--border-color)] text-[#20c7e8] font-bold hover:brightness-110 transition-colors"
+                      className="min-h-[34px] inline-flex items-center px-2.5 py-1 rounded-lg bg-[var(--surface-secondary)] border border-[var(--border-color)] text-[var(--info-text)] font-bold hover:brightness-110 transition-colors"
                     >
                       اتصال الآن
                     </a>
@@ -233,7 +233,7 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
                       href={waHref}
                       target="_blank"
                       rel="noreferrer"
-                      className="min-h-[34px] inline-flex items-center px-2.5 py-1 rounded-lg bg-[#20c7e8]/15 border border-[#20c7e8]/30 text-[#20c7e8] font-bold hover:bg-[#20c7e8] hover:text-[#030711] transition-all"
+                      className="min-h-[34px] inline-flex items-center px-2.5 py-1 rounded-lg bg-[var(--info-bg)] border border-[var(--info-border)] text-[var(--info-text)] font-bold hover:bg-[#123FCE] hover:text-white transition-all"
                     >
                       فتح واتساب
                     </a>
@@ -255,9 +255,9 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || (isPhoneCallMethod && !callOutcome)}
-              className="glass-btn--primary btn--lens min-h-[40px] px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="glass-btn--primary btn--lens min-h-[40px] px-5 py-2 rounded-xl font-bold text-xs text-white flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <HeartHandshake className="w-4 h-4 text-[#20c7e8] shrink-0" />
+              <HeartHandshake className="w-4 h-4 text-white shrink-0" />
               <span>{isSubmitting ? 'جاري التسجيل...' : 'تسجيل الافتقاد الآن'}</span>
             </button>
           </div>

@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import {
+  AssistantAction,
   AssistantMessage,
+  prepareVerifiedAssistantAttendanceBatch,
   processAssistantQuery
 } from '../../services/assistantEngine';
 import {
@@ -13,37 +15,94 @@ import {
   deleteAssistantSession,
   isExplicitHistoryRequest
 } from '../../services/assistantSessionService';
+import { idbGetPendingMutations } from '../../services/indexedDbService';
 import {
+  AlertTriangle,
+  BarChart3,
   Bot,
-  X,
-  Send,
-  Copy,
+  Cake,
   Check,
-  MessageSquare,
-  RotateCcw,
-  RefreshCw,
-  Sparkles,
+  CheckCircle2,
+  CheckSquare,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Copy,
   History,
+  MessageSquare,
+  PhoneCall,
+  PhoneOff,
   Plus,
+  RefreshCw,
+  RotateCcw,
+  Send,
+  Sparkles,
+  Square,
   Trash2,
-  Clock
+  UserCheck,
+  UserX,
+  X,
+  XCircle
 } from 'lucide-react';
 import { generateUUID } from '../../utils/uuid';
-import { formatWhatsAppUrl } from '../../utils/arabicUtils';
+import { formatWhatsAppUrl, getLatestHeldFridayString } from '../../utils/arabicUtils';
 
-const QUICK_PROMPTS = [
-  { label: '📝 لم تسجل حضور/غياب', query: 'هات الأسماء اللي لم تسجل حضور أو غياب' },
-  { label: '⚠️ الغائبون', query: 'مين غاب آخر جمعة؟' },
-  { label: '✅ الحضور اليوم', query: 'مين حضر النهارده؟' },
-  { label: '📞 لم يتم التواصل', query: 'مين محدش رد عليه؟' },
-  { label: '📊 ملخص الخدمة', query: 'اعرض ملخص الخدمة' },
-  { label: '🎂 أعياد الميلاد', query: 'أعياد الميلاد' },
-  { label: '🎂 الشهر القادم', query: 'أعياد الميلاد الشهر القادم' },
-  { label: '📞 افتقاد هذا الأسبوع', query: 'مين نسيت افتقدهم الأسبوع ده؟' },
-  { label: '📉 حضور ضعيف', query: 'الأولاد اللي حضورهم مش قوي' },
-  { label: '🕒 سجل المحادثات', query: 'سجل المحادثات' },
-  { label: '❓ مساعدة', query: 'مساعدة' }
+interface QuickPromptItem {
+  id: string;
+  label: string;
+  query: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent: string;
+}
+
+const QUICK_PROMPTS: QuickPromptItem[] = [
+  { id: 'unrecorded', label: 'غير المسجلين', query: 'مين اللي لم يسجل بعد؟', icon: UserX, accent: 'text-amber-500 dark:text-amber-400' },
+  { id: 'present', label: 'الحاضرون', query: 'مين اللي حضر؟', icon: UserCheck, accent: 'text-emerald-500 dark:text-emerald-400' },
+  { id: 'absent', label: 'الغائبون', query: 'مين الغايب؟', icon: AlertTriangle, accent: 'text-rose-500 dark:text-rose-400' },
+  { id: 'no_reply', label: 'لم يتم التواصل', query: 'مين محدش رد عليه؟', icon: PhoneOff, accent: 'text-orange-500 dark:text-orange-400' },
+  { id: 'followup_missing', label: 'باقي الافتقاد', query: 'مين نسيت افتقدهم الأسبوع ده؟', icon: PhoneCall, accent: 'text-[#20c7e8]' },
+  { id: 'summary', label: 'ملخص الخدمة', query: 'اعرض ملخص الخدمة', icon: BarChart3, accent: 'text-blue-500 dark:text-blue-400' },
+  { id: 'birthdays', label: 'أعياد الميلاد', query: 'أعياد الميلاد', icon: Cake, accent: 'text-pink-500 dark:text-pink-400' },
+  { id: 'history', label: 'سجل المحادثات', query: 'سجل المحادثات', icon: History, accent: 'text-indigo-500 dark:text-indigo-400' }
 ];
+
+interface DraftConfirmationState {
+  msgId: string;
+  targetFriday: string;
+  title: string;
+  selections: Array<{ studentId: string; studentName: string; studentCode: string; isPresent: boolean }>;
+  skippedAlreadyRecorded: Array<{ studentId: string; studentName: string; existingPresent: boolean; reason: string }>;
+  skippedAlreadyQueued: Array<{ studentId: string; studentName: string; reason: string }>;
+}
+
+function getActionIcon(action: AssistantAction): React.ComponentType<{ className?: string }> {
+  const txt = `${action.label} ${action.payload}`;
+  if (action.type === 'sync') return RefreshCw;
+  if (action.variant === 'present' || txt.includes('تأكيد') || txt.includes('حاضر')) return CheckCircle2;
+  if (action.variant === 'absent' || txt.includes('غائب') || txt.includes('غياب')) return AlertTriangle;
+  if (action.variant === 'danger' || txt.includes('إلغاء')) return XCircle;
+  if (txt.includes('غير المسجلين') || txt.includes('لم يسجل')) return UserX;
+  if (txt.includes('افتقاد') || txt.includes('تواصل')) return PhoneCall;
+  if (txt.includes('ميلاد') || txt.includes('تهنئة')) return Cake;
+  if (txt.includes('محادثة جديدة')) return RotateCcw;
+  if (txt.includes('كشف') || txt.includes('إحصائي') || txt.includes('ملخص') || txt.includes('فصول')) return BarChart3;
+  return Sparkles;
+}
+
+function getActionButtonClasses(action: AssistantAction): string {
+  switch (action.variant) {
+    case 'present':
+      return 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/45 text-emerald-700 dark:text-emerald-300';
+    case 'absent':
+      return 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/45 text-amber-700 dark:text-amber-300';
+    case 'danger':
+      return 'bg-rose-500/15 hover:bg-rose-500/25 border-rose-500/45 text-rose-600 dark:text-rose-300';
+    case 'primary':
+      return 'bg-[#20c7e8]/15 hover:bg-[#20c7e8]/25 border-[#20c7e8]/45 text-[#0f6b82] dark:text-[#20c7e8]';
+    default:
+      return 'bg-[var(--surface-secondary)] hover:border-[#20c7e8]/55 border-[var(--border-color)] text-[var(--text-primary)]';
+  }
+}
 
 export const AssistantModal: React.FC = () => {
   const {
@@ -58,7 +117,7 @@ export const AssistantModal: React.FC = () => {
     isSyncing,
     isOnline,
     pendingMutationsCount,
-    markAttendance,
+    importAttendanceBatch,
     recordFollowup,
     processOfflineQueue,
     requestEditStudent,
@@ -66,7 +125,7 @@ export const AssistantModal: React.FC = () => {
     setActiveView,
     addNotification
   } = useApp();
-  const { user } = useAuth();
+  const { user, canPerformAction } = useAuth();
 
   // Fresh session state - each session has its own unique ID and isolated messages
   const [session, setSession] = useState<AssistantSession>(() => createFreshAssistantSession());
@@ -74,6 +133,14 @@ export const AssistantModal: React.FC = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showQuickPrompts, setShowQuickPrompts] = useState(true);
+
+  // Interactive per-message individual/multi-select draft state (zero writes until confirmed)
+  const [expandedIndividualMsgs, setExpandedIndividualMsgs] = useState<Record<string, boolean>>({});
+  const [selectedIdsByMsg, setSelectedIdsByMsg] = useState<Record<string, Record<string, boolean>>>({});
+  const [draftStatusByMsg, setDraftStatusByMsg] = useState<Record<string, Record<string, boolean>>>({});
+  const [pendingDraftConfirm, setPendingDraftConfirm] = useState<DraftConfirmationState | null>(null);
+  const [isExecutingAttendance, setIsExecutingAttendance] = useState(false);
 
   // History Drawer state
   const [showHistory, setShowHistory] = useState(false);
@@ -102,17 +169,9 @@ export const AssistantModal: React.FC = () => {
     messagesRef.current = messages;
   }, [messages]);
 
-  /**
-   * Fresh Session Lifecycle:
-   * Every time the assistant modal opens from a closed state,
-   * a brand-new, isolated session is generated with a fresh Session ID,
-   * fresh welcome message, and zero leakage from prior sessions.
-   * When closing, any session containing user questions is safely archived.
-   */
   useEffect(() => {
     if (isAssistantOpen) {
       if (!prevOpenRef.current) {
-        // Just opened from closed state: Start a clean fresh session
         const fresh = createFreshAssistantSession();
         setSession(fresh);
         currentSessionRef.current = fresh;
@@ -122,11 +181,14 @@ export const AssistantModal: React.FC = () => {
         setIsTyping(false);
         setShowHistory(false);
         setViewingPastSessionId(null);
+        setExpandedIndividualMsgs({});
+        setSelectedIdsByMsg({});
+        setDraftStatusByMsg({});
+        setPendingDraftConfirm(null);
         setStoredSessions(getStoredAssistantSessions());
       }
     } else {
       if (prevOpenRef.current) {
-        // Just closed from open state: Archive current session if it has user messages
         if (
           viewingPastSessionId === null &&
           currentSessionRef.current &&
@@ -152,13 +214,217 @@ export const AssistantModal: React.FC = () => {
       }, 60);
       return () => clearTimeout(scrollTimer);
     }
-  }, [isAssistantOpen, messages, isTyping, showHistory]);
+  }, [isAssistantOpen, messages, isTyping, showHistory, pendingDraftConfirm]);
 
   if (!isAssistantOpen) return null;
 
+  const appendBotResultMessage = (text: string, baseMsgs?: AssistantMessage[]) => {
+    const activeSession = currentSessionRef.current;
+    const base = baseMsgs || messagesRef.current;
+    const resultMsg: AssistantMessage = {
+      id: generateUUID(),
+      role: 'bot',
+      text,
+      timestamp: Date.now()
+    };
+    const nextMessages = [...base, resultMsg];
+    setMessages(nextMessages);
+    messagesRef.current = nextMessages;
+    const saved = {
+      ...activeSession,
+      messages: nextMessages,
+      updatedAt: Date.now()
+    };
+    setSession(saved);
+    currentSessionRef.current = saved;
+    saveAssistantSession(saved);
+    setStoredSessions(getStoredAssistantSessions());
+  };
+
   /**
-   * Explicitly starts a brand-new session on user request.
+   * Shared verified batch attendance executor:
+   * - Re-checks live students + IndexedDB pending queue using Student ID + Friday Date
+   * - Excludes anyone already recorded or already queued
+   * - Writes atomically through importAttendanceBatch (IndexedDB + Offline Queue + Relay Key)
+   * - Reports clear success & skipped/failure breakdown with reasons
    */
+  const executeVerifiedAttendanceEntries = async (
+    requestedSelections: Array<{ studentId: string; isPresent: boolean }>,
+    targetFridayDate: string,
+    opTag: string
+  ): Promise<string> => {
+    const existingPending = await idbGetPendingMutations().catch(() => []);
+    const verification = prepareVerifiedAssistantAttendanceBatch(
+      requestedSelections,
+      students,
+      targetFridayDate,
+      existingPending,
+      canPerformAction
+    );
+
+    const skippedReasons: string[] = [];
+    if (verification.skippedAlreadyRecorded.length > 0) {
+      skippedReasons.push(
+        `• مسجل بالفعل في قاعدة البيانات (${verification.skippedAlreadyRecorded.length}): ${verification.skippedAlreadyRecorded
+          .map((s) => `${s.studentName} [${s.existingPresent ? 'حاضر' : 'غائب'}]`)
+          .join('، ')}`
+      );
+    }
+    if (verification.skippedAlreadyQueued.length > 0) {
+      skippedReasons.push(
+        `• موجود بالفعل في طابور المزامنة (${verification.skippedAlreadyQueued.length}): ${verification.skippedAlreadyQueued
+          .map((s) => s.studentName)
+          .join('، ')}`
+      );
+    }
+    if (verification.blockedUnauthorized.length > 0) {
+      skippedReasons.push(
+        `• غير مصرح بتعديل سجلاتهم (${verification.blockedUnauthorized.length}): ${verification.blockedUnauthorized
+          .map((s) => `${s.studentName} (${s.reason})`)
+          .join('، ')}`
+      );
+    }
+    if (verification.notFoundIds.length > 0) {
+      skippedReasons.push(`• تعذر العثور على ${verification.notFoundIds.length} مخدوم في البيانات المحملة.`);
+    }
+
+    if (verification.validEntries.length === 0) {
+      return [
+        `ℹ️ لم يتم تسجيل أي سجل جديد لتاريخ ${targetFridayDate}؛ لا توجد سجلات ناقصة قابلة للتسجيل.`,
+        skippedReasons.length > 0 ? `\nتفاصيل الاستبعاد/التعذر:\n${skippedReasons.join('\n')}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    const batchResult = await importAttendanceBatch(
+      verification.validEntries.map((e) => ({
+        studentId: e.studentId,
+        fridayDate: e.fridayDate,
+        isPresent: e.isPresent
+      })),
+      { operationId: `AST_${targetFridayDate}_${opTag}` }
+    );
+
+    if (!batchResult.success) {
+      return [
+        `❌ تعذر تسجيل ${verification.validEntries.length} مخدوم عن ${targetFridayDate}: ${batchResult.error || 'فشل الحفظ المحلي في قاعدة البيانات'}.`,
+        skippedReasons.length > 0 ? `\nملاحظات إضافية:\n${skippedReasons.join('\n')}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    const presentSaved = verification.validEntries.filter((e) => e.isPresent);
+    const absentSaved = verification.validEntries.filter((e) => !e.isPresent);
+    const summaryParts: string[] = [];
+    if (presentSaved.length > 0) {
+      summaryParts.push(`• حضور (${presentSaved.length}): ${presentSaved.map((e) => e.studentName).join('، ')}`);
+    }
+    if (absentSaved.length > 0) {
+      summaryParts.push(`• غياب (${absentSaved.length}): ${absentSaved.map((e) => e.studentName).join('، ')}`);
+    }
+
+    let syncLine = '';
+    if (!isOnline) {
+      syncLine = '\n📡 الجهاز غير متصل بالإنترنت: تم الحفظ محلياً في IndexedDB وإدراج العمليات في طابور الإرسال للمزامنة عند عودة الاتصال.';
+    } else if (batchResult.syncReport?.success && batchResult.syncReport.remainingCount === 0) {
+      syncLine = '\n✅ تمت مزامنة جميع السجلات مع Google Sheets بنجاح (العمليات المعلقة: 0).';
+    } else if (batchResult.syncReport) {
+      syncLine = `\n⚠️ تم الحفظ في IndexedDB بنجاح، لكن لم تكتمل المزامنة مع Google Sheets (${batchResult.syncReport.lastError || 'العمليات محفوظة في طابور الإرسال'}) — متبقي بالطابور: ${batchResult.syncReport.remainingCount}.`;
+    } else {
+      syncLine = '\n⏳ تم الحفظ في IndexedDB وإدراج السجلات في طابور المزامنة مع Google Sheets.';
+    }
+
+    const failedOrSkippedNote =
+      skippedReasons.length > 0
+        ? `\n\n⚠️ مستبعد / تعذر تسجيله (${
+            verification.skippedAlreadyRecorded.length +
+            verification.skippedAlreadyQueued.length +
+            verification.blockedUnauthorized.length +
+            verification.notFoundIds.length
+          }):\n${skippedReasons.join('\n')}`
+        : '';
+
+    return [
+      `✅ تم تسجيل ${batchResult.appliedCount} مخدوم عن ${targetFridayDate} بنجاح:`,
+      ...summaryParts,
+      syncLine,
+      failedOrSkippedNote
+    ]
+      .filter(Boolean)
+      .join('\n');
+  };
+
+  /**
+   * Opens a clean confirmation preview before writing ANY bulk or multi-select attendance.
+   */
+  const openDraftConfirmation = async (
+    msgId: string,
+    targetFriday: string,
+    title: string,
+    requestedSelections: Array<{ studentId: string; isPresent: boolean }>
+  ) => {
+    if (isExecutingAttendance) return;
+    const existingPending = await idbGetPendingMutations().catch(() => []);
+    const verification = prepareVerifiedAssistantAttendanceBatch(
+      requestedSelections,
+      students,
+      targetFriday,
+      existingPending,
+      canPerformAction
+    );
+
+    setPendingDraftConfirm({
+      msgId,
+      targetFriday,
+      title,
+      selections: verification.validEntries.map((e) => ({
+        studentId: e.studentId,
+        studentName: e.studentName,
+        studentCode: e.studentCode,
+        isPresent: e.isPresent
+      })),
+      skippedAlreadyRecorded: verification.skippedAlreadyRecorded,
+      skippedAlreadyQueued: verification.skippedAlreadyQueued
+    });
+  };
+
+  const handleConfirmPendingDraft = async () => {
+    if (!pendingDraftConfirm || isExecutingAttendance) return;
+    setIsExecutingAttendance(true);
+    const snapshot = pendingDraftConfirm;
+    setPendingDraftConfirm(null);
+
+    try {
+      const outcomeText = await executeVerifiedAttendanceEntries(
+        snapshot.selections.map((s) => ({ studentId: s.studentId, isPresent: s.isPresent })),
+        snapshot.targetFriday,
+        snapshot.selections.every((s) => s.isPresent)
+          ? 'all_p'
+          : snapshot.selections.every((s) => !s.isPresent)
+            ? 'all_a'
+            : 'mixed'
+      );
+
+      // Clear draft selections for executed students only
+      setSelectedIdsByMsg((prev) => {
+        const next = { ...prev };
+        delete next[snapshot.msgId];
+        return next;
+      });
+      setDraftStatusByMsg((prev) => {
+        const next = { ...prev };
+        delete next[snapshot.msgId];
+        return next;
+      });
+
+      appendBotResultMessage(outcomeText);
+    } finally {
+      setIsExecutingAttendance(false);
+    }
+  };
+
   const handleStartNewSession = () => {
     if (
       viewingPastSessionId === null &&
@@ -181,12 +447,13 @@ export const AssistantModal: React.FC = () => {
     setIsTyping(false);
     setShowHistory(false);
     setViewingPastSessionId(null);
+    setExpandedIndividualMsgs({});
+    setSelectedIdsByMsg({});
+    setDraftStatusByMsg({});
+    setPendingDraftConfirm(null);
     setStoredSessions(getStoredAssistantSessions());
   };
 
-  /**
-   * Safely closes the modal, preserving active session to history if dirty.
-   */
   const handleCloseModal = () => {
     if (
       viewingPastSessionId === null &&
@@ -210,7 +477,6 @@ export const AssistantModal: React.FC = () => {
   };
 
   const handleSelectPastSession = (pastSession: AssistantSession) => {
-    // If active fresh session had user interactions, save it first
     if (
       viewingPastSessionId === null &&
       currentSessionRef.current &&
@@ -229,6 +495,7 @@ export const AssistantModal: React.FC = () => {
     setMessages(pastSession.messages);
     messagesRef.current = pastSession.messages;
     setShowHistory(false);
+    setPendingDraftConfirm(null);
     setInput('');
   };
 
@@ -257,7 +524,6 @@ export const AssistantModal: React.FC = () => {
     let activeSession = currentSessionRef.current;
     let baseMessages = messagesRef.current;
 
-    // If currently inspecting a past session and user asks something new, fork into a fresh session
     if (viewingPastSessionId !== null) {
       activeSession = createFreshAssistantSession();
       baseMessages = activeSession.messages;
@@ -276,8 +542,8 @@ export const AssistantModal: React.FC = () => {
     messagesRef.current = updatedMessages;
     setInput('');
     setIsTyping(true);
+    setPendingDraftConfirm(null);
 
-    // Update title from first user query if still default
     if (activeSession.title === 'محادثة جديدة') {
       activeSession.title = clean.length > 34 ? `${clean.slice(0, 32)}...` : clean;
     }
@@ -292,6 +558,8 @@ export const AssistantModal: React.FC = () => {
         let response = processAssistantQuery(clean, students, {
           sessionId: activeSession.id,
           referenceDate: new Date(),
+          selectedFridayDate: getLatestHeldFridayString(),
+          classScope: filters.sheet !== '__ALL__' ? filters.sheet : undefined,
           lastSyncLabel: lastSuccessfulSyncTime,
           lastSyncError,
           isSyncing,
@@ -299,46 +567,28 @@ export const AssistantModal: React.FC = () => {
           pendingMutationsCount,
           followupRecords,
           servantName: filters.servant || user?.assignedServantName || undefined,
-          sessionMessages: updatedMessages, // strictly messages from THIS session
+          sessionMessages: updatedMessages,
           includePastHistory: explicitHistory,
           pastSessions: explicitHistory ? getStoredAssistantSessions() : undefined
         });
 
-        // Attendance Command Handling
+        // Single Attendance Command Handling (via explicit command with duplicate + queue protection)
         if (response.command?.type === 'markAttendance') {
           const command = response.command;
-          const currentStudent = students.find((s) => s.id === command.studentId);
-          const existing = currentStudent?.att?.[command.targetFridayDate];
-          if (existing === command.isPresent) {
-            response = {
-              text: `ℹ️ ${command.studentName} مسجل بالفعل كـ${command.isPresent ? 'حاضر' : 'غائب'} عن ${command.targetFridayDate}. لم أضف سجلًا مكررًا.`
-            };
-          } else {
-            const saved = await markAttendance(command.studentId, command.isPresent, command.targetFridayDate);
-            if (!saved) {
-              response = {
-                text: `تعذر تسجيل ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName}. راجع تنبيه التطبيق وحالة المزامنة، ولم أعتبر العملية ناجحة.`
-              };
-            } else if (isOnline) {
-              try {
-                const syncResult = await processOfflineQueue();
-                response = {
-                  text: syncResult.success && syncResult.remainingCount === 0
-                    ? `✅ تم تسجيل ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} عن ${command.targetFridayDate}، وتم إرسال العملية بنجاح إلى المزامنة.\n\nعدد العمليات المعلقة الآن: 0.`
-                    : `✅ تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}. لكن المزامنة لم تكتمل بعد؛ العمليات المعلقة: ${syncResult.remainingCount}. لن أفترض أن Google Sheets تم تحديثه.`
-                };
-              } catch (error) {
-                console.error('Assistant attendance sync failed:', error);
-                response = {
-                  text: `✅ تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}، لكن تعذر تأكيد المزامنة. البيانات محفوظة في طابور الإرسال للمحاولة لاحقًا.`
-                };
-              }
-            } else {
-              response = {
-                text: `✅ تم حفظ ${command.isPresent ? 'حضور' : 'غياب'} ${command.studentName} محليًا عن ${command.targetFridayDate}. الجهاز غير متصل، وسيتم إرسال العملية عند عودة الإنترنت.`
-              };
-            }
-          }
+          const resultText = await executeVerifiedAttendanceEntries(
+            [{ studentId: command.studentId, isPresent: command.isPresent }],
+            command.targetFridayDate,
+            command.isPresent ? 'single_p' : 'single_a'
+          );
+          response = { text: resultText, meta: response.meta };
+        } else if (response.command?.type === 'markAttendanceBatch') {
+          const command = response.command;
+          const resultText = await executeVerifiedAttendanceEntries(
+            command.entries.map((e) => ({ studentId: e.studentId, isPresent: e.isPresent })),
+            command.targetFridayDate,
+            command.isPresent ? 'batch_p' : 'batch_a'
+          );
+          response = { text: resultText, meta: response.meta };
         } else if (response.command?.type === 'recordFollowupBatch') {
           const command = response.command;
           const savedNames: string[] = [];
@@ -427,7 +677,6 @@ export const AssistantModal: React.FC = () => {
         messagesRef.current = finalMessages;
         setIsTyping(false);
 
-        // Auto-save active session to storage
         const savedSession = {
           ...activeSession,
           messages: finalMessages,
@@ -438,7 +687,7 @@ export const AssistantModal: React.FC = () => {
         saveAssistantSession(savedSession);
         setStoredSessions(getStoredAssistantSessions());
       })();
-    }, 140);
+    }, 120);
   };
 
   const handleCopy = async (id: string, textToCopy: string) => {
@@ -450,16 +699,49 @@ export const AssistantModal: React.FC = () => {
     } catch {}
   };
 
+  const toggleStudentSelected = (msgId: string, studentId: string) => {
+    setSelectedIdsByMsg((prev) => {
+      const currMsgMap = prev[msgId] || {};
+      return {
+        ...prev,
+        [msgId]: { ...currMsgMap, [studentId]: !currMsgMap[studentId] }
+      };
+    });
+  };
+
+  const setStudentDraftStatus = (msgId: string, studentId: string, isPresent: boolean) => {
+    setSelectedIdsByMsg((prev) => ({
+      ...prev,
+      [msgId]: { ...(prev[msgId] || {}), [studentId]: true }
+    }));
+    setDraftStatusByMsg((prev) => ({
+      ...prev,
+      [msgId]: { ...(prev[msgId] || {}), [studentId]: isPresent }
+    }));
+  };
+
+  const applyStatusToSelectedInMsg = (msgId: string, studentIds: string[], isPresent: boolean) => {
+    setDraftStatusByMsg((prev) => {
+      const nextMap = { ...(prev[msgId] || {}) };
+      for (const id of studentIds) {
+        nextMap[id] = isPresent;
+      }
+      return { ...prev, [msgId]: nextMap };
+    });
+  };
+
+  const studentsByIdMap = new Map(students.map((s) => [s.id, s]));
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none"
       role="dialog"
       aria-modal="true"
       aria-label="المساعد الذكي"
     >
-      <div className="w-full max-w-2xl h-[min(90dvh,760px)] max-h-[90dvh] min-w-0 glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col animate-wordIn">
+      <div className="w-full max-w-2xl h-[min(92dvh,780px)] max-h-[92dvh] min-w-0 glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col animate-wordIn">
         {/* Header */}
-        <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/50 shrink-0">
+        <div className="px-4 sm:px-5 py-3 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/50 shrink-0">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-[#123fce] via-[#267aff] to-[#20c7e8] flex items-center justify-center text-white shadow-[0_0_16px_rgba(32,199,232,0.45)] shrink-0">
               <Bot className="w-5 h-5 shrink-0" />
@@ -483,8 +765,7 @@ export const AssistantModal: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* History Toggle Button */}
+          <div className="flex flex-row items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={handleToggleHistory}
@@ -498,7 +779,6 @@ export const AssistantModal: React.FC = () => {
               <History className="w-4 h-4 shrink-0" />
             </button>
 
-            {/* New Session Button */}
             <button
               type="button"
               onClick={handleStartNewSession}
@@ -508,7 +788,6 @@ export const AssistantModal: React.FC = () => {
               <RotateCcw className="w-4 h-4 shrink-0" />
             </button>
 
-            {/* Close Modal Button */}
             <button
               type="button"
               onClick={handleCloseModal}
@@ -540,7 +819,7 @@ export const AssistantModal: React.FC = () => {
           </div>
         )}
 
-        {/* Content Area: Either History Drawer or Active Chat Messages */}
+        {/* Content Area */}
         {showHistory ? (
           <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-3 bg-[var(--app-bg)]/40 animate-fadeIn">
             <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[var(--border-color)]">
@@ -556,7 +835,7 @@ export const AssistantModal: React.FC = () => {
                 className="glass-btn min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold text-[#20c7e8] flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
-                <span>+ محادثة جديدة</span>
+                <span>محادثة جديدة</span>
               </button>
             </div>
 
@@ -627,12 +906,44 @@ export const AssistantModal: React.FC = () => {
           </div>
         ) : (
           /* Messages Area */
-          <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 bg-[var(--app-bg)]/35">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[var(--app-bg)]/35">
             {messages.map((msg) => {
               const isBot = msg.role === 'bot';
               const waUrl = msg.whatsappText
                 ? formatWhatsAppUrl(msg.whatsappPhone, msg.whatsappText)
                 : null;
+
+              const interactiveData = msg.meta?.interactiveAttendance;
+              const isInteractiveAttendance = Boolean(isBot && interactiveData && interactiveData.students.length > 0);
+              const liveUnrecordedRows = interactiveData
+                ? interactiveData.students.filter((st) => {
+                    const live = studentsByIdMap.get(st.id);
+                    return live && typeof live.att?.[interactiveData.targetFriday] !== 'boolean';
+                  })
+                : [];
+              const liveAlreadyRecordedCount = interactiveData
+                ? interactiveData.students.length - liveUnrecordedRows.length
+                : 0;
+
+              const msgSelectedMap = selectedIdsByMsg[msg.id] || {};
+              const msgDraftStatusMap = draftStatusByMsg[msg.id] || {};
+              const selectedUnrecIds = liveUnrecordedRows
+                .filter((st) => msgSelectedMap[st.id])
+                .map((st) => st.id);
+              const stagedIndividualEntries = liveUnrecordedRows
+                .filter((st) => typeof msgDraftStatusMap[st.id] === 'boolean')
+                .map((st) => ({
+                  studentId: st.id,
+                  isPresent: Boolean(msgDraftStatusMap[st.id])
+                }));
+              const isIndividualExpanded = Boolean(expandedIndividualMsgs[msg.id]);
+
+              // When interactiveAttendance card is present, bulk buttons are rendered inside the interactive card so secondary actions stay uncluttered
+              const displayActions = isInteractiveAttendance
+                ? (msg.actions || []).filter(
+                    (a) => a.payload !== 'تسجيل الكل حضور' && a.payload !== 'تسجيل الكل غياب'
+                  )
+                : msg.actions || [];
 
               return (
                 <div
@@ -640,7 +951,7 @@ export const AssistantModal: React.FC = () => {
                   className={`word-in flex flex-col ${isBot ? 'items-start' : 'items-end'}`}
                 >
                   <div
-                    className={`max-w-[90%] sm:max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap select-text shadow-xs ${
+                    className={`max-w-[94%] sm:max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap select-text shadow-xs ${
                       isBot
                         ? 'bg-[var(--surface-primary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-tr-sm'
                         : 'bg-gradient-to-l from-[#123fce] to-[#267aff] text-white border border-[#20c7e8]/30 rounded-tl-sm'
@@ -648,63 +959,318 @@ export const AssistantModal: React.FC = () => {
                   >
                     {msg.text}
 
-                    {/* Utility Actions for Bot Answers (Copy / WhatsApp / Follow-up Chips) */}
-                    {isBot && (msg.copyText || waUrl || (msg.actions && msg.actions.length > 0)) && (
-                      <div className="mt-2.5 pt-2 border-t border-[var(--border-color)] flex flex-wrap items-center gap-1.5 select-none">
-                        {msg.copyText && (
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(msg.id, msg.copyText!)}
-                            className="px-2.5 py-1 rounded-lg bg-[var(--surface-secondary)] hover:border-[#20c7e8]/60 border border-[var(--border-color)] text-[11px] font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            {copiedId === msg.id ? (
-                              <>
-                                <Check className="w-3 h-3 text-[#20c7e8] shrink-0" />
-                                <span>تم النسخ</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3 text-[#20c7e8] shrink-0" />
-                                <span>نسخ</span>
-                              </>
+                    {/* Interactive Unrecorded Attendance Panel (Bulk + Individual Multi-Select with Pre-Save Confirmation) */}
+                    {isInteractiveAttendance && interactiveData && (
+                      <div className="mt-3 pt-2.5 border-t border-[var(--border-color)] space-y-2.5 select-none">
+                        {/* Live Unrecorded Status Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                          <span className="font-extrabold text-[var(--text-primary)] flex items-center gap-1.5">
+                            <UserX className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span>
+                              متبقي بدون تسجيل الآن ({liveUnrecordedRows.length}) • {interactiveData.targetFriday}
+                            </span>
+                          </span>
+                          {liveAlreadyRecordedCount > 0 && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+                              سُجّل بالفعل: {liveAlreadyRecordedCount}
+                            </span>
+                          )}
+                        </div>
+
+                        {liveUnrecordedRows.length > 0 ? (
+                          <>
+                            {/* Primary Bulk Choices: تسجيل الكل حضور / تسجيل الكل غياب */}
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button
+                                type="button"
+                                disabled={isExecutingAttendance}
+                                onClick={() =>
+                                  void openDraftConfirmation(
+                                    msg.id,
+                                    interactiveData.targetFriday,
+                                    'تأكيد تسجيل جميع غير المسجلين كـ «حضور»',
+                                    liveUnrecordedRows.map((st) => ({ studentId: st.id, isPresent: true }))
+                                  )
+                                }
+                                className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/45 text-[11px] sm:text-xs font-extrabold text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+                              >
+                                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                <span className="truncate">تسجيل الكل حضور</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={isExecutingAttendance}
+                                onClick={() =>
+                                  void openDraftConfirmation(
+                                    msg.id,
+                                    interactiveData.targetFriday,
+                                    'تأكيد تسجيل جميع غير المسجلين كـ «غياب»',
+                                    liveUnrecordedRows.map((st) => ({ studentId: st.id, isPresent: false }))
+                                  )
+                                }
+                                className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/45 text-[11px] sm:text-xs font-extrabold text-amber-700 dark:text-amber-300 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+                              >
+                                <XCircle className="w-4 h-4 shrink-0" />
+                                <span className="truncate">تسجيل الكل غياب</span>
+                              </button>
+                            </div>
+
+                            {/* Individual / Multi-Select Expander */}
+                            <div className="flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedIndividualMsgs((prev) => ({
+                                    ...prev,
+                                    [msg.id]: !prev[msg.id]
+                                  }))
+                                }
+                                className="w-full min-h-[34px] px-3 py-1.5 rounded-xl bg-[var(--surface-secondary)] hover:border-[#20c7e8]/50 border border-[var(--border-color)] text-[11px] font-bold text-[var(--accent-secondary)] flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <CheckSquare className="w-3.5 h-3.5 shrink-0" />
+                                  <span>تحديد فردي أو اختيار عدة مخدومين ({liveUnrecordedRows.length})</span>
+                                </span>
+                                {isIndividualExpanded ? (
+                                  <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+                                ) : (
+                                  <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                                )}
+                              </button>
+                            </div>
+
+                            {/* Expanded Multi-Select & Individual Status Controls */}
+                            {isIndividualExpanded && (
+                              <div className="p-2.5 rounded-2xl bg-[var(--app-bg)]/55 border border-[var(--border-color)] space-y-2">
+                                {/* Multi-select batch toolbar */}
+                                <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1.5 border-b border-[var(--border-color)]/60">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const allSelected = liveUnrecordedRows.every((s) => msgSelectedMap[s.id]);
+                                      const nextMap: Record<string, boolean> = {};
+                                      if (!allSelected) {
+                                        for (const s of liveUnrecordedRows) nextMap[s.id] = true;
+                                      }
+                                      setSelectedIdsByMsg((prev) => ({ ...prev, [msg.id]: nextMap }));
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-[var(--surface-primary)] border border-[var(--border-color)] text-[10.5px] font-bold text-[var(--text-primary)] cursor-pointer"
+                                  >
+                                    {liveUnrecordedRows.every((s) => msgSelectedMap[s.id]) ? 'إلغاء التحديد' : 'تحديد الكل'}
+                                  </button>
+
+                                  {selectedUnrecIds.length > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => applyStatusToSelectedInMsg(msg.id, selectedUnrecIds, true)}
+                                        className="px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-[10.5px] font-bold text-emerald-700 dark:text-emerald-300 cursor-pointer"
+                                      >
+                                        تعيين المحدد ({selectedUnrecIds.length}) حضور
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => applyStatusToSelectedInMsg(msg.id, selectedUnrecIds, false)}
+                                        className="px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 text-[10.5px] font-bold text-amber-700 dark:text-amber-300 cursor-pointer"
+                                      >
+                                        غياب
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Individual Student Cards */}
+                                <div className="max-h-72 sm:max-h-80 overflow-y-auto space-y-2 pr-0.5">
+                                  {liveUnrecordedRows.map((st) => {
+                                    const isChecked = Boolean(msgSelectedMap[st.id]);
+                                    const draftVal = msgDraftStatusMap[st.id];
+                                    const cardBorderClasses =
+                                      draftVal === true
+                                        ? 'border-emerald-500/50 bg-emerald-500/[0.04]'
+                                        : draftVal === false
+                                          ? 'border-amber-500/50 bg-amber-500/[0.04]'
+                                          : isChecked
+                                            ? 'border-[#20c7e8]/50 bg-[#20c7e8]/[0.04]'
+                                            : 'border-[var(--border-color)]/85 bg-[var(--surface-primary)]';
+                                    return (
+                                      <div
+                                        key={st.id}
+                                        data-testid="assistant-individual-student-card"
+                                        className={`flex flex-col gap-2.5 p-3 rounded-2xl border transition-colors ${cardBorderClasses}`}
+                                      >
+                                        {/* Row 1: Full Name (Untruncated, Multi-line Allowed) */}
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleStudentSelected(msg.id, st.id)}
+                                          className="flex items-start justify-between gap-2 w-full text-right cursor-pointer"
+                                        >
+                                          <span className="flex items-start gap-2 min-w-0 flex-1">
+                                            {isChecked ? (
+                                              <CheckSquare className="w-4 h-4 text-[#20c7e8] shrink-0 mt-0.5" />
+                                            ) : (
+                                              <Square className="w-4 h-4 text-[var(--text-muted)] shrink-0 mt-0.5" />
+                                            )}
+                                            <span className="text-xs sm:text-[13px] font-extrabold text-[var(--text-primary)] leading-relaxed whitespace-normal break-words">
+                                              {st.name}
+                                            </span>
+                                          </span>
+                                          {st.code && (
+                                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-[var(--surface-secondary)] text-[var(--text-muted)] border border-[var(--border-color)]/60 shrink-0 mt-0.5">
+                                              {st.code}
+                                            </span>
+                                          )}
+                                        </button>
+
+                                        {/* Row 2: Side-by-side حاضر / غائب Options */}
+                                        <div className="grid grid-cols-2 gap-2 w-full">
+                                          <button
+                                            type="button"
+                                            aria-pressed={draftVal === true}
+                                            onClick={() => setStudentDraftStatus(msg.id, st.id, true)}
+                                            className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold border flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                                              draftVal === true
+                                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs ring-2 ring-emerald-500/30'
+                                                : 'bg-[var(--surface-secondary)] text-[var(--text-secondary)] border-[var(--border-color)] hover:border-emerald-500/55 hover:text-emerald-600 dark:hover:text-emerald-300'
+                                            }`}
+                                          >
+                                            <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                            <span>حاضر</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            aria-pressed={draftVal === false}
+                                            onClick={() => setStudentDraftStatus(msg.id, st.id, false)}
+                                            className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold border flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                                              draftVal === false
+                                                ? 'bg-amber-600 text-white border-amber-500 shadow-xs ring-2 ring-amber-500/30'
+                                                : 'bg-[var(--surface-secondary)] text-[var(--text-secondary)] border-[var(--border-color)] hover:border-amber-500/55 hover:text-amber-600 dark:hover:text-amber-300'
+                                            }`}
+                                          >
+                                            <XCircle className="w-4 h-4 shrink-0" />
+                                            <span>غائب</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Review Draft Before Confirming */}
+                                {stagedIndividualEntries.length > 0 && (
+                                  <div className="pt-1.5 flex items-center justify-between gap-2">
+                                    <span className="text-[10.5px] font-bold text-[var(--text-secondary)]">
+                                      جاهز للمراجعة: {stagedIndividualEntries.filter((e) => e.isPresent).length} حضور •{' '}
+                                      {stagedIndividualEntries.filter((e) => !e.isPresent).length} غياب
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={isExecutingAttendance}
+                                      onClick={() =>
+                                        void openDraftConfirmation(
+                                          msg.id,
+                                          interactiveData.targetFriday,
+                                          'مراجعة وتأكيد الاختيارات الفردية المحددة',
+                                          stagedIndividualEntries
+                                        )
+                                      }
+                                      className="btn--lens min-h-[34px] px-3 py-1 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-[11px] font-extrabold cursor-pointer disabled:opacity-50"
+                                    >
+                                      مراجعة وتأكيد ({stagedIndividualEntries.length})
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             )}
-                          </button>
+                          </>
+                        ) : (
+                          <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-300 m-0">
+                            ✅ تم استكمال تسجيل جميع المخدومين في هذه القائمة.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Utility Row (Copy / WhatsApp) + Balanced Action Grid */}
+                    {isBot && (msg.copyText || waUrl || displayActions.length > 0) && (
+                      <div className="mt-2.5 pt-2 border-t border-[var(--border-color)] space-y-2 select-none">
+                        {(msg.copyText || waUrl) && (
+                          <div className="flex flex-row items-center gap-1.5 flex-wrap">
+                            {msg.copyText && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(msg.id, msg.copyText!)}
+                                className="min-h-[32px] px-2.5 py-1 rounded-lg bg-[var(--surface-secondary)] hover:border-[#20c7e8]/60 border border-[var(--border-color)] text-[11px] font-bold text-[var(--text-primary)] flex items-center gap-1.5 cursor-pointer transition-colors"
+                              >
+                                {copiedId === msg.id ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
+                                    <span>تم النسخ</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
+                                    <span>نسخ</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+
+                            {waUrl && (
+                              <a
+                                href={waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="min-h-[32px] px-2.5 py-1 rounded-lg bg-[#20c7e8]/15 hover:bg-[#20c7e8]/25 border border-[#20c7e8]/40 text-[11px] font-bold text-[#20c7e8] flex items-center gap-1.5 transition-colors"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                                <span>إرسال واتساب</span>
+                              </a>
+                            )}
+                          </div>
                         )}
 
-                        {waUrl && (
-                          <a
-                            href={waUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-2.5 py-1 rounded-lg bg-[#20c7e8]/15 hover:bg-[#20c7e8]/25 border border-[#20c7e8]/40 text-[11px] font-bold text-[#20c7e8] flex items-center gap-1 transition-colors"
+                        {displayActions.length > 0 && (
+                          <div
+                            className={
+                              displayActions.length === 1
+                                ? 'flex flex-row items-center'
+                                : displayActions.length === 2 || displayActions.length === 4
+                                  ? 'grid grid-cols-2 gap-1.5'
+                                  : 'grid grid-cols-2 sm:grid-cols-3 gap-1.5'
+                            }
                           >
-                            <MessageSquare className="w-3 h-3 shrink-0" />
-                            <span>إرسال واتساب</span>
-                          </a>
-                        )}
-
-                        {msg.actions?.map((act, idx) =>
-                          act.type === 'sync' ? (
-                            <button
-                              key={idx}
-                              type="button"
-                              disabled={isSyncing}
-                              onClick={() => syncData('__ALL__')}
-                              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                            >
-                              <RefreshCw className={`w-3 h-3 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
-                              <span>{act.label}</span>
-                            </button>
-                          ) : (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => submitQuery(act.payload)}
-                              className="px-2.5 py-1 rounded-lg bg-[var(--surface-secondary)] hover:border-[#20c7e8]/60 border border-[var(--border-color)] text-[11px] font-bold text-[var(--accent-secondary)] cursor-pointer transition-colors"
-                            >
-                              {act.label}
-                            </button>
-                          )
+                            {displayActions.map((act, idx) => {
+                              const ActIcon = getActionIcon(act);
+                              if (act.type === 'sync') {
+                                return (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    disabled={isSyncing}
+                                    onClick={() => syncData('__ALL__')}
+                                    className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                  >
+                                    <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
+                                    <span className="truncate">{act.label}</span>
+                                  </button>
+                                );
+                              }
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => submitQuery(act.payload)}
+                                  className={`min-h-[36px] px-2.5 py-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-start gap-1.5 cursor-pointer text-right transition-colors ${getActionButtonClasses(
+                                    act
+                                  )}`}
+                                >
+                                  <ActIcon className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">{act.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
                     )}
@@ -712,6 +1278,78 @@ export const AssistantModal: React.FC = () => {
                 </div>
               );
             })}
+
+            {/* Interactive Pre-Save Confirmation Dialog inside Chat */}
+            {pendingDraftConfirm && (
+              <div
+                role="alertdialog"
+                aria-label="تأكيد تسجيل الحضور"
+                className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border-2 border-[#20c7e8]/55 shadow-md space-y-2.5"
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1 space-y-1 text-xs">
+                    <h4 className="font-extrabold text-[var(--text-primary)] m-0">
+                      {pendingDraftConfirm.title}
+                    </h4>
+                    <p className="text-[11px] text-[var(--text-secondary)] m-0">
+                      • عدد المخدومين الجاهزين للتسجيل: <strong>{pendingDraftConfirm.selections.length}</strong> | التاريخ:{' '}
+                      <span className="font-mono font-bold">{pendingDraftConfirm.targetFriday}</span>
+                    </p>
+                    {pendingDraftConfirm.selections.length > 0 && (
+                      <div className="text-[11px] text-[var(--text-secondary)] bg-[var(--app-bg)]/50 p-2 rounded-xl border border-[var(--border-color)]/60 max-h-32 overflow-y-auto space-y-1">
+                        {pendingDraftConfirm.selections.map((item, idx) => (
+                          <div key={item.studentId} className="flex items-center justify-between gap-2">
+                            <span className="truncate">
+                              {idx + 1}. {item.studentName} {item.studentCode ? `(${item.studentCode})` : ''}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                                item.isPresent
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'
+                                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-300'
+                              }`}
+                            >
+                              {item.isPresent ? 'حضور' : 'غياب'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(pendingDraftConfirm.skippedAlreadyRecorded.length > 0 ||
+                      pendingDraftConfirm.skippedAlreadyQueued.length > 0) && (
+                      <p className="text-[10.5px] font-bold text-amber-600 dark:text-amber-300 m-0">
+                        ℹ️ تم استبعاد{' '}
+                        {pendingDraftConfirm.skippedAlreadyRecorded.length +
+                          pendingDraftConfirm.skippedAlreadyQueued.length}{' '}
+                        مخدوم لأنه مسجل بالفعل أو موجود بطابور المزامنة.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={isExecutingAttendance || pendingDraftConfirm.selections.length === 0}
+                    onClick={() => void handleConfirmPendingDraft()}
+                    className="btn--lens min-h-[38px] px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>{isExecutingAttendance ? 'جاري التنفيذ...' : 'تأكيد التسجيل الآن'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isExecutingAttendance}
+                    onClick={() => setPendingDraftConfirm(null)}
+                    className="glass-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--text-secondary)] flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <XCircle className="w-4 h-4 shrink-0" />
+                    <span>تراجع / إلغاء</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {isTyping && (
               <div className="flex items-start">
@@ -724,21 +1362,47 @@ export const AssistantModal: React.FC = () => {
           </div>
         )}
 
-        {/* Quick Prompts Strip */}
-        <div className="px-3.5 py-2 border-t border-[var(--border-color)] bg-[var(--surface-primary)]/40 flex flex-wrap justify-center items-center gap-1.5 shrink-0">
-          {QUICK_PROMPTS.map((qp) => (
+        {/* Quick Prompts Balanced Grid Strip */}
+        <div className="px-3 sm:px-4 py-2 border-t border-[var(--border-color)] bg-[var(--surface-primary)]/45 shrink-0">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[11px] font-extrabold text-[var(--text-muted)] flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
+              <span>الأوامر السريعة</span>
+            </span>
             <button
-              key={qp.label}
               type="button"
-              onClick={() => {
-                if (showHistory) setShowHistory(false);
-                submitQuery(qp.query);
-              }}
-              className="glass-btn min-h-[34px] px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-[var(--text-primary)] whitespace-nowrap cursor-pointer shrink-0"
+              onClick={() => setShowQuickPrompts((prev) => !prev)}
+              className="text-[11px] font-bold text-[#20c7e8] hover:underline flex items-center gap-1 cursor-pointer"
             >
-              {qp.label}
+              <span>{showQuickPrompts ? 'إخفاء' : 'عرض الأوامر'}</span>
+              {showQuickPrompts ? (
+                <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+              )}
             </button>
-          ))}
+          </div>
+          {showQuickPrompts && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 max-h-[144px] sm:max-h-none overflow-y-auto">
+              {QUICK_PROMPTS.map((qp) => {
+                const QIcon = qp.icon;
+                return (
+                  <button
+                    key={qp.id}
+                    type="button"
+                    onClick={() => {
+                      if (showHistory) setShowHistory(false);
+                      submitQuery(qp.query);
+                    }}
+                    className="glass-btn min-h-[38px] sm:min-h-[40px] w-full px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-[var(--text-primary)] flex items-center justify-start gap-2 cursor-pointer text-right overflow-hidden hover:border-[#20c7e8]/50 transition-colors"
+                  >
+                    <QIcon className={`w-4 h-4 shrink-0 ${qp.accent}`} />
+                    <span className="truncate">{qp.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Input Form */}
@@ -754,7 +1418,7 @@ export const AssistantModal: React.FC = () => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="اسأل عن الحضور والغياب وأعياد الميلاد، أو قل: سجل حضور + اسم المخدوم..."
+            placeholder="اسأل عن الحضور، الغياب، أو من لم يسجل بعد..."
             className="flex-1 min-w-0 min-h-[42px] h-auto py-2 px-3.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs sm:text-sm font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#20c7e8]"
             dir="rtl"
           />

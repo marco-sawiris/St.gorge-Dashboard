@@ -127,7 +127,7 @@ export const DashboardChartsView: React.FC = () => {
           className="word-in min-w-0 p-3 sm:p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-2.5 sm:gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 0 } as React.CSSProperties}
         >
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(38,122,255,0.25)]">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--info-bg)] text-[var(--accent-primary)] border border-[var(--info-border)] flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(38,122,255,0.25)]">
             <Users className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
           </div>
           <div className="min-w-0 flex-1">
@@ -206,12 +206,12 @@ export const DashboardChartsView: React.FC = () => {
           className="word-in min-w-0 p-3 sm:p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-2.5 sm:gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 5 } as React.CSSProperties}
         >
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.25)]">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--danger-bg)] text-[var(--danger-text)] border border-[var(--danger-border)] flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.25)]">
             <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
           </div>
           <div className="min-w-0 flex-1">
             <span className="block text-[11px] sm:text-xs font-semibold text-[var(--text-muted)] leading-snug">لم يحضروا هذا الشهر</span>
-            <strong className="text-lg sm:text-2xl font-mono text-rose-400 tabular-nums">{zeroMonthCount}</strong>
+            <strong className="text-lg sm:text-2xl font-mono text-[var(--danger-text)] tabular-nums">{zeroMonthCount}</strong>
           </div>
         </div>
       </div>
@@ -223,7 +223,7 @@ export const DashboardChartsView: React.FC = () => {
       >
         <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--glass-border)]">
           <div className="flex items-center gap-2 min-w-0">
-            <Activity className="w-4 h-4 text-[#20C7E8] shrink-0" />
+            <Activity className="w-4 h-4 text-[var(--accent-secondary)] shrink-0" />
             <h3 className="font-extrabold text-sm text-[var(--text)] m-0 leading-snug">تطور نسب الحضور الأسبوعية</h3>
           </div>
           <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">
@@ -349,7 +349,7 @@ export const DashboardChartsView: React.FC = () => {
                   ? 'bg-gradient-to-r from-[var(--indigo)] to-[var(--violet)]'
                   : sheetName === 'فصل البابا شنودة'
                   ? 'bg-gradient-to-r from-[var(--royal)] to-[var(--primary)]'
-                  : 'bg-slate-600';
+                  : 'bg-slate-500';
 
               return (
                 <div key={sheetName} className="space-y-1">
