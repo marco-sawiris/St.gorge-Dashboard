@@ -168,39 +168,39 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
         className="word-in flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl glass-strong border border-[var(--glass-border)] shadow-md"
         style={{ '--i': 0 } as React.CSSProperties}
       >
-        <div className="flex items-center gap-4 text-xs font-bold text-[var(--text)]">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-bold text-[var(--text)]">
           <span>العدد المعروض: <strong className="font-mono text-[var(--accent)]">{sortedStudents.length}</strong></span>
           <span>حضور اليوم: <strong className="font-mono text-[var(--accent)]">{presentCount}</strong> ({attendanceRate}%)</span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={handleExportCSV}
-            className="glass-btn--primary btn--lens px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            className="glass-btn--primary btn--lens min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
             title="تنزيل ملف Excel باللغة العربية"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-4 h-4 shrink-0" />
             <span>تصدير Excel (CSV)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsPdfImportModalOpen(true)}
-            className="glass-btn px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            className="glass-btn min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
             title="استيراد كشف الحضور والغياب من ملف PDF"
           >
-            <FileUp className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <FileUp className="w-4 h-4 shrink-0 text-[var(--accent)]" />
             <span>استيراد كشف PDF</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportPrintablePDF}
-            className="glass-btn px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            className="glass-btn min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
             title="تنزيل تقرير جاهز للطباعة أو الحفظ كـ PDF"
           >
-            <Printer className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <Printer className="w-4 h-4 shrink-0 text-[var(--accent)]" />
             <span>طباعة / PDF</span>
           </button>
 
@@ -208,10 +208,10 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
             href={`https://wa.me/?text=${encodeURIComponent(whatsappSummaryText)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="glass-btn px-3.5 py-2 rounded-xl text-xs font-bold text-[var(--accent)] flex items-center gap-1.5"
+            className="glass-btn min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-bold text-[var(--accent)] flex items-center justify-center gap-2"
             title="مشاركة ملخص الجدول عبر واتساب"
           >
-            <MessageSquare className="w-3.5 h-3.5" />
+            <MessageSquare className="w-4 h-4 shrink-0" />
             <span>ملخص واتساب</span>
           </a>
         </div>
@@ -225,7 +225,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
             id="mobile-student-sort"
             value={sortField}
             onChange={(e) => setSortField(e.target.value as SortField)}
-            className="flex-1 min-w-0 h-9 px-2 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)]"
+            className="flex-1 min-w-[140px] min-h-[40px] h-auto py-1.5 px-2.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)]"
           >
             <option value="name">الاسم</option>
             <option value="code">الكود</option>
@@ -238,7 +238,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
           <button
             type="button"
             onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-            className="glass-btn px-3 py-2 rounded-xl text-xs font-bold shrink-0"
+            className="glass-btn min-h-[40px] px-3 py-2 rounded-xl text-xs font-bold shrink-0"
             aria-label="عكس ترتيب السجلات"
           >
             {sortOrder === 'asc' ? 'تصاعدي ↑' : 'تنازلي ↓'}
@@ -300,7 +300,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border-color)] pt-2">
+                <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border-color)] pt-2.5">
                   <button
                     type="button"
                     disabled={isInFlight}
@@ -309,20 +309,20 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                       void markAttendance(s.id, !isPresent);
                     }}
                     aria-pressed={isPresent}
-                    className={`glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold inline-flex items-center gap-1 disabled:opacity-60 ${isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-secondary)]'}`}
+                    className={`glass-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 disabled:opacity-60 ${isPresent ? 'glass-btn--active text-white' : 'text-[var(--text-secondary)]'}`}
                   >
                     {isInFlight ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                     ) : isPresent ? (
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                     ) : (
-                      <XCircle className="w-3.5 h-3.5" />
+                      <XCircle className="w-3.5 h-3.5 shrink-0" />
                     )}
-                    {isPresent ? 'حاضر' : 'تسجيل حضور'}
+                    <span>{isPresent ? 'حاضر' : 'تسجيل حضور'}</span>
                   </button>
                   {telHref && (
-                    <a href={telHref} className="glass-btn p-2 rounded-lg" aria-label={`اتصال بـ ${s.name}`}>
-                      <Phone className="w-3.5 h-3.5" />
+                    <a href={telHref} className="glass-btn min-w-[38px] min-h-[38px] p-2 rounded-lg flex items-center justify-center shrink-0" aria-label={`اتصال بـ ${s.name}`}>
+                      <Phone className="w-3.5 h-3.5 shrink-0" />
                     </a>
                   )}
                   {waHref && (
@@ -330,23 +330,23 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                       href={waHref}
                       target="_blank"
                       rel="noreferrer"
-                      className="glass-btn p-2 rounded-lg"
+                      className="glass-btn min-w-[38px] min-h-[38px] p-2 rounded-lg flex items-center justify-center shrink-0"
                       aria-label={`واتساب ${s.name}`}
                     >
-                      <MessageSquare className="w-3.5 h-3.5" />
+                      <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                     </a>
                   )}
-                  <button type="button" onClick={() => onOpenFollowup(s)} className="glass-btn p-2 rounded-lg text-[var(--accent)]" title="تسجيل افتقاد">
-                    <HeartHandshake className="w-3.5 h-3.5" />
+                  <button type="button" onClick={() => onOpenFollowup(s)} className="glass-btn min-w-[38px] min-h-[38px] p-2 rounded-lg text-[var(--accent)] flex items-center justify-center shrink-0" title="تسجيل افتقاد">
+                    <HeartHandshake className="w-3.5 h-3.5 shrink-0" />
                   </button>
                   <button
                     type="button"
                     disabled={isAnotherCardEditing}
                     onClick={() => onOpenEdit(s)}
-                    className="glass-btn p-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="glass-btn min-w-[38px] min-h-[38px] p-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
                     title={isAnotherCardEditing ? 'يوجد كارت آخر قيد التعديل' : 'تعديل البيانات'}
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
+                    <Edit3 className="w-3.5 h-3.5 shrink-0" />
                   </button>
                 </div>
               </article>
@@ -491,14 +491,14 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                       {s.followupStatus || 'بدون'}
                     </td>
                     <td className="py-3.5 px-3.5 text-center break-words">
-                      <div className="flex items-center justify-center gap-1.5">
+                      <div className="flex flex-wrap items-center justify-center gap-1.5">
                         {telHref && (
                           <a
                             href={telHref}
-                            className="glass-btn p-1.5 rounded-lg text-[var(--text)] hover:text-[var(--accent)]"
+                            className="glass-btn min-w-[32px] min-h-[32px] p-1.5 rounded-lg text-[var(--text)] hover:text-[var(--accent)] flex items-center justify-center shrink-0"
                             title="اتصال"
                           >
-                            <Phone className="w-3.5 h-3.5" />
+                            <Phone className="w-3.5 h-3.5 shrink-0" />
                           </a>
                         )}
                         {waHref && (
@@ -506,32 +506,32 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                             href={waHref}
                             target="_blank"
                             rel="noreferrer"
-                            className="glass-btn p-1.5 rounded-lg text-[var(--text)] hover:text-[var(--accent)]"
+                            className="glass-btn min-w-[32px] min-h-[32px] p-1.5 rounded-lg text-[var(--text)] hover:text-[var(--accent)] flex items-center justify-center shrink-0"
                             title="واتساب"
                           >
-                            <MessageSquare className="w-3.5 h-3.5" />
+                            <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                           </a>
                         )}
                         <button
                           type="button"
                           onClick={() => onOpenFollowup(s)}
-                          className="glass-btn p-1.5 rounded-lg text-[var(--accent)] cursor-pointer"
+                          className="glass-btn min-w-[32px] min-h-[32px] p-1.5 rounded-lg text-[var(--accent)] cursor-pointer flex items-center justify-center shrink-0"
                           title="تسجيل افتقاد"
                         >
-                          <HeartHandshake className="w-3.5 h-3.5" />
+                          <HeartHandshake className="w-3.5 h-3.5 shrink-0" />
                         </button>
                         <button
                           type="button"
                           aria-disabled={Boolean(activeEditingId && activeEditingId !== s.id)}
                           onClick={() => onOpenEdit(s)}
-                          className={`glass-btn p-1.5 rounded-lg ${
+                          className={`glass-btn min-w-[32px] min-h-[32px] p-1.5 rounded-lg flex items-center justify-center shrink-0 ${
                             activeEditingId && activeEditingId !== s.id
                               ? 'opacity-40 cursor-not-allowed text-[var(--text-muted)]'
                               : 'text-[var(--text)] hover:text-[var(--accent)] cursor-pointer'
                           }`}
                           title={activeEditingId && activeEditingId !== s.id ? 'يوجد كارت آخر قيد التعديل' : 'تعديل البيانات'}
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
+                          <Edit3 className="w-3.5 h-3.5 shrink-0" />
                         </button>
                       </div>
                     </td>

@@ -45,11 +45,14 @@ import {
   idbUpdateMutationError,
   idbUpdateMutationsBatchState,
   idbResetMutationRetry,
+  idbClearMutations,
   AttendanceHistoryRecord
 } from '../services/indexedDbService';
+import { computeDeterministicImportKey } from '../services/pdfAttendanceImportService';
 import { syncWeeklyNotificationSchedules } from '../services/weeklyNotificationService';
 import {
   clearDeliveredNativeNotificationsOnce,
+  clearReadNotificationsFromList,
   computeNotificationDedupKey,
   CURRENT_NOTIFICATIONS_VERSION,
   loadAndMigrateNotifications,
@@ -215,7 +218,8 @@ interface AppContextType {
   syncData: (overrideSheet?: SheetName) => Promise<boolean>;
   markAttendance: (studentId: string, isPresent: boolean, targetFridayDate?: string) => Promise<boolean>;
   importAttendanceBatch: (
-    entries: Array<{ studentId: string; fridayDate: string; isPresent: boolean }>
+    entries: Array<{ studentId: string; fridayDate: string; isPresent: boolean }>,
+    options?: { operationId?: string }
   ) => Promise<{
     success: boolean;
     appliedCount: number;
@@ -237,6 +241,7 @@ interface AppContextType {
   deleteStudent: (studentId: string) => Promise<boolean>;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
+  clearReadNotifications: () => void;
   addNotification: (
     title: string,
     desc?: string,
@@ -244,6 +249,7 @@ interface AppContextType {
     options?: { id?: string; dedupKey?: string }
   ) => void;
   processOfflineQueue: () => Promise<SyncQueueExecutionReport>;
+  clearOfflineQueue: () => Promise<{ clearedCount: number; verifiedEmpty: boolean }>;
   inFlightStudentIds: string[];
   syncedStudentIds: string[];
   pendingStudentIds: string[];
@@ -320,7 +326,8 @@ export function prepareBatchAttendanceMutations(
   entries: ReadonlyArray<BatchAttendanceEntryInput>,
   students: ReadonlyArray<Student>,
   canPerformAction: (action: 'attendance', servantName?: string) => { allowed: boolean; reason?: string },
-  cairoTodayIso: string = getCairoDateParts().isoDate
+  cairoTodayIso: string = getCairoDateParts().isoDate,
+  operationId?: string
 ): PreparedBatchAttendancePlan {
   const studentsById = new Map(students.map((s) => [s.id, s]));
   const grouped = new Map<string, BatchAttendanceEntryInput[]>();
@@ -389,9 +396,11 @@ export function prepareBatchAttendanceMutations(
 
       nextAtt[entry.fridayDate] = entry.isPresent;
 
-      const opId = generateUUID();
+      const mutationId = operationId
+        ? computeDeterministicImportKey(operationId, studentId, entry.fridayDate)
+        : `ATT_${safeStudentId}_${entry.fridayDate}_${generateUUID()}`;
       mutations.push({
-        id: `ATT_${safeStudentId}_${entry.fridayDate}_${opId}`,
+        id: mutationId,
         action: 'attendance',
         studentId,
         studentCode: student.code,
@@ -2026,6 +2035,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
   }, []);
 
+  const clearReadNotifications = useCallback(() => {
+    setNotifications((prev) => {
+      const unreadOnly = clearReadNotificationsFromList(prev);
+      saveNotificationsToStorage(unreadOnly);
+      return unreadOnly;
+    });
+  }, []);
+
   // Single Active Edit Guard & Safe Add Modal Wrapper
   const setIsAddModalOpen = useCallback(
     (open: boolean) => {
@@ -2248,6 +2265,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user, isPreviewMode, addNotification, refreshPendingState]);
 
+  // Clear ONLY pending unsynced queue mutations from IndexedDB; NEVER touch students/attendance_history/followup/Sheets
+  const clearOfflineQueue = useCallback(async (): Promise<{ clearedCount: number; verifiedEmpty: boolean }> => {
+    if (backoffRetryTimerRef.current) {
+      clearTimeout(backoffRetryTimerRef.current);
+      backoffRetryTimerRef.current = null;
+    }
+    const clearedCount = await idbClearMutations();
+    setInFlightStudentIds([]);
+    const remaining = await refreshPendingState();
+    const verifiedEmpty = remaining.length === 0;
+    return { clearedCount, verifiedEmpty };
+  }, [refreshPendingState]);
+
   // 2. Sync Data: Delegates to production engine + protects open edit session
   const syncData = useCallback(async (overrideSheet?: SheetName): Promise<boolean> => {
     if (activeEditingIdRef.current && hasUnsavedEditChangesRef.current) {
@@ -2404,7 +2434,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // 3b. Batch Attendance Import (Multi-Date PDF Sheet): Atomic single-transaction write + OCC-chained chunked queue
   const importAttendanceBatch = useCallback(
     async (
-      entries: BatchAttendanceEntryInput[]
+      entries: BatchAttendanceEntryInput[],
+      options?: { operationId?: string }
     ): Promise<{
       success: boolean;
       appliedCount: number;
@@ -2427,7 +2458,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       const extraQueuedSkipped = entries.length - nonQueuedEntries.length;
 
-      const plan = prepareBatchAttendanceMutations(nonQueuedEntries, students, canPerformAction);
+      const plan = prepareBatchAttendanceMutations(
+        nonQueuedEntries,
+        students,
+        canPerformAction,
+        getCairoDateParts().isoDate,
+        options?.operationId
+      );
 
       if (plan.appliedCount === 0) {
         if (plan.blockedCount > 0 && plan.skippedDuplicateCount === 0) {
@@ -2870,8 +2907,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteStudent,
         markNotificationRead,
         markAllNotificationsRead,
+        clearReadNotifications,
         addNotification,
         processOfflineQueue,
+        clearOfflineQueue,
         triggerAutoProcessQueue,
         activeToast,
         dismissToast

@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Menu, Bell } from 'lucide-react';
 import { SyncStatusIndicator } from '../glass/SyncStatusIndicator';
 
-const appHeaderIcon = new URL('../../../Aset/Icon-2.png', import.meta.url).href;
+const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
 
 export const TopBar: React.FC = () => {
   const {
@@ -18,53 +18,56 @@ export const TopBar: React.FC = () => {
   const unreadCount = notifications.filter((n) => n.unread).length;
 
   return (
-    <header className="pointer-events-auto w-full max-w-6xl mx-auto h-16 glass-strong px-2.5 sm:px-4 flex items-center justify-between gap-2 shadow-[var(--shadow-lg)] transition-all duration-300">
+    <header className="pointer-events-auto w-full max-w-6xl mx-auto h-[4.25rem] sm:h-[4.75rem] glass-strong px-2.5 sm:px-4 flex items-center justify-between gap-2 sm:gap-3 shadow-[var(--shadow-lg)] transition-all duration-300">
       {/* Brand & Menu Trigger (Start / Right side in RTL) */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         {/* Mobile RTL Drawer Trigger */}
         <button
           type="button"
           onClick={() => setIsSidebarOpen(true)}
-          className="glass-btn lg:hidden w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
+          className="glass-btn lg:hidden min-w-[40px] min-h-[40px] w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
           aria-label="فتح القائمة"
           title="القائمة الجانبية"
         >
-          <Menu className="w-5 h-5 text-[var(--text-primary)]" />
+          <Menu className="w-5 h-5 shrink-0 text-[var(--text-primary)]" />
         </button>
 
         {/* Desktop Sidebar Collapse/Expand Trigger */}
         <button
           type="button"
           onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-          className="glass-btn hidden lg:flex w-9 h-9 sm:w-10 sm:h-10 rounded-xl items-center justify-center cursor-pointer shrink-0"
+          className="glass-btn hidden lg:flex min-w-[40px] min-h-[40px] w-10 h-10 sm:w-11 sm:h-11 rounded-xl items-center justify-center cursor-pointer shrink-0"
           aria-label={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'}
           title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'}
         >
-          <Menu className="w-5 h-5 text-[var(--text-primary)]" />
+          <Menu className="w-5 h-5 shrink-0 text-[var(--text-primary)]" />
         </button>
 
-        <div className="flex items-center gap-2 sm:gap-2.5 select-none shrink-0">
-          <img
-            src={appHeaderIcon}
-            alt="StGeorge Dashboard Icon"
-            width={331}
-            height={331}
-            className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0 drop-shadow-[0_2px_8px_rgba(3,7,17,0.38)]"
-          />
-          <div className="flex flex-col justify-center leading-none">
-            <h1 className="font-extrabold text-[15px] sm:text-[17px] leading-[1.08] tracking-tight text-[var(--text-primary)] m-0 whitespace-nowrap">
-              StGeorge
+        {/* St. George Branding Lockup (Same icon source as AboutModal, sole header icon) */}
+        <div className="flex items-center gap-2 sm:gap-3 select-none min-w-0">
+          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#123fce]/30 to-[#20c7e8]/30 p-0.5 border border-[#20c7e8]/40 shadow-[0_0_15px_rgba(32,199,232,0.25)] shrink-0">
+            <img
+              src={stGeorgeIcon}
+              alt="St. George Dashboard"
+              width={1024}
+              height={1024}
+              className="w-full h-full aspect-square object-contain rounded-xl block"
+            />
+          </div>
+          <div className="flex flex-col justify-center min-w-0">
+            <h1 className="m-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5 font-extrabold text-[14px] sm:text-[17.5px] leading-[1.15] tracking-tight text-[var(--text-primary)] min-w-0">
+              <span className="truncate">St. George</span>
+              <span className="text-[11px] sm:text-[14px] font-bold tracking-wide text-[var(--accent-secondary)] truncate">
+                Dashboard
+              </span>
             </h1>
-            <span className="text-[10px] sm:text-[11px] font-medium leading-[1.1] tracking-wide text-[var(--accent-secondary)] mt-0.5 whitespace-nowrap">
-              Dashboard
-            </span>
           </div>
         </div>
       </div>
 
       {/* Action Items Group: 1. Compact Sync Status, 2. Notification Bell */}
-      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink">
-        {/* 1. Sync Status Indicator (Compact pill so it never crowds StGeorge branding) */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* 1. Sync Status Indicator (Adaptive pill so it never crowds branding or clips text) */}
         <SyncStatusIndicator />
 
         {/* 2. Notification Bell with Internal Numeric Badge */}
@@ -74,14 +77,14 @@ export const TopBar: React.FC = () => {
             setNotificationsActiveTab('feed');
             setIsNotificationsOpen(true);
           }}
-          className="glass-btn relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
+          className="glass-btn relative min-w-[40px] min-h-[40px] w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
           aria-label="التنبيهات"
           title={unreadCount > 0 ? `التنبيهات (${unreadCount} غير مقروء)` : 'التنبيهات'}
         >
-          <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--text-primary)]" />
+          <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px] shrink-0 text-[var(--text-primary)]" />
           {unreadCount > 0 && (
             <span
-              className="absolute top-0.5 end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--accent-secondary)] text-[var(--badge-on-accent)] font-mono text-[9px] sm:text-[10px] font-black flex items-center justify-center shadow-xs ring-1.5 ring-[var(--surface-primary)] select-none pointer-events-none"
+              className="absolute top-0.5 end-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-[var(--accent-secondary)] text-[var(--badge-on-accent)] font-mono text-[9.5px] leading-none font-black flex items-center justify-center shadow-xs ring-1.5 ring-[var(--surface-primary)] select-none pointer-events-none"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>

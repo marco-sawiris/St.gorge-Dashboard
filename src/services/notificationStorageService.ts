@@ -171,6 +171,15 @@ export function saveNotificationsToStorage(notifications: AppNotification[]): vo
 }
 
 /**
+ * Deletes ONLY notifications already marked as read (`unread === false`),
+ * preserving all unread notifications without touching any attendance or student data.
+ */
+export function clearReadNotificationsFromList(notifications: AppNotification[]): AppNotification[] {
+  if (!Array.isArray(notifications) || notifications.length === 0) return [];
+  return notifications.filter((item) => Boolean(item && item.unread));
+}
+
+/**
  * Clears already-delivered legacy notifications from the Android OS shade once
  * upon upgrade migration, without touching scheduled reminders, permissions,
  * or Android Notification Channels.

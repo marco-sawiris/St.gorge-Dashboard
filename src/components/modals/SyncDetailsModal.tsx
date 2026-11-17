@@ -67,7 +67,7 @@ export const SyncDetailsModal: React.FC = () => {
       colorClass: 'text-[var(--danger)]'
     },
     offline: {
-      title: 'لا يوجد اتصال بالإنترنت (Offline Mode)',
+      title: 'لا يوجد اتصال بالإنترنت',
       desc: 'أنت تعمل حالياً بدون اتصال. يمكنك تسجيل الحضور والافتقاد وتعديل البيانات، وسيتم حفظ كل شيء محلياً ومزامنته عند عودة الإنترنت.',
       icon: WifiOff,
       colorClass: 'text-[var(--text-muted)]'
@@ -99,16 +99,16 @@ export const SyncDetailsModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none">
       <div className="w-full max-w-lg glass-strong rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--surface-primary)]/40">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs">
-              <StatusIcon className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/40 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-9 h-9 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs shrink-0">
+              <StatusIcon className={`w-5 h-5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
             </div>
-            <div>
-              <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0">
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0 leading-snug">
                 حالة وتفاصيل المزامنة
               </h3>
-              <p className="text-xs text-[var(--text-muted)] m-0">
+              <p className="text-xs text-[var(--text-muted)] m-0 break-words leading-snug">
                 المزامنة المباشرة مع Google Sheets وقاعدة البيانات المحلية
               </p>
             </div>
@@ -118,9 +118,9 @@ export const SyncDetailsModal: React.FC = () => {
             type="button"
             onClick={() => setIsSyncModalOpen(false)}
             aria-label="إغلاق نافذة حالة المزامنة"
-            className="glass-btn w-8 h-8 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer"
+            className="glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 shrink-0" />
           </button>
         </div>
 
@@ -201,16 +201,16 @@ export const SyncDetailsModal: React.FC = () => {
           {/* Metrics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Online Status */}
-            <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 {isOnline ? (
-                  <Wifi className="w-4 h-4 text-[var(--accent-secondary)]" />
+                  <Wifi className="w-4 h-4 text-[var(--accent-secondary)] shrink-0" />
                 ) : (
-                  <WifiOff className="w-4 h-4 text-[var(--text-muted)]" />
+                  <WifiOff className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
                 )}
                 <span className="font-bold text-xs text-[var(--text-secondary)]">اتصال الشبكة</span>
               </div>
-              <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full ${
+              <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
                 isOnline ? 'bg-[var(--accent-secondary)]/15 text-[var(--accent-secondary)]' : 'bg-slate-500/15 text-[var(--text-muted)]'
               }`}>
                 {isOnline ? 'متصل' : 'غير متصل'}
@@ -223,36 +223,36 @@ export const SyncDetailsModal: React.FC = () => {
               onClick={() => {
                 setIsQueueModalOpen(true);
               }}
-              className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] hover:border-amber-500/40 flex items-center justify-between text-right cursor-pointer transition-all duration-200 group active:scale-[0.99]"
+              className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] hover:border-amber-500/40 flex flex-wrap items-center justify-between gap-2 text-right cursor-pointer transition-all duration-200 group active:scale-[0.99]"
               title="اضغط لعرض تفاصيل العمليات المعلقة"
               aria-label="عرض تفاصيل طابور العمليات المعلقة"
             >
-              <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
-                <div className="flex flex-col text-right">
+              <div className="flex items-center gap-2 min-w-0">
+                <Database className="w-4 h-4 text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
+                <div className="flex flex-col text-right min-w-0">
                   <span className="font-bold text-xs text-[var(--text-secondary)]">طابور العمليات</span>
                   <span className="text-[10px] text-[var(--text-muted)] group-hover:text-amber-400/90 transition-colors">
                     اضغط لعرض التفاصيل
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full font-mono ${
                   pendingMutationsCount > 0 ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'bg-[var(--accent-secondary)]/10 text-[var(--accent-secondary)]'
                 }`}>
                   {pendingMutationsCount} معلق
                 </span>
-                <ChevronLeft className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" />
+                <ChevronLeft className="w-4 h-4 text-[var(--text-muted)] shrink-0 group-hover:text-[var(--text-primary)] transition-colors" />
               </div>
             </button>
 
             {/* Last Successful Pull */}
             <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] space-y-1">
               <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)]">
-                <Clock className="w-3.5 h-3.5 text-[var(--accent-secondary)]" />
+                <Clock className="w-3.5 h-3.5 text-[var(--accent-secondary)] shrink-0" />
                 <span>آخر سحب من الشيت (Pull)</span>
               </div>
-              <p className="font-mono text-xs font-bold text-[var(--text-primary)] m-0">
+              <p className="font-mono text-xs font-bold text-[var(--text-primary)] m-0 break-words">
                 {formatDateDisplay(lastSuccessfulPullTime)}
               </p>
             </div>
@@ -260,10 +260,10 @@ export const SyncDetailsModal: React.FC = () => {
             {/* Last Successful Push */}
             <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] space-y-1">
               <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)]">
-                <Clock className="w-3.5 h-3.5 text-[var(--primary)]" />
+                <Clock className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
                 <span>آخر إرسال للشيت (Push)</span>
               </div>
-              <p className="font-mono text-xs font-bold text-[var(--text-primary)] m-0">
+              <p className="font-mono text-xs font-bold text-[var(--text-primary)] m-0 break-words">
                 {formatDateDisplay(lastSuccessfulPushTime)}
               </p>
             </div>
@@ -274,22 +274,22 @@ export const SyncDetailsModal: React.FC = () => {
             <ShieldCheck className="w-4 h-4 text-[var(--accent-secondary)] shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-[var(--text-primary)]">حماية الاتصال وعدم فقد البيانات: </span>
-              إعدادات الربط مع Google Sheets محمية ومضبوطة داخلياً، وتعتمد المنظومة آلية التخزين المحلي أولاً (Offline-First) مع طابور العمليات التلقائي لضمان حفظ كافة السجلات.
+              إعدادات الربط مع Google Sheets محمية ومضبوطة داخلياً، وتعتمد المنظومة آلية التخزين المحلي أولاً مع طابور العمليات التلقائي لضمان حفظ كافة السجلات.
             </div>
           </div>
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="px-5 py-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 bg-[var(--surface-primary)]/40">
-          <div className="flex items-center gap-2">
+        <div className="px-4 sm:px-5 py-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 bg-[var(--surface-primary)]/40 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             {pendingMutationsCount > 0 && (
               <button
                 type="button"
                 onClick={handleFlushQueue}
                 disabled={isSyncing || !isOnline}
-                className="glass-btn px-3.5 py-2 rounded-xl border-amber-500/35 text-amber-400 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                className="glass-btn min-h-[40px] px-3.5 py-2 rounded-xl border-amber-500/35 text-amber-400 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
-                <CloudUpload className="w-3.5 h-3.5" />
+                <CloudUpload className="w-3.5 h-3.5 shrink-0" />
                 <span>إرسال المعلق ({pendingMutationsCount})</span>
               </button>
             )}
@@ -298,9 +298,9 @@ export const SyncDetailsModal: React.FC = () => {
               type="button"
               onClick={handleSyncNow}
               disabled={isSyncing}
-              className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
+              className="glass-btn--primary btn--lens min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'جاري المزامنة...' : 'مزامنة فورية الآن'}</span>
             </button>
           </div>
@@ -308,7 +308,7 @@ export const SyncDetailsModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsSyncModalOpen(false)}
-            className="glass-btn px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer"
+            className="glass-btn min-h-[40px] px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer"
           >
             إغلاق
           </button>

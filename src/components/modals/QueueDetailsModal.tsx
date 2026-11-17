@@ -16,7 +16,8 @@ import {
   Edit3,
   ShieldCheck,
   AlertCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Trash2
 } from 'lucide-react';
 
 export const QueueDetailsModal: React.FC = () => {
@@ -24,6 +25,7 @@ export const QueueDetailsModal: React.FC = () => {
     isQueueModalOpen,
     setIsQueueModalOpen,
     processOfflineQueue,
+    clearOfflineQueue,
     isOnline
   } = useApp();
 
@@ -31,6 +33,9 @@ export const QueueDetailsModal: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isFlushing, setIsFlushing] = useState<boolean>(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
+  const [isClearingAll, setIsClearingAll] = useState<boolean>(false);
+  const [clearFeedback, setClearFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadMutations = useCallback(async () => {
     setIsLoading(true);
@@ -46,6 +51,8 @@ export const QueueDetailsModal: React.FC = () => {
 
   useEffect(() => {
     if (isQueueModalOpen) {
+      setShowClearConfirm(false);
+      setClearFeedback(null);
       loadMutations();
     }
   }, [isQueueModalOpen, loadMutations]);
@@ -53,7 +60,8 @@ export const QueueDetailsModal: React.FC = () => {
   if (!isQueueModalOpen) return null;
 
   const handleRetryAll = async () => {
-    if (isFlushing) return;
+    if (isFlushing || isClearingAll) return;
+    setClearFeedback(null);
     setIsFlushing(true);
     try {
       await processOfflineQueue();
@@ -64,7 +72,8 @@ export const QueueDetailsModal: React.FC = () => {
   };
 
   const handleRetrySingle = async (mutationId: string) => {
-    if (retryingId) return;
+    if (retryingId || isClearingAll) return;
+    setClearFeedback(null);
     setRetryingId(mutationId);
     try {
       await idbResetMutationRetry(mutationId);
@@ -72,6 +81,38 @@ export const QueueDetailsModal: React.FC = () => {
       await loadMutations();
     } finally {
       setRetryingId(null);
+    }
+  };
+
+  const handleConfirmClearAll = async () => {
+    if (isClearingAll || isFlushing) return;
+    setIsClearingAll(true);
+    setClearFeedback(null);
+    try {
+      const { clearedCount, verifiedEmpty } = await clearOfflineQueue();
+      const afterList = await idbGetPendingMutations();
+      setMutations(afterList);
+      setShowClearConfirm(false);
+
+      if (verifiedEmpty && afterList.length === 0) {
+        setClearFeedback({
+          type: 'success',
+          text: `تم مسح جميع العمليات المعلقة (${clearedCount}) من طابور المزامنة بنجاح، مع الإبقاء التام على جميع بيانات المخدومين وسجلات الحضور والافتقاد وGoogle Sheets دون أي تغيير.`
+        });
+      } else {
+        setClearFeedback({
+          type: 'error',
+          text: 'تعذر التحقق من تفريغ طابور العمليات بالكامل، يرجى التحديث وإعادة المحاولة.'
+        });
+      }
+    } catch (err: any) {
+      setShowClearConfirm(false);
+      setClearFeedback({
+        type: 'error',
+        text: err?.message || 'حدث خطأ أثناء مسح العمليات المعلقة.'
+      });
+    } finally {
+      setIsClearingAll(false);
     }
   };
 
@@ -95,8 +136,8 @@ export const QueueDetailsModal: React.FC = () => {
           title: isPresent ? 'تسجيل حضور' : 'تسجيل غياب',
           icon: isPresent ? CheckCircle2 : XCircle,
           badgeColor: isPresent
-            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-            : 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+            ? 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border-emerald-500/30'
+            : 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border-rose-500/30',
           details: `تاريخ الجمعة: ${mutation.payload?.friday || '-'}`
         };
       }
@@ -104,7 +145,7 @@ export const QueueDetailsModal: React.FC = () => {
         return {
           title: 'تسجيل افتقاد',
           icon: PhoneCall,
-          badgeColor: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+          badgeColor: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30',
           details: `الوسيلة: ${mutation.payload?.method || 'تم تليفونياً'} ${
             mutation.payload?.friday ? `(${mutation.payload.friday})` : ''
           }`
@@ -113,21 +154,21 @@ export const QueueDetailsModal: React.FC = () => {
         return {
           title: 'تعديل بيانات مخدوم',
           icon: Edit3,
-          badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+          badgeColor: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',
           details: 'تحديث بيانات السجل والاتصال'
         };
       case 'add':
         return {
           title: 'إضافة مخدوم جديد',
           icon: UserPlus,
-          badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+          badgeColor: 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border-emerald-500/30',
           details: `الفصل المستهدف: ${mutation.sourceSheet || 'نشط'}`
         };
       default:
         return {
           title: mutation.action || 'عملية غير معروفة',
           icon: UserCheck,
-          badgeColor: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+          badgeColor: 'bg-slate-500/15 text-[var(--text-secondary)] border-slate-500/30',
           details: '-'
         };
     }
@@ -136,31 +177,31 @@ export const QueueDetailsModal: React.FC = () => {
   const getStatusBadge = (mutation: OfflineMutation) => {
     if (mutation.status === 'conflict') {
       return {
-        label: 'تعارض في الإصدار (Conflict)',
+        label: 'تعارض في الإصدار',
         badgeClass: 'bg-rose-500/20 text-rose-500 dark:text-rose-400 border-rose-500/40'
       };
     }
     if (mutation.status === 'timeout_unknown') {
       return {
-        label: 'نتيجة غير مؤكدة — Timeout (Unknown Result)',
+        label: 'نتيجة غير مؤكدة — انتهاء المهلة',
         badgeClass: 'bg-amber-500/20 text-[var(--warning-text)] border-amber-500/45'
       };
     }
     if (mutation.status === 'failed') {
       return {
-        label: 'تعذر الإرسال (Failed)',
+        label: 'تعذر الإرسال',
         badgeClass: 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border-rose-500/35'
       };
     }
     if (mutation.status === 'retrying') {
       return {
-        label: 'إعادة محاولة مجدولة (Pending)',
-        badgeClass: 'bg-blue-500/15 text-blue-500 dark:text-blue-400 border-blue-500/30'
+        label: 'إعادة محاولة مجدولة',
+        badgeClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
       };
     }
     return {
-      label: 'قيد الانتظار (Pending)',
-      badgeClass: 'bg-blue-500/15 text-blue-500 dark:text-blue-400 border-blue-500/30'
+      label: 'قيد الانتظار',
+      badgeClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
     };
   };
 
@@ -168,21 +209,21 @@ export const QueueDetailsModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none">
       <div className="w-full max-w-xl glass-strong rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--surface-primary)]/40">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-xs">
-              <Database className="w-5 h-5" />
+        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/40 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-xs shrink-0">
+              <Database className="w-5 h-5 shrink-0" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0 leading-snug">
                   طابور العمليات المعلقة
                 </h3>
-                <span className="text-xs font-mono font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
+                <span className="text-xs font-mono font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-[var(--warning-text)] border border-amber-500/30 shrink-0">
                   {mutations.length}
                 </span>
               </div>
-              <p className="text-xs text-[var(--text-muted)] m-0">
+              <p className="text-xs text-[var(--text-muted)] m-0 break-words leading-snug">
                 العمليات المحفوظة محلياً والمجدولة للإرسال إلى Google Sheets
               </p>
             </div>
@@ -192,9 +233,9 @@ export const QueueDetailsModal: React.FC = () => {
             type="button"
             onClick={() => setIsQueueModalOpen(false)}
             aria-label="إغلاق تفاصيل طابور العمليات"
-            className="glass-btn w-8 h-8 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer"
+            className="glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 shrink-0" />
           </button>
         </div>
 
@@ -204,10 +245,74 @@ export const QueueDetailsModal: React.FC = () => {
           <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)] flex items-start gap-2.5 text-xs text-[var(--text-secondary)] leading-relaxed">
             <ShieldCheck className="w-4 h-4 text-[var(--accent-secondary)] shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold text-[var(--text-primary)]">ضمان عدم فقد البيانات (Zero Data Loss): </span>
-              العمليات محفوظة بشكل دائم في متصفحك (IndexedDB). لن تُحذف أي عملية حتى يؤكد Google Sheets استلامها وحفظها بنجاح.
+              <span className="font-bold text-[var(--text-primary)]">ضمان عدم فقد البيانات: </span>
+              العمليات محفوظة بشكل دائم في قاعدة البيانات المحلية. لن تُحذف أي عملية تلقائياً حتى يؤكد Google Sheets استلامها وحفظها بنجاح.
             </div>
           </div>
+
+          {/* Verified Clear Success / Error Feedback Banner */}
+          {clearFeedback && (
+            <div
+              role="status"
+              className={`p-3.5 rounded-2xl border flex items-start gap-2.5 text-xs font-bold leading-relaxed ${
+                clearFeedback.type === 'success'
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-300'
+                  : 'bg-rose-500/15 border-rose-500/40 text-rose-500 dark:text-rose-300'
+              }`}
+            >
+              {clearFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              )}
+              <span>{clearFeedback.text}</span>
+            </div>
+          )}
+
+          {/* Explicit Confirmation Dialog before Clearing All Pending Queue Operations */}
+          {showClearConfirm && mutations.length > 0 && (
+            <div
+              role="alertdialog"
+              aria-modal="false"
+              aria-labelledby="clear-queue-confirm-title"
+              className="p-4 rounded-2xl bg-rose-500/12 border border-rose-500/45 space-y-3 shadow-md"
+            >
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 id="clear-queue-confirm-title" className="font-extrabold text-sm text-[var(--text-primary)] m-0">
+                    تأكيد مسح جميع العمليات المعلقة؟
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)] m-0 leading-relaxed">
+                    سيتم حذف <strong className="text-rose-500 dark:text-rose-400">{mutations.length}</strong> عملية معلقة غير متزامنة من طابور الإرسال إلى Google Sheets ولن يتم إرسالها لاحقاً.
+                  </p>
+                  <p className="text-[11px] text-[var(--accent-secondary)] font-bold m-0">
+                    ملاحظة أمان: لن يتم حذف أي بيانات مخدومين أو سجلات حضور وافتقاد محفوظة في قاعدة البيانات أو Google Sheets.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(false)}
+                  disabled={isClearingAll}
+                  className="glass-btn px-3.5 py-2 rounded-xl text-xs font-bold text-[var(--text-primary)] cursor-pointer min-h-[38px]"
+                >
+                  تراجع
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmClearAll}
+                  disabled={isClearingAll}
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 flex items-center gap-1.5 cursor-pointer min-h-[38px] disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>{isClearingAll ? 'جاري المسح...' : 'نعم، تأكيد مسح كل العمليات'}</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {isLoading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-[var(--text-muted)]">
@@ -216,14 +321,14 @@ export const QueueDetailsModal: React.FC = () => {
             </div>
           ) : mutations.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2.5 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h4 className="font-extrabold text-sm text-[var(--text-primary)] m-0">
                 طابور العمليات فارغ
               </h4>
               <p className="text-xs text-[var(--text-muted)] max-w-xs m-0">
-                تم إرسال كافة التعديلات وتسجيلات الحضور بنجاح إلى Google Sheets، ولا توجد أي عمليات معلقة محلياً.
+                لا توجد أي عمليات معلقة حالياً في طابور الإرسال إلى Google Sheets.
               </p>
             </div>
           ) : (
@@ -243,7 +348,7 @@ export const QueueDetailsModal: React.FC = () => {
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border ${actionMeta.badgeColor}`}>
-                          <ActionIcon className="w-3.5 h-3.5" />
+                          <ActionIcon className="w-3.5 h-3.5 shrink-0" />
                           <span>{actionMeta.title}</span>
                         </span>
                         <span className="text-[11px] font-mono text-[var(--text-muted)]">
@@ -257,20 +362,20 @@ export const QueueDetailsModal: React.FC = () => {
                     </div>
 
                     {/* Student Info Row */}
-                    <div className="flex items-center justify-between gap-2 bg-[var(--app-bg)]/40 p-2.5 rounded-xl border border-[var(--border-color)]/60">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-extrabold text-xs sm:text-sm text-[var(--text-primary)] truncate">
+                    <div className="flex flex-wrap items-center justify-between gap-2 bg-[var(--app-bg)]/40 p-2.5 rounded-xl border border-[var(--border-color)]/60">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                        <span className="font-extrabold text-xs sm:text-sm text-[var(--text-primary)] break-words">
                           {mutation.studentName || 'مخدوم غير محدد'}
                         </span>
                         {mutation.studentCode && (
-                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[var(--surface-primary)] text-[var(--text-muted)] border border-[var(--border-color)]">
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[var(--surface-primary)] text-[var(--text-muted)] border border-[var(--border-color)] shrink-0">
                             {mutation.studentCode}
                           </span>
                         )}
                       </div>
 
                       <div className="flex items-center gap-1 text-[10px] font-bold text-[var(--accent-secondary)] shrink-0">
-                        <FileSpreadsheet className="w-3 h-3" />
+                        <FileSpreadsheet className="w-3 h-3 shrink-0" />
                         <span>فصل {mutation.sourceSheet || 'نشط'}</span>
                       </div>
                     </div>
@@ -353,14 +458,14 @@ export const QueueDetailsModal: React.FC = () => {
                     )}
 
                     {/* Action Row */}
-                    <div className="flex items-center justify-end gap-2 pt-1">
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                       <button
                         type="button"
                         onClick={() => handleRetrySingle(mutation.id)}
-                        disabled={isItemRetrying || !isOnline}
-                        className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--primary)] hover:border-[var(--primary)]/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        disabled={isItemRetrying || !isOnline || isClearingAll}
+                        className="glass-btn min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--primary)] hover:border-[var(--primary)]/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        <RefreshCw className={`w-3 h-3 ${isItemRetrying ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-3 h-3 shrink-0 ${isItemRetrying ? 'animate-spin' : ''}`} />
                         <span>{isItemRetrying ? 'جاري الإرسال...' : 'إعادة محاولة هذه العملية'}</span>
                       </button>
                     </div>
@@ -372,28 +477,43 @@ export const QueueDetailsModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 bg-[var(--surface-primary)]/40">
-          <div className="flex items-center gap-2">
+        <div className="px-4 sm:px-5 py-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 bg-[var(--surface-primary)]/40 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             {mutations.length > 0 && (
               <button
                 type="button"
                 onClick={handleRetryAll}
-                disabled={isFlushing || !isOnline}
-                className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                disabled={isFlushing || !isOnline || isClearingAll}
+                className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50 min-h-[38px]"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isFlushing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isFlushing ? 'animate-spin' : ''}`} />
                 <span>{isFlushing ? 'جاري إرسال العمليات...' : `إعادة إرسال الكل (${mutations.length})`}</span>
+              </button>
+            )}
+
+            {mutations.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setClearFeedback(null);
+                  setShowClearConfirm(true);
+                }}
+                disabled={isFlushing || isClearingAll}
+                className="glass-btn px-3.5 py-2 rounded-xl text-xs font-extrabold text-rose-500 dark:text-rose-400 border-rose-500/35 hover:bg-rose-500/12 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px]"
+              >
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                <span>مسح كل العمليات</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={loadMutations}
-              disabled={isLoading || isFlushing}
-              className="glass-btn px-3 py-2 rounded-xl text-xs font-bold text-[var(--text-secondary)] flex items-center gap-1.5 cursor-pointer"
+              disabled={isLoading || isFlushing || isClearingAll}
+              className="glass-btn px-3 py-2 rounded-xl text-xs font-bold text-[var(--text-secondary)] flex items-center gap-1.5 cursor-pointer min-h-[38px]"
               title="تحديث قائمة الطابور"
             >
-              <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3 h-3 shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">تحديث</span>
             </button>
           </div>
@@ -401,7 +521,7 @@ export const QueueDetailsModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsQueueModalOpen(false)}
-            className="glass-btn px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer"
+            className="glass-btn px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer min-h-[38px]"
           >
             إغلاق
           </button>

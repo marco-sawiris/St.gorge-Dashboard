@@ -52,6 +52,7 @@ export default function App() {
   } = useApp();
 
   const [followupStudent, setFollowupStudent] = useState<Student | null>(null);
+  const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
 
   // Strict Single Active Edit: source of truth is activeEditingId in AppContext
   const currentEditingStudent = activeEditingId ? students.find((s) => s.id === activeEditingId) || null : null;
@@ -62,6 +63,10 @@ export default function App() {
 
   const handleOpenFollowup = useCallback((student: Student) => {
     setFollowupStudent(student);
+  }, []);
+
+  const handleToggleCardFlip = useCallback((studentId: string) => {
+    setFlippedCardId((prev) => (prev === studentId ? null : studentId));
   }, []);
 
   // Block native long-press Copy/Paste/Select All context menu on read-only dashboard content
@@ -179,33 +184,33 @@ export default function App() {
         {/* Workspace Column aligned beside Docked Desktop Sidebar */}
         <div
           className={`flex-1 flex flex-col transition-[padding] duration-300 ease-out ${
-            isSidebarCollapsed ? 'lg:pr-[84px]' : 'lg:pr-[272px]'
+            isSidebarCollapsed ? 'lg:pr-[76px]' : 'lg:pr-[232px]'
           }`}
         >
-          {/* Fixed / Sticky TopBar viewport container */}
+          {/* Fixed TopBar viewport container */}
           <div
             className={`fixed top-0 left-0 right-0 ${
-              isSidebarCollapsed ? 'lg:right-[84px]' : 'lg:right-[272px]'
+              isSidebarCollapsed ? 'lg:right-[76px]' : 'lg:right-[232px]'
             } z-30 pt-[max(0.5rem,env(safe-area-inset-top))] px-2.5 sm:px-4 pointer-events-none transition-[right] duration-300 ease-out`}
           >
             <TopBar />
           </div>
 
-          {/* Main Content Area with compensated top padding for Fixed TopBar */}
-          <main className="flex-1 min-w-0 w-full max-w-6xl mx-auto px-3 sm:px-4 pt-[calc(5.25rem+env(safe-area-inset-top))] pb-28 relative z-10 overflow-x-clip box-border">
+          {/* Main Content Area with standard top padding for Fixed TopBar */}
+          <main className="flex-1 min-w-0 w-full max-w-6xl mx-auto px-3 sm:px-4 pt-[calc(5.5rem+env(safe-area-inset-top))] sm:pt-[calc(6rem+env(safe-area-inset-top))] pb-24 relative z-10 overflow-x-clip box-border">
             {/* Active Area Filter Banner */}
             {filters.area && (
-              <div className="mb-3.5 p-3 rounded-2xl glass border border-[var(--border-color)] flex items-center justify-between text-xs font-bold text-[var(--accent-secondary)] shadow-xs word-in">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-[var(--accent-secondary)]" />
-                  <span>تصفية الكروت حسب المنطقة السكنية: <strong className="text-[var(--text-primary)]">{filters.area}</strong></span>
+              <div className="mb-3.5 p-3 rounded-2xl glass border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[var(--accent-secondary)] shadow-xs word-in">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <Filter className="w-4 h-4 text-[var(--accent-secondary)] shrink-0" />
+                  <span className="break-words">تصفية الكروت حسب المنطقة السكنية: <strong className="text-[var(--text-primary)]">{filters.area}</strong></span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setFilters((p) => ({ ...p, area: '' }))}
-                  className="glass-btn px-2.5 py-1 rounded-lg text-rose-400 flex items-center gap-1 cursor-pointer"
+                  className="glass-btn min-h-[36px] px-3 py-1.5 rounded-lg text-rose-400 flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5 shrink-0" />
                   <span>إلغاء التصفية</span>
                 </button>
               </div>
@@ -278,12 +283,12 @@ export default function App() {
                       transition={{ duration: 0.34, ease: SPRING_EASE }}
                       className="space-y-4"
                     >
-                      <div className="flex items-center justify-between word-in" style={{ '--i': 0 } as React.CSSProperties}>
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs">
-                            <Users className="w-4 h-4" />
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 word-in" style={{ '--i': 0 } as React.CSSProperties}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs shrink-0">
+                            <Users className="w-4 h-4 shrink-0" />
                           </div>
-                          <h2 className="text-sm sm:text-base font-extrabold text-[var(--text-primary)] m-0">
+                          <h2 className="text-sm sm:text-base font-extrabold text-[var(--text-primary)] m-0 leading-snug">
                             كروت المخدومين ({filteredStudents.length})
                           </h2>
                         </div>
@@ -292,9 +297,9 @@ export default function App() {
                           onClick={() => {
                             setIsAddModalOpen(true);
                           }}
-                          className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-white text-xs font-extrabold flex items-center gap-2 cursor-pointer border border-[var(--accent-secondary)]/30"
+                          className="glass-btn--primary btn--lens min-h-[40px] px-4 py-2 rounded-xl text-white text-xs font-extrabold flex items-center gap-2 cursor-pointer border border-[var(--accent-secondary)]/30 shrink-0"
                         >
-                          <UserPlus className="w-4 h-4 text-white" />
+                          <UserPlus className="w-4 h-4 text-white shrink-0" />
                           <span>+ إضافة مخدوم</span>
                         </button>
                       </div>
@@ -318,7 +323,7 @@ export default function App() {
                           )}
                         </div>
                       ) : (
-                        <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start box-border">
+                        <div className="cards-grid-stable grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start box-border">
                           {filteredStudents.map((student) => (
                             <div
                               key={student.id}
@@ -328,6 +333,8 @@ export default function App() {
                                 student={student}
                                 onOpenFollowup={handleOpenFollowup}
                                 onOpenEdit={handleOpenEditStudent}
+                                isFlipped={flippedCardId === student.id}
+                                onToggleFlip={handleToggleCardFlip}
                               />
                             </div>
                           ))}

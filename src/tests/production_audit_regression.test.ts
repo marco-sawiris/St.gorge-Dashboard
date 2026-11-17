@@ -188,14 +188,14 @@ async function runTests() {
   assert(serverSrc.includes('Final App/StGeorge-Dashboard.apk') && serverSrc.includes('/download/StGeorge-Dashboard.apk'), 'Express server exposes Final App/StGeorge-Dashboard.apk via /download/StGeorge-Dashboard.apk');
   console.log('✅ Test 9 Passed: CI APK workflow loop-safety & download route verified.');
 
-  // 10. TopBar Stacked Branding (StGeorge + Dashboard) & Non-Overlapping SyncStatusIndicator
+  // 10. TopBar St. George + Dashboard Branding & Non-Overlapping SyncStatusIndicator
   const topBarSrc = readProjectFile('src/components/layout/TopBar.tsx');
   const syncIndicatorSrc = readProjectFile('src/components/glass/SyncStatusIndicator.tsx');
-  assert(topBarSrc.includes('StGeorge') && topBarSrc.includes('Dashboard'), 'TopBar displays stacked StGeorge + Dashboard branding');
+  assert(topBarSrc.includes('St. George') && topBarSrc.includes('Dashboard'), 'TopBar displays St. George + Dashboard branding');
   assert(!topBarSrc.includes('>St.Gorge<'), 'Legacy truncated St.Gorge header replaced cleanly');
-  assert(topBarSrc.includes('flex flex-col justify-center') && topBarSrc.includes('min-w-0 shrink'), 'TopBar separates brand group from shrinkable action bar');
-  assert(syncIndicatorSrc.includes("mobileLabel: 'متصل'") && syncIndicatorSrc.includes('h-7 sm:h-8'), 'SyncStatusIndicator uses compact mobile status badge so it never overlaps StGeorge');
-  console.log('✅ Test 10 Passed: TopBar StGeorge/Dashboard branding & compact SyncStatusIndicator verified.');
+  assert(topBarSrc.includes('flex flex-col justify-center') && topBarSrc.includes('min-w-0'), 'TopBar separates brand group from action bar');
+  assert(syncIndicatorSrc.includes("mobileLabel: 'متصل'") && syncIndicatorSrc.includes('min-h-[36px]'), 'SyncStatusIndicator uses compact responsive status badge so it never overlaps St. George Dashboard');
+  console.log('✅ Test 10 Passed: TopBar St. George Dashboard branding & compact SyncStatusIndicator verified.');
 
   // 11. Notifications One-Time Version Migration, Deduplication & Data Preservation + Android v2.0
   const {

@@ -199,12 +199,12 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none overflow-x-clip box-border">
       <div className="box-border w-full min-w-0 max-w-[min(100%,32rem)] glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--surface-primary)]/40">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs">
-              {isEditing ? <Save className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/40 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-9 h-9 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs shrink-0">
+              {isEditing ? <Save className="w-4 h-4 shrink-0" /> : <UserPlus className="w-4 h-4 shrink-0" />}
             </div>
-            <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0">
+            <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0 leading-snug break-words min-w-0">
               {isEditing ? `تعديل بيانات: ${studentToEdit?.name}` : 'إضافة مخدوم جديد'}
             </h3>
           </div>
@@ -212,9 +212,9 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
             type="button"
             onClick={handleRequestClose}
             aria-label="إغلاق النافذة"
-            className="glass-btn w-8 h-8 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer"
+            className="glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 shrink-0" />
           </button>
         </div>
 
@@ -265,7 +265,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="الاسم ثلاثي أو رباعي..."
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] focus:ring-1 focus:ring-[var(--border-focus)] shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] focus:ring-1 focus:ring-[var(--border-focus)] shadow-xs"
               />
             </div>
 
@@ -276,7 +276,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="SG-101"
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-mono font-bold text-[var(--accent-secondary)] focus:outline-none focus:border-[var(--border-focus)] focus:ring-1 focus:ring-[var(--border-focus)] shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-mono font-bold text-[var(--accent-secondary)] focus:outline-none focus:border-[var(--border-focus)] focus:ring-1 focus:ring-[var(--border-focus)] shadow-xs"
               />
             </div>
           </div>
@@ -290,7 +290,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 value={servant}
                 onChange={(e) => setServant(e.target.value)}
                 placeholder="اسم الخادم..."
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] focus:ring-1 focus:ring-[var(--border-focus)] shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] focus:ring-1 focus:ring-[var(--border-focus)] shadow-xs"
               />
             </div>
 
@@ -299,7 +299,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
               <select
                 value={sheet}
                 onChange={(e) => setSheet(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] cursor-pointer shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] cursor-pointer shadow-xs"
               >
                 {APPROVED_SHEETS.map((s) => (
                   <option key={s} value={s} className="bg-[var(--surface-primary)] text-[var(--text-primary)]">
@@ -318,7 +318,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 value={phoneStudent}
                 onChange={(e) => setPhoneStudent(e.target.value)}
                 placeholder="012xxxxxxxx"
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
               />
             </div>
             <div>
@@ -328,7 +328,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 value={phoneParent1}
                 onChange={(e) => setPhoneParent1(e.target.value)}
                 placeholder="010xxxxxxxx"
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
               />
             </div>
             <div>
@@ -338,7 +338,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 value={phoneParent2}
                 onChange={(e) => setPhoneParent2(e.target.value)}
                 placeholder="اختياري"
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
               />
             </div>
           </div>
@@ -351,7 +351,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 value={area}
                 onChange={(e) => setArea(e.target.value)}
                 placeholder="الزيتون الغربية، طومانباي..."
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
               />
             </div>
             <div>
@@ -360,7 +360,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 type="date"
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
+                className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
               />
             </div>
           </div>
@@ -372,7 +372,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="رقم العقار، اسم الشارع، علامة مميزة..."
-              className="w-full h-10 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
+              className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
             />
           </div>
 
@@ -388,20 +388,20 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-3 border-t border-[var(--border-color)] flex items-center justify-end gap-2.5">
+          <div className="pt-3 border-t border-[var(--border-color)] flex flex-wrap items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={handleRequestClose}
-              className="glass-btn px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer"
+              className="glass-btn min-h-[40px] px-4 py-2 rounded-xl font-bold text-xs text-[var(--text-secondary)] cursor-pointer"
             >
               إلغاء
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="glass-btn--primary btn--lens px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer"
+              className="glass-btn--primary btn--lens min-h-[40px] px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer"
             >
-              <Save className="w-4 h-4 text-white" />
+              <Save className="w-4 h-4 text-white shrink-0" />
               <span>{isSubmitting ? 'جاري الحفظ...' : isEditing ? 'حفظ التعديلات' : 'تسجيل المخدوم'}</span>
             </button>
           </div>

@@ -1,3 +1,6 @@
+import type { Student } from '../types/student';
+import type { FollowupRecord } from '../types/followup';
+
 export const CAIRO_TIMEZONE = 'Africa/Cairo';
 
 export function normalizeArabicText(value: string | undefined | null): string {
@@ -519,4 +522,74 @@ export function formatWhatsAppUrl(
   }
   const query = text ? `?text=${encodeURIComponent(text)}` : '';
   return `https://wa.me/${digits}${query}`;
+}
+
+const ARABIC_ORDINALS_MASC = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس'] as const;
+const ARABIC_ORDINALS_FEM = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة', 'السادسة'] as const;
+
+export function formatArabicWeekLabel(weekNumber: number): string {
+  const idx = Number(weekNumber) - 1;
+  if (idx >= 0 && idx < ARABIC_ORDINALS_MASC.length) {
+    return `الأسبوع ${ARABIC_ORDINALS_MASC[idx]}`;
+  }
+  return `الأسبوع ${weekNumber}`;
+}
+
+export function formatArabicFridayLabel(fridayNumber: number): string {
+  const idx = Number(fridayNumber) - 1;
+  if (idx >= 0 && idx < ARABIC_ORDINALS_FEM.length) {
+    return `الجمعة ${ARABIC_ORDINALS_FEM[idx]}`;
+  }
+  return `الجمعة ${fridayNumber}`;
+}
+
+export interface LatestFollowupCommentInfo {
+  comment: string;
+  date?: string;
+  method?: string;
+}
+
+/**
+ * Resolves the latest non-empty followup comment/note recorded for a student
+ * from live followup records (sorted chronologically descending) with fallback
+ * to student.notes if no separate followup record carries a comment.
+ */
+export function getLatestFollowupComment(
+  student: Pick<Student, 'id' | 'code' | 'name' | 'notes'>,
+  followupRecords: ReadonlyArray<FollowupRecord>
+): LatestFollowupCommentInfo | null {
+  const normalizedCode = (student.code || '').trim();
+  const normalizedName = (student.name || '').trim();
+
+  const matchingWithNotes = (Array.isArray(followupRecords) ? followupRecords : [])
+    .filter((rec) => {
+      if (!rec || !String(rec.notes || '').trim()) return false;
+      if (rec.studentId && student.id && rec.studentId === student.id) return true;
+      if (rec.studentCode && normalizedCode && rec.studentCode.trim() === normalizedCode) return true;
+      if (rec.studentName && normalizedName && rec.studentName.trim() === normalizedName) return true;
+      return false;
+    })
+    .sort((a, b) => {
+      const dateCompare = String(b.date || b.fridayDate || '').localeCompare(String(a.date || a.fridayDate || ''));
+      if (dateCompare !== 0) return dateCompare;
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
+
+  if (matchingWithNotes.length > 0) {
+    const latest = matchingWithNotes[0];
+    return {
+      comment: String(latest.notes || '').trim(),
+      date: latest.date || latest.fridayDate || undefined,
+      method: latest.type || undefined
+    };
+  }
+
+  const fallbackNote = String(student.notes || '').trim();
+  if (fallbackNote) {
+    return {
+      comment: fallbackNote
+    };
+  }
+
+  return null;
 }

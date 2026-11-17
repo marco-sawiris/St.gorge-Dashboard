@@ -120,98 +120,98 @@ export const DashboardChartsView: React.FC = () => {
 
   return (
     <div className="space-y-6 select-none word-in-scope">
-      {/* KPI Cards Grid (Liquid Glass - 6 Key Metrics) */}
-      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-3 gap-3 min-w-0">
+      {/* KPI Cards Grid (6 Key Metrics in 2 cols mobile / 3 cols desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 min-w-0">
         {/* Total Students */}
         <div
-          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-3 sm:p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-2.5 sm:gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 0 } as React.CSSProperties}
         >
-          <div className="w-12 h-12 rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(38,122,255,0.25)]">
-            <Users className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(38,122,255,0.25)]">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
           </div>
-          <div>
-            <span className="block text-xs font-semibold text-[var(--text-muted)]">إجمالي المخدومين</span>
-            <strong className="text-xl sm:text-2xl font-mono text-[var(--text)] tabular-nums">{totalStudents}</strong>
+          <div className="min-w-0 flex-1">
+            <span className="block text-[11px] sm:text-xs font-semibold text-[var(--text-muted)] leading-snug">إجمالي المخدومين</span>
+            <strong className="text-lg sm:text-2xl font-mono text-[var(--text)] tabular-nums">{totalStudents}</strong>
           </div>
         </div>
 
         {/* Friday Attendance (Cyan Accent, Zero Green) */}
         <div
-          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-3 sm:p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-2.5 sm:gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 1 } as React.CSSProperties}
         >
-          <div className="w-12 h-12 rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(32,199,232,0.3)]">
-            <CheckCircle2 className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(32,199,232,0.3)]">
+            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
           </div>
-          <div>
-            <span className="block text-xs font-semibold text-[var(--text-muted)]">حضور الجمعة ({currentFriday})</span>
-            <div className="flex items-baseline gap-1.5">
-              <strong className="text-xl sm:text-2xl font-mono text-[var(--accent)] tabular-nums">{presentCount}</strong>
-              <span className="text-xs font-bold text-[var(--text-secondary)]">({attendanceRate}%)</span>
+          <div className="min-w-0 flex-1">
+            <span className="block text-[11px] sm:text-xs font-semibold text-[var(--text-muted)] leading-snug truncate">حضور الجمعة ({currentFriday})</span>
+            <div className="flex items-baseline gap-1">
+              <strong className="text-lg sm:text-2xl font-mono text-[var(--accent)] tabular-nums">{presentCount}</strong>
+              <span className="text-[11px] sm:text-xs font-bold text-[var(--text-secondary)]">({attendanceRate}%)</span>
             </div>
           </div>
         </div>
 
         {/* Followup Coverage (Violet Accent) */}
         <div
-          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-3 sm:p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-2.5 sm:gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 2 } as React.CSSProperties}
         >
-          <div className="w-12 h-12 rounded-2xl bg-[var(--violet)]/15 text-[var(--violet)] border border-[var(--violet)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(101,72,245,0.25)]">
-            <HeartHandshake className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--violet)]/15 text-[var(--violet)] border border-[var(--violet)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(101,72,245,0.25)]">
+            <HeartHandshake className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
           </div>
-          <div>
-            <span className="block text-xs font-semibold text-[var(--text-muted)]">نسبة الافتقاد الشهري</span>
-            <div className="flex items-baseline gap-1.5">
-              <strong className="text-xl sm:text-2xl font-mono text-[var(--violet)] tabular-nums">{followedUpCount}</strong>
-              <span className="text-xs font-bold text-[var(--text-secondary)]">({followupRate}%)</span>
+          <div className="min-w-0 flex-1">
+            <span className="block text-[11px] sm:text-xs font-semibold text-[var(--text-muted)] leading-snug">نسبة الافتقاد الشهري</span>
+            <div className="flex items-baseline gap-1">
+              <strong className="text-lg sm:text-2xl font-mono text-[var(--violet)] tabular-nums">{followedUpCount}</strong>
+              <span className="text-[11px] sm:text-xs font-bold text-[var(--text-secondary)]">({followupRate}%)</span>
             </div>
           </div>
         </div>
 
         {/* Servants Capacity (Royal Blue Accent) */}
         <div
-          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-3 sm:p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-2.5 sm:gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 3 } as React.CSSProperties}
         >
-          <div className="w-12 h-12 rounded-2xl bg-[var(--royal)]/25 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(18,63,206,0.3)]">
-            <UserCheck className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--royal)]/25 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(18,63,206,0.3)]">
+            <UserCheck className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
           </div>
-          <div>
-            <span className="block text-xs font-semibold text-[var(--text-muted)]">الخدام والأشابين</span>
-            <div className="flex items-baseline gap-1.5">
-              <strong className="text-xl sm:text-2xl font-mono text-[var(--accent)] tabular-nums">{totalServants}</strong>
-              <span className="text-xs text-[var(--text-muted)] font-medium">({avgStudentsPerServant} لكل خادم)</span>
+          <div className="min-w-0 flex-1">
+            <span className="block text-[11px] sm:text-xs font-semibold text-[var(--text-muted)] leading-snug">الخدام والأشابين</span>
+            <div className="flex items-baseline gap-1">
+              <strong className="text-lg sm:text-2xl font-mono text-[var(--accent)] tabular-nums">{totalServants}</strong>
+              <span className="text-[10.5px] sm:text-xs text-[var(--text-muted)] font-medium truncate">({avgStudentsPerServant} لكل خادم)</span>
             </div>
           </div>
         </div>
 
         {/* Regular Attendees (3+ times this month) */}
         <div
-          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-3 sm:p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-2.5 sm:gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 4 } as React.CSSProperties}
         >
-          <div className="w-12 h-12 rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(32,199,232,0.25)]">
-            <Award className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(32,199,232,0.25)]">
+            <Award className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
           </div>
-          <div>
-            <span className="block text-xs font-semibold text-[var(--text-muted)]">المنتظمون (3+)</span>
-            <strong className="text-xl sm:text-2xl font-mono text-[var(--accent)] tabular-nums">{regularMonthCount}</strong>
+          <div className="min-w-0 flex-1">
+            <span className="block text-[11px] sm:text-xs font-semibold text-[var(--text-muted)] leading-snug">المنتظمون (3+)</span>
+            <strong className="text-lg sm:text-2xl font-mono text-[var(--accent)] tabular-nums">{regularMonthCount}</strong>
           </div>
         </div>
 
         {/* Absent All Month (0 this month) */}
         <div
-          className="word-in min-w-0 p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-3 border border-[var(--glass-border)]"
+          className="word-in min-w-0 p-3 sm:p-4 rounded-3xl glass-strong shadow-lg flex items-center gap-2.5 sm:gap-3 border border-[var(--glass-border)]"
           style={{ '--i': 5 } as React.CSSProperties}
         >
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.25)]">
-            <AlertCircle className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.25)]">
+            <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
           </div>
-          <div>
-            <span className="block text-xs font-semibold text-[var(--text-muted)]">لم يحضروا هذا الشهر</span>
-            <strong className="text-xl sm:text-2xl font-mono text-rose-400 tabular-nums">{zeroMonthCount}</strong>
+          <div className="min-w-0 flex-1">
+            <span className="block text-[11px] sm:text-xs font-semibold text-[var(--text-muted)] leading-snug">لم يحضروا هذا الشهر</span>
+            <strong className="text-lg sm:text-2xl font-mono text-rose-400 tabular-nums">{zeroMonthCount}</strong>
           </div>
         </div>
       </div>
@@ -221,12 +221,12 @@ export const DashboardChartsView: React.FC = () => {
         className="word-in p-5 rounded-3xl glass shadow-xl space-y-4 border border-[var(--glass-border)]"
         style={{ '--i': 6 } as React.CSSProperties}
       >
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-[#20C7E8]" />
-            <h3 className="font-extrabold text-sm text-[var(--text)] m-0">تطور نسب الحضور الأسبوعية</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--glass-border)]">
+          <div className="flex items-center gap-2 min-w-0">
+            <Activity className="w-4 h-4 text-[#20C7E8] shrink-0" />
+            <h3 className="font-extrabold text-sm text-[var(--text)] m-0 leading-snug">تطور نسب الحضور الأسبوعية</h3>
           </div>
-          <span className="text-xs text-[var(--text-muted)] font-mono">
+          <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">
             {weeklyTrend.length > 0 ? `${weeklyTrend.length} جمعة مسجلة` : 'لا توجد تواريخ جمعة'}
           </span>
         </div>
@@ -325,18 +325,18 @@ export const DashboardChartsView: React.FC = () => {
       </div>
 
       {/* Charts Section: 2 Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Chart 1: Distribution by Sheet */}
         <div
           className="word-in p-5 rounded-3xl glass shadow-xl space-y-4 border border-[var(--glass-border)]"
           style={{ '--i': 7 } as React.CSSProperties}
         >
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
-            <div className="flex items-center gap-2">
-              <PieChart className="w-4 h-4 text-[var(--accent)]" />
-              <h3 className="font-extrabold text-sm text-[var(--text)] m-0">توزيع المخدومين حسب الفصل</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--glass-border)]">
+            <div className="flex items-center gap-2 min-w-0">
+              <PieChart className="w-4 h-4 text-[var(--accent)] shrink-0" />
+              <h3 className="font-extrabold text-sm text-[var(--text)] m-0 leading-snug">توزيع المخدومين حسب الفصل</h3>
             </div>
-            <span className="text-xs text-[var(--text-muted)] font-mono">{totalStudents} مخدوم</span>
+            <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">{totalStudents} مخدوم</span>
           </div>
 
           <div className="space-y-3">
@@ -353,7 +353,7 @@ export const DashboardChartsView: React.FC = () => {
 
               return (
                 <div key={sheetName} className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold text-[var(--text)]">
+                  <div className="flex flex-wrap justify-between gap-1.5 text-xs font-bold text-[var(--text)]">
                     <span>{sheetName}</span>
                     <span className="font-mono text-[var(--text-secondary)]">{count} ({pct}%)</span>
                   </div>
@@ -374,12 +374,12 @@ export const DashboardChartsView: React.FC = () => {
           className="word-in p-5 rounded-3xl glass shadow-xl space-y-4 border border-[var(--glass-border)]"
           style={{ '--i': 8 } as React.CSSProperties}
         >
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-[var(--accent)]" />
-              <h3 className="font-extrabold text-sm text-[var(--text)] m-0">معدلات حضور وافتقاد الخدام</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--glass-border)]">
+            <div className="flex items-center gap-2 min-w-0">
+              <BarChart3 className="w-4 h-4 text-[var(--accent)] shrink-0" />
+              <h3 className="font-extrabold text-sm text-[var(--text)] m-0 leading-snug">معدلات حضور وافتقاد الخدام</h3>
             </div>
-            <span className="text-xs text-[var(--text-muted)] font-mono">{totalServants} خادم</span>
+            <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">{totalServants} خادم</span>
           </div>
 
           <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
@@ -389,16 +389,16 @@ export const DashboardChartsView: React.FC = () => {
 
               return (
                 <div key={servantName} className="p-3 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1.5 text-xs">
-                  <div className="flex justify-between font-bold text-[var(--text)]">
-                    <span>{servantName}</span>
-                    <span className="font-mono text-[var(--accent)]">{data.total} مخدوم</span>
+                  <div className="flex flex-wrap justify-between gap-1.5 font-bold text-[var(--text)]">
+                    <span className="min-w-0 break-words">{servantName}</span>
+                    <span className="font-mono text-[var(--accent)] shrink-0">{data.total} مخدوم</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-1">
                       <span className="text-[var(--text-muted)]">حضور:</span>
                       <strong className="text-[var(--accent)] font-mono">{data.present} ({attPct}%)</strong>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-1">
                       <span className="text-[var(--text-muted)]">افتقاد:</span>
                       <strong className="text-[var(--violet)] font-mono">{data.followedUp} ({fuPct}%)</strong>
                     </div>
@@ -414,12 +414,12 @@ export const DashboardChartsView: React.FC = () => {
           className="word-in p-5 rounded-3xl glass shadow-xl space-y-4 border border-[var(--glass-border)]"
           style={{ '--i': 9 } as React.CSSProperties}
         >
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-[var(--accent)]" />
-              <h3 className="font-extrabold text-sm text-[var(--text)] m-0">التوزيع الجغرافي للمناطق</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--glass-border)]">
+            <div className="flex items-center gap-2 min-w-0">
+              <MapPin className="w-4 h-4 text-[var(--accent)] shrink-0" />
+              <h3 className="font-extrabold text-sm text-[var(--text)] m-0 leading-snug">التوزيع الجغرافي للمناطق</h3>
             </div>
-            <span className="text-xs text-[var(--text-muted)] font-mono">{areaStats.length} منطقة</span>
+            <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">{areaStats.length} منطقة</span>
           </div>
 
           <div className="space-y-2.5">
@@ -427,7 +427,7 @@ export const DashboardChartsView: React.FC = () => {
               const pct = totalStudents > 0 ? Math.round((count / totalStudents) * 100) : 0;
               return (
                 <div key={areaName} className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold text-[var(--text)]">
+                  <div className="flex flex-wrap justify-between gap-1.5 text-xs font-bold text-[var(--text)]">
                     <span>{areaName}</span>
                     <span className="font-mono text-[var(--text-secondary)]">{count} ({pct}%)</span>
                   </div>
@@ -448,18 +448,18 @@ export const DashboardChartsView: React.FC = () => {
           className="word-in p-5 rounded-3xl glass shadow-xl space-y-4 border border-[var(--glass-border)]"
           style={{ '--i': 10 } as React.CSSProperties}
         >
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-[var(--accent)]" />
-              <h3 className="font-extrabold text-sm text-[var(--text)] m-0">وسائل الافتقاد المنفذة</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--glass-border)]">
+            <div className="flex items-center gap-2 min-w-0">
+              <TrendingUp className="w-4 h-4 text-[var(--accent)] shrink-0" />
+              <h3 className="font-extrabold text-sm text-[var(--text)] m-0 leading-snug">وسائل الافتقاد المنفذة</h3>
             </div>
-            <span className="text-xs text-[var(--text-muted)] font-mono">{followupRecords.length} عملية افتقاد</span>
+            <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">{followupRecords.length} عملية افتقاد</span>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             {Object.entries(followupMethodStats).map(([methodName, count]) => (
               <div key={methodName} className="p-3.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] text-center shadow-xs">
-                <span className="block text-xs font-semibold text-[var(--text-muted)] mb-1">{methodName}</span>
+                <span className="block text-xs font-semibold text-[var(--text-muted)] mb-1 leading-snug">{methodName}</span>
                 <strong className="text-xl font-mono text-[var(--accent)] tabular-nums">{count}</strong>
               </div>
             ))}

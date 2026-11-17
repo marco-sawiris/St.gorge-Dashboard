@@ -26,7 +26,10 @@ import {
   computeMonthlyFollowupSummary,
   getLatestHeldFridayString,
   formatTelHref,
-  formatWhatsAppUrl
+  formatWhatsAppUrl,
+  formatArabicWeekLabel,
+  formatArabicFridayLabel,
+  getLatestFollowupComment
 } from '../../utils/arabicUtils';
 
 interface StudentCardProps {
@@ -34,15 +37,20 @@ interface StudentCardProps {
   onOpenFollowup: (student: Student) => void;
   onOpenEdit: (student: Student) => void;
   initialFlipped?: boolean;
+  isFlipped?: boolean;
+  onToggleFlip?: (studentId: string) => void;
 }
 
 const StudentCardComponent: React.FC<StudentCardProps> = ({
   student,
   onOpenFollowup,
   onOpenEdit,
-  initialFlipped = false
+  initialFlipped = false,
+  isFlipped: controlledFlipped,
+  onToggleFlip
 }) => {
-  const [isFlipped, setIsFlipped] = useState(Boolean(initialFlipped));
+  const [internalFlipped, setInternalFlipped] = useState(Boolean(initialFlipped));
+  const isFlipped = typeof controlledFlipped === 'boolean' ? controlledFlipped : internalFlipped;
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
   const [activeTrackTab, setActiveTrackTab] = useState<'all' | 'att' | 'fu'>('all');
 
@@ -68,13 +76,21 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
   // Reset flip state if inline editing starts on this card.
   useEffect(() => {
     if (isThisCardEditing) {
-      setIsFlipped(false);
+      if (onToggleFlip && controlledFlipped) {
+        onToggleFlip(student.id);
+      } else {
+        setInternalFlipped(false);
+      }
     }
-  }, [isThisCardEditing]);
+  }, [isThisCardEditing, onToggleFlip, controlledFlipped, student.id]);
 
   const handleToggleFlip = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-    setIsFlipped((prev) => !prev);
+    if (onToggleFlip) {
+      onToggleFlip(student.id);
+    } else {
+      setInternalFlipped((prev) => !prev);
+    }
   };
 
   // Inline Card Edit Form State (keeps ALL cards visible in the grid)
@@ -245,6 +261,11 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
     [student, followupRecords, hasFollowupDataAvailable]
   );
 
+  const latestFollowupComment = useMemo(
+    () => getLatestFollowupComment(student, followupRecords),
+    [student, followupRecords]
+  );
+
   const handleAttendanceToggle = async (
     nextState: boolean,
     targetFridayDate: string = latestHeldFriday
@@ -391,15 +412,15 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-w-0 gap-2 text-xs">
-          <div className="col-span-1 min-[420px]:col-span-2">
+        <div className="grid grid-cols-2 min-w-0 gap-2 text-xs">
+          <div className="col-span-2">
             <label className="block text-[10.5px] font-bold text-[var(--text-secondary)] mb-0.5">الاسم *</label>
             <input
               type="text"
               required
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -410,7 +431,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               required
               value={editServant}
               onChange={(e) => setEditServant(e.target.value)}
-              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -420,7 +441,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               type="text"
               value={editCode}
               onChange={(e) => setEditCode(e.target.value)}
-              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs font-bold text-[#20C7E8] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs font-bold text-[#20C7E8] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -429,7 +450,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
             <select
               value={editSheet}
               onChange={(e) => setEditSheet(e.target.value)}
-              className="box-border w-full min-w-0 h-8 px-2 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             >
               {APPROVED_SHEETS.map((s) => (
                 <option key={s} value={s} className="bg-[var(--surface-primary)] text-[var(--text-primary)]">
@@ -445,7 +466,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               type="text"
               value={editArea}
               onChange={(e) => setEditArea(e.target.value)}
-              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -455,7 +476,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               type="tel"
               value={editPhoneStudent}
               onChange={(e) => setEditPhoneStudent(e.target.value)}
-              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -465,7 +486,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               type="tel"
               value={editPhoneParent1}
               onChange={(e) => setEditPhoneParent1(e.target.value)}
-              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -476,7 +497,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               value={editBirthDate}
               onChange={(e) => setEditBirthDate(e.target.value)}
               placeholder="YYYY-MM-DD"
-              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -486,11 +507,11 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               type="text"
               value={editAddress}
               onChange={(e) => setEditAddress(e.target.value)}
-              className="box-border w-full min-w-0 h-8 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
-          <div className="col-span-1 min-[420px]:col-span-2">
+          <div className="col-span-2">
             <label className="block text-[10.5px] font-bold text-[var(--text-secondary)] mb-0.5">ملاحظات</label>
             <textarea
               rows={2}
@@ -501,20 +522,20 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
           </div>
         </div>
 
-        <div className="border-t border-[var(--border-color)] pt-2.5 flex items-center justify-end gap-2">
+        <div className="border-t border-[var(--border-color)] pt-2.5 flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             onClick={handleInlineCancel}
-            className="glass-btn px-3.5 py-1.5 rounded-xl text-xs font-bold text-[var(--text-secondary)] cursor-pointer"
+            className="glass-btn min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-bold text-[var(--text-secondary)] cursor-pointer"
           >
             إلغاء
           </button>
           <button
             type="submit"
             disabled={isSavingEdit}
-            className="glass-btn--primary btn--lens px-4 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+            className="glass-btn--primary btn--lens min-h-[36px] px-4 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
           >
-            <Save className="w-3.5 h-3.5 text-white" />
+            <Save className="w-3.5 h-3.5 text-white shrink-0" />
             <span>{isSavingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}</span>
           </button>
         </div>
@@ -561,97 +582,102 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               </div>
             </div>
 
-            {/* Quick Attendance Selector (Single-Click Present / Absent, Zero Ambiguity + Real-Time Sync Indicator) */}
-            <div className="w-full p-2 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex flex-col gap-1.5 shadow-xs">
-              <div className="flex items-center justify-between gap-2 px-0.5">
-                <div className="flex items-center gap-1.5 min-w-0 pr-0.5 text-right">
-                  <Calendar className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-                  <span className="text-[11px] font-bold text-[var(--text-secondary)] truncate">
-                    الجمعة ({latestHeldFriday}):
-                  </span>
+            {/* Quick Attendance Selector: Side-by-side Date & Present/Absent + Sync Status directly underneath Date */}
+            <div className="w-full p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex flex-col gap-1.5 shadow-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col items-start min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0 text-right">
+                    <Calendar className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+                    <span className="text-[11px] font-bold text-[var(--text-secondary)] leading-snug truncate">
+                      الجمعة ({latestHeldFriday})
+                    </span>
+                  </div>
+
+                  {/* Sync Status Badge displayed directly below the date */}
+                  {isStudentInFlight ? (
+                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--accent)] bg-[var(--accent)]/15 px-2 py-0.5 rounded-full border border-[var(--accent)]/30 animate-pulse">
+                      <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                      <span>جاري المزامنة...</span>
+                    </span>
+                  ) : isStudentPending ? (
+                    <span
+                      className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40"
+                      title="العملية محفوظة محلياً وسيتم إرسالها تلقائياً للشيت فور توفر الإنترنت"
+                    >
+                      <CloudOff className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span>محفوظ محلياً (معلق)</span>
+                    </span>
+                  ) : isStudentSynced ? (
+                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/40">
+                      <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <span>تمت المزامنة</span>
+                    </span>
+                  ) : null}
                 </div>
 
-                {/* Real-time Automatic Sync Badge */}
-                {isStudentInFlight ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--accent)] bg-[var(--accent)]/15 px-2 py-0.5 rounded-full border border-[var(--accent)]/30 animate-pulse">
-                    <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-                    <span>مزامنة للشيت...</span>
-                  </span>
-                ) : isStudentSynced ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/40">
-                    <Check className="w-3 h-3 text-emerald-400 shrink-0" />
-                    <span>تم الحفظ في الشيت ✓</span>
-                  </span>
-                ) : isStudentPending ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40" title="العملية محفوظة محلياً وسيتم إرسالها تلقائياً للشيت فور توفر الإنترنت">
-                    <CloudOff className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span>محفوظ محلياً (معلق)</span>
-                  </span>
-                ) : null}
-              </div>
+                <div className="flex items-center gap-1.5 shrink-0" role="group" aria-label={`تسجيل حضور وغياب ${student.name}`}>
+                  {/* Present Button (حاضر) */}
+                  <button
+                    type="button"
+                    disabled={isAttendanceLoading || isStudentInFlight}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isPresentToday || isAttendanceLoading) return;
+                      if (isStudentInFlight) return;
+                      void handleAttendanceToggle(true, latestHeldFriday);
+                    }}
+                    aria-pressed={isPresentToday}
+                    className={`min-h-[38px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
+                      isPresentToday
+                        ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.35)] font-black'
+                        : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-emerald-300 hover:border-emerald-500/40'
+                    }`}
+                    title={isPresentToday ? 'حاضر مسجل' : 'تسجيل حضور المخدوم'}
+                  >
+                    {isStudentInFlight && isPresentToday ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-300 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isPresentToday ? 'text-emerald-300' : 'opacity-60'}`} />
+                    )}
+                    <span>حاضر</span>
+                  </button>
 
-              <div className="flex items-center justify-end gap-1.5 shrink-0" role="group" aria-label={`تسجيل حضور وغياب ${student.name}`}>
-                {/* Present Button (حاضر) */}
-                <button
-                  type="button"
-                  disabled={isAttendanceLoading || isStudentInFlight}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isPresentToday || isAttendanceLoading) return;
-                    if (isStudentInFlight) return;
-                    void handleAttendanceToggle(true, latestHeldFriday);
-                  }}
-                  aria-pressed={isPresentToday}
-                  className={`px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
-                    isPresentToday
-                      ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.35)] font-black'
-                      : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-emerald-300 hover:border-emerald-500/40'
-                  }`}
-                  title={isPresentToday ? 'حاضر مسجل' : 'تسجيل حضور المخدوم'}
-                >
-                  {isStudentInFlight && isPresentToday ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-300" />
-                  ) : (
-                    <CheckCircle2 className={`w-3.5 h-3.5 ${isPresentToday ? 'text-emerald-300' : 'opacity-60'}`} />
-                  )}
-                  <span>حاضر</span>
-                </button>
-
-                {/* Absent Button (غائب) */}
-                <button
-                  type="button"
-                  disabled={isAttendanceLoading || isStudentInFlight}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isAbsentToday || isAttendanceLoading) return;
-                    if (isStudentInFlight) return;
-                    void handleAttendanceToggle(false, latestHeldFriday);
-                  }}
-                  aria-pressed={isAbsentToday}
-                  className={`px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
-                    isAbsentToday
-                      ? 'bg-rose-500/25 border border-rose-400 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.35)] font-black'
-                      : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-rose-300 hover:border-rose-500/40'
-                  }`}
-                  title={isAbsentToday ? 'غائب مسجل' : 'تسجيل غياب المخدوم'}
-                >
-                  {isStudentInFlight && isAbsentToday ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-300" />
-                  ) : (
-                    <XCircle className={`w-3.5 h-3.5 ${isAbsentToday ? 'text-rose-300' : 'opacity-60'}`} />
-                  )}
-                  <span>غائب</span>
-                </button>
+                  {/* Absent Button (غائب) */}
+                  <button
+                    type="button"
+                    disabled={isAttendanceLoading || isStudentInFlight}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isAbsentToday || isAttendanceLoading) return;
+                      if (isStudentInFlight) return;
+                      void handleAttendanceToggle(false, latestHeldFriday);
+                    }}
+                    aria-pressed={isAbsentToday}
+                    className={`min-h-[38px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
+                      isAbsentToday
+                        ? 'bg-rose-500/25 border border-rose-400 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.35)] font-black'
+                        : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-rose-300 hover:border-rose-500/40'
+                    }`}
+                    title={isAbsentToday ? 'غائب مسجل' : 'تسجيل غياب المخدوم'}
+                  >
+                    {isStudentInFlight && isAbsentToday ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-300 shrink-0" />
+                    ) : (
+                      <XCircle className={`w-3.5 h-3.5 shrink-0 ${isAbsentToday ? 'text-rose-300' : 'opacity-60'}`} />
+                    )}
+                    <span>غائب</span>
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Compact Metrics Row */}
             <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex items-center justify-between">
+              <div className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex flex-wrap items-center justify-between gap-1 min-w-0">
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold">إجمالي الحضور</span>
                 <strong className="text-sm font-mono text-[var(--accent)] tabular-nums">{student.attendanceTotal}</strong>
               </div>
-              <div className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex items-center justify-between">
+              <div className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex flex-wrap items-center justify-between gap-1 min-w-0">
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold">حضور الشهر</span>
                 <strong className="text-sm font-mono text-[var(--primary)] tabular-nums">
                   {`${monthlySummary.presentCount}/${monthlySummary.heldCount}`}
@@ -661,8 +687,8 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
 
             {/* Monthly Attendance (Dynamic 4 or 5 Cairo Fridays: Green/Red/Neutral) & Followup Panel */}
             <div className="card-dual-tracks flex flex-col gap-2 p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)]">
-              <div className="flex items-center justify-between gap-1 pb-1 border-b border-[var(--glass-border)]/60">
-                <div className="flex items-center gap-1" role="tablist" aria-label={`تبويبات سجل ${student.name}`}>
+              <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1 border-b border-[var(--glass-border)]/60">
+                <div className="flex flex-wrap items-center gap-1 min-w-0" role="tablist" aria-label={`تبويبات سجل ${student.name}`}>
                   {[
                     { id: 'all' as const, label: 'الكل' },
                     { id: 'att' as const, label: `${monthlySummary.totalFridaysInMonth} جمع` },
@@ -699,12 +725,12 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                 </span>
               </div>
 
-              {/* Track 1: Monthly Attendance (All Fridays of Current Cairo Month — Green=Present, Red=Absent, Neutral=Unrecorded/Future) */}
+              {/* Track 1: Monthly Attendance (All Fridays of Current Cairo Month — Full Arabic labels) */}
               {(activeTrackTab === 'all' || activeTrackTab === 'att') && (
-                <div className="flex flex-col gap-1.5 word-in" style={{ '--i': 0 } as React.CSSProperties}>
-                  <div className="flex items-center justify-between text-[11px]">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
                     <span className="font-bold text-[var(--text-secondary)] flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-[var(--accent)]" />
+                      <Calendar className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
                       <span>الحضور الشهري</span>
                     </span>
                     <span className="font-mono font-extrabold text-[var(--accent)] tabular-nums">
@@ -713,9 +739,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                   </div>
 
                   <div
-                    className={`grid ${
-                      monthlySummary.totalFridaysInMonth === 5 ? 'grid-cols-5 gap-1' : 'grid-cols-4 gap-1.5'
-                    }`}
+                    className="grid grid-cols-2 gap-1.5"
                     aria-label={`الحضور الشهري ${monthlySummary.presentCount} من ${monthlySummary.heldCount}`}
                   >
                     {monthlySummary.fridays.map((friday) => {
@@ -742,6 +766,8 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                               ? 'جمعة مستقبلية لم تنعقد بعد'
                               : 'لم يُسجل بعد (محايد)';
 
+                      const fridayLabel = formatArabicFridayLabel(friday.fridayNumber);
+
                       return (
                         <button
                           key={friday.date}
@@ -753,23 +779,25 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                             const nextVal = friday.status !== 'present';
                             void handleAttendanceToggle(nextVal, friday.date);
                           }}
-                          title={`ج${friday.fridayNumber} (${friday.date}) — ${stateTitle}`}
-                          aria-label={`الجمعة ${friday.fridayNumber} بتاريخ ${friday.shortLabel}: ${stateTitle}`}
-                          className={`rounded-lg py-1 px-0.5 text-center border transition-all ${stateStyle} ${
+                          title={`${fridayLabel} (${friday.date}) — ${stateTitle}`}
+                          aria-label={`${fridayLabel} بتاريخ ${friday.shortLabel}: ${stateTitle}`}
+                          className={`rounded-xl min-h-[40px] py-1.5 px-2 text-right border transition-all flex items-center justify-between gap-1.5 min-w-0 ${stateStyle} ${
                             friday.isFuture
                               ? 'cursor-default opacity-65'
                               : 'cursor-pointer hover:brightness-110 active:scale-95'
                           }`}
                         >
-                          <div className="text-[8.5px] font-bold opacity-85 leading-none">
-                            {`ج${friday.fridayNumber}`}
+                          <div className="min-w-0 flex flex-col">
+                            <span className="text-[10.5px] font-bold leading-snug break-words">
+                              {fridayLabel}
+                            </span>
+                            <span className="text-[9.5px] font-mono font-bold opacity-85 leading-tight tabular-nums">
+                              {friday.shortLabel}
+                            </span>
                           </div>
-                          <div className="text-[9.5px] font-mono font-extrabold leading-tight mt-0.5">
-                            {friday.shortLabel}
-                          </div>
-                          <div className="text-[9px] font-extrabold leading-none mt-0.5">
+                          <span className="text-xs font-extrabold leading-none shrink-0">
                             {stateSymbol}
-                          </div>
+                          </span>
                         </button>
                       );
                     })}
@@ -777,15 +805,12 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                 </div>
               )}
 
-              {/* Track 2: Weekly Followup Indicators (4 or 5 Horizontal Bars matching Cairo Month) + Details */}
+              {/* Track 2: Weekly Followup Indicators (Full Arabic Week Names, Friday 23:59 Cairo cutoff) + Details */}
               {(activeTrackTab === 'all' || activeTrackTab === 'fu') && (
-                <div
-                  className="flex flex-col gap-1.5 pt-1.5 border-t border-[var(--glass-border)]/45 word-in"
-                  style={{ '--i': 1 } as React.CSSProperties}
-                >
-                  <div className="flex items-center justify-between gap-1.5 text-[11px]">
+                <div className="flex flex-col gap-1.5 pt-1.5 border-t border-[var(--glass-border)]/45">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
                     <span className="font-bold text-[var(--text-secondary)] flex items-center gap-1 shrink-0">
-                      <HeartHandshake className="w-3 h-3 text-[var(--primary)]" />
+                      <HeartHandshake className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
                       <span>{`الافتقاد (${studentFollowupCount})`}</span>
                     </span>
                     <button
@@ -794,7 +819,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                         e.stopPropagation();
                         onOpenFollowup(student);
                       }}
-                      className={`text-[10.5px] font-extrabold px-2 py-0.5 rounded-md transition-colors cursor-pointer truncate ${
+                      className={`text-[10.5px] font-extrabold px-2 py-0.5 rounded-md transition-colors cursor-pointer max-w-full break-words ${
                         hasFollowup
                           ? 'text-[var(--accent)] bg-[var(--accent)]/12 hover:bg-[var(--accent)]/22'
                           : 'text-rose-400 bg-rose-500/12 hover:bg-rose-500/22'
@@ -805,11 +830,9 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                     </button>
                   </div>
 
-                  {/* Weekly Followup Horizontal Bars Strip (4 or 5 Cairo Weeks, Friday 23:59 Cairo cutoff) */}
+                  {/* Weekly Followup Bars Grid (Full Arabic Labels) */}
                   <div
-                    className={`grid ${
-                      monthlyFollowupSummary.totalWeeksInMonth === 5 ? 'grid-cols-5 gap-1' : 'grid-cols-4 gap-1.5'
-                    }`}
+                    className="grid grid-cols-2 gap-1.5"
                     aria-label={`متابعة الافتقاد الأسبوعية (${monthlyFollowupSummary.doneCount} من ${monthlyFollowupSummary.totalWeeksInMonth})`}
                   >
                     {monthlyFollowupSummary.weeks.map((week) => {
@@ -835,6 +858,8 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                                 ? 'لا توجد بيانات كافية لهذا الأسبوع'
                                 : 'أسبوع قادم لم يبدأ بعد';
 
+                      const weekLabel = formatArabicWeekLabel(week.weekNumber);
+
                       return (
                         <button
                           key={week.fridayDate}
@@ -843,14 +868,15 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                             e.stopPropagation();
                             onOpenFollowup(student);
                           }}
-                          title={`أسبوع ${week.weekNumber} (${week.shortLabel}) — ${statusDesc}`}
-                          aria-label={`افتقاد أسبوع ${week.weekNumber} (${week.shortLabel}): ${statusDesc}`}
-                          className={`followup-week-bar ${barClass} cursor-pointer`}
+                          title={`${weekLabel} (${week.shortLabel}) — ${statusDesc}`}
+                          aria-label={`${weekLabel} (${week.shortLabel}): ${statusDesc}`}
+                          className={`followup-week-bar ${barClass} cursor-pointer min-h-[40px] px-2 py-1.5 min-w-0`}
                         >
                           <span className="followup-week-line" aria-hidden="true" />
-                          <span className="text-[8.5px] font-mono font-extrabold leading-none">
-                            {`أ${week.weekNumber}`}
-                          </span>
+                          <div className="w-full flex flex-wrap items-center justify-between gap-1 text-[10px] font-bold leading-snug">
+                            <span className="break-words text-right">{weekLabel}</span>
+                            <span className="font-mono text-[9.5px] opacity-85 tabular-nums shrink-0">{week.shortLabel}</span>
+                          </div>
                         </button>
                       );
                     })}
@@ -861,7 +887,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                     <span className="px-2 py-0.5 rounded-md bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-secondary)] font-bold">
                       عدد المرات: <strong className="font-mono text-[var(--accent)]">{studentFollowupCount}</strong>
                     </span>
-                    <span className="px-2 py-0.5 rounded-md bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-secondary)] font-bold truncate max-w-[60%]">
+                    <span className="px-2 py-0.5 rounded-md bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-secondary)] font-bold max-w-full min-w-0 break-words">
                       الوسيلة:{' '}
                       <strong className={latestFollowupMethod ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}>
                         {latestFollowupMethod || 'لم تُسجل'}
@@ -888,6 +914,21 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               )}
             </div>
 
+            {/* Latest Followup Comment Section ("آخر تعليق افتقاد") */}
+            <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1">
+              <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                <span className="font-extrabold text-[var(--accent)]">آخر تعليق افتقاد</span>
+                {latestFollowupComment?.date && (
+                  <span className="font-mono text-[10px] text-[var(--text-muted)] tabular-nums">
+                    {latestFollowupComment.date}
+                  </span>
+                )}
+              </div>
+              <p className="m-0 text-[11px] font-semibold text-[var(--text-primary)] leading-relaxed line-clamp-2 break-words">
+                {latestFollowupComment?.comment || 'لا يوجد تعليق افتقاد حتى الآن'}
+              </p>
+            </div>
+
             {/* Area & Address preview */}
             <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] line-clamp-1">
               <MapPin className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
@@ -895,9 +936,9 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
             </div>
           </div>
 
-          {/* Front Footer: Quick Actions + 3D Flip (Always visible, never clipped) */}
+          {/* Front Footer: Quick Actions + 3D Flip */}
           <div className="border-t border-[var(--glass-border)] pt-2.5 flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5 min-w-0">
               {(() => {
                 const telHref = formatTelHref(student.phoneStudent);
                 const waHref = formatWhatsAppUrl(student.phoneStudent || student.phoneParent1);
@@ -907,10 +948,10 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                       <a
                         href={telHref}
                         onClick={(e) => e.stopPropagation()}
-                        className="glass-btn p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all"
+                        className="glass-btn min-w-[36px] min-h-[36px] p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all flex items-center justify-center shrink-0"
                         title="اتصال بالطالب"
                       >
-                        <Phone className="w-3.5 h-3.5" />
+                        <Phone className="w-3.5 h-3.5 shrink-0" />
                       </a>
                     )}
                     {waHref && (
@@ -919,10 +960,10 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                         target="_blank"
                         rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="glass-btn p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all"
+                        className="glass-btn min-w-[36px] min-h-[36px] p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all flex items-center justify-center shrink-0"
                         title="محادثة واتساب"
                       >
-                        <MessageSquare className="w-3.5 h-3.5" />
+                        <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                       </a>
                     )}
                   </>
@@ -934,14 +975,14 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                   e.stopPropagation();
                   onOpenFollowup(student);
                 }}
-                className="glass-btn px-2.5 py-1.5 rounded-xl text-xs font-bold text-[var(--accent)] flex items-center gap-1 cursor-pointer"
+                className="glass-btn min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold text-[var(--accent)] flex items-center gap-1.5 cursor-pointer shrink-0"
               >
-                <HeartHandshake className="w-3.5 h-3.5" />
+                <HeartHandshake className="w-3.5 h-3.5 shrink-0" />
                 <span>افتقاد</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 aria-disabled={isAnotherCardEditing}
@@ -949,13 +990,13 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                   e.stopPropagation();
                   onOpenEdit(student);
                 }}
-                className={`glass-btn p-2 rounded-xl text-[var(--text)] cursor-pointer ${
+                className={`glass-btn min-w-[36px] min-h-[36px] p-2 rounded-xl text-[var(--text)] cursor-pointer flex items-center justify-center shrink-0 ${
                   isAnotherCardEditing ? 'opacity-50' : ''
                 }`}
                 title={isAnotherCardEditing ? 'يوجد كارت آخر قيد التعديل حالياً' : 'تعديل مباشر'}
                 aria-label={`تعديل ${student.name}`}
               >
-                <Edit3 className="w-3.5 h-3.5" />
+                <Edit3 className="w-3.5 h-3.5 shrink-0" />
               </button>
 
               <button
@@ -963,11 +1004,11 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                 onClick={handleToggleFlip}
                 aria-expanded={isFlipped}
                 aria-controls={`student-card-back-${student.id}`}
-                className="glass-btn--primary btn--lens px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"
+                className="glass-btn--primary btn--lens min-h-[36px] px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                 title={isFlipped ? 'العودة للتفاصيل الأساسية' : 'عرض تفاصيل المخدوم'}
                 aria-label={`${isFlipped ? 'إخفاء' : 'عرض'} تفاصيل ${student.name}`}
               >
-                <RotateCw className={`w-3 h-3 transition-transform duration-300 ${isFlipped ? 'rotate-180' : ''}`} />
+                <RotateCw className={`w-3.5 h-3.5 shrink-0 transition-transform duration-300 ${isFlipped ? 'rotate-180' : ''}`} />
                 <span>تفاصيل أكثر</span>
               </button>
             </div>
@@ -1011,12 +1052,12 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
           </div>
 
           {/* Back Body (Contained scroll inside card bounds if content is long — zero page scroll) */}
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2.5 text-xs pl-0.5">
+          <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2.5 text-xs pl-0.5 ${isFlipped ? 'word-in' : ''}`}>
             {/* Phones List */}
             <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[var(--text-muted)]">موبايل الطالب:</span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <strong className="font-mono text-[var(--text)] selectable-text">
                     {student.phoneStudent || 'غير مسجل'}
                   </strong>
@@ -1024,17 +1065,17 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                     <a
                       href={formatTelHref(student.phoneStudent)!}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-[var(--accent)] hover:underline"
+                      className="text-[var(--accent)] hover:underline inline-flex items-center"
                       aria-label={`اتصال بموبايل ${student.name}`}
                     >
-                      <Phone className="w-3 h-3 inline" />
+                      <Phone className="w-3.5 h-3.5 shrink-0" />
                     </a>
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[var(--text-muted)]">ولي الأمر (1):</span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <strong className="font-mono text-[var(--text)] selectable-text">
                     {student.phoneParent1 || 'غير مسجل'}
                   </strong>
@@ -1042,16 +1083,16 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                     <a
                       href={formatTelHref(student.phoneParent1)!}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-[var(--accent)] hover:underline"
+                      className="text-[var(--accent)] hover:underline inline-flex items-center"
                       aria-label={`اتصال بولي أمر ${student.name}`}
                     >
-                      <Phone className="w-3 h-3 inline" />
+                      <Phone className="w-3.5 h-3.5 shrink-0" />
                     </a>
                   )}
                 </div>
               </div>
               {student.phoneParent2 && (
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[var(--text-muted)]">ولي الأمر (2):</span>
                   <strong className="font-mono text-[var(--text)] selectable-text">{student.phoneParent2}</strong>
                 </div>
@@ -1090,7 +1131,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               <span className="text-[var(--text-secondary)] font-bold">
                 مرات الافتقاد: <strong className="font-mono text-[var(--accent)]">{studentFollowupCount}</strong>
               </span>
-              <span className="text-[var(--text-secondary)] font-bold truncate max-w-[60%]">
+              <span className="text-[var(--text-secondary)] font-bold max-w-full min-w-0 break-words">
                 الوسيلة:{' '}
                 <strong className={latestFollowupMethod ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}>
                   {latestFollowupMethod || 'لم تُسجل'}
@@ -1132,9 +1173,9 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                   e.stopPropagation();
                   onOpenFollowup(student);
                 }}
-                className="glass-btn px-2.5 py-1.5 rounded-xl text-xs font-bold text-[var(--accent)] flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
+                className="glass-btn min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold text-[var(--accent)] flex items-center gap-1.5 cursor-pointer shrink-0"
               >
-                <HeartHandshake className="w-3.5 h-3.5" />
+                <HeartHandshake className="w-3.5 h-3.5 shrink-0" />
                 <span>تسجيل افتقاد</span>
               </button>
 
@@ -1145,12 +1186,12 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                   e.stopPropagation();
                   onOpenEdit(student);
                 }}
-                className={`glass-btn px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`glass-btn min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 ${
                   isAnotherCardEditing ? 'opacity-50' : ''
                 }`}
                 title={isAnotherCardEditing ? 'يوجد كارت آخر قيد التعديل حالياً' : 'تعديل بيانات المخدوم'}
               >
-                <Edit3 className="w-3.5 h-3.5" />
+                <Edit3 className="w-3.5 h-3.5 shrink-0" />
                 <span>{isThisCardEditing ? 'جاري التعديل' : 'تعديل البيانات'}</span>
               </button>
             </div>
@@ -1160,9 +1201,9 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               onClick={handleToggleFlip}
               aria-label={`العودة للتفاصيل الأساسية لـ ${student.name}`}
               title="العودة للتفاصيل الأساسية"
-              className="glass-btn--primary btn--lens px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+              className="glass-btn--primary btn--lens min-h-[36px] px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
             >
-              <RotateCw className="w-3.5 h-3.5" />
+              <RotateCw className="w-3.5 h-3.5 shrink-0" />
               <span>رجوع</span>
             </button>
           </div>

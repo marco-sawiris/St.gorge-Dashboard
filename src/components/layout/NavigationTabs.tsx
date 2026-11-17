@@ -32,7 +32,7 @@ export const NavigationTabs: React.FC = () => {
     <nav
       role="tablist"
       aria-label="التنقل الرئيسي بين أقسام التطبيق"
-      className="clay-selection-bar word-in-scope relative grid grid-cols-4 min-w-0 gap-1 p-1.5 mb-5 select-none backdrop-blur-xl"
+      className="clay-selection-bar word-in-scope relative grid grid-cols-4 min-w-0 gap-1 sm:gap-1.5 p-1.5 mb-5 select-none backdrop-blur-xl"
     >
       {tabs.map((tab, idx) => {
         const IconComponent = tab.icon;
@@ -48,7 +48,7 @@ export const NavigationTabs: React.FC = () => {
             onClick={() => setActiveView(tab.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
             style={{ '--i': idx } as React.CSSProperties}
-            className={`word-in relative flex min-w-0 flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl text-[10px] sm:text-sm font-extrabold cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#20C7E8] ${
+            className={`word-in relative flex min-w-0 flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1.5 sm:px-3 rounded-xl text-[11px] sm:text-xs md:text-sm font-extrabold whitespace-nowrap cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#20C7E8] ${
               isActive
                 ? 'text-white'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
@@ -61,7 +61,7 @@ export const NavigationTabs: React.FC = () => {
                 aria-hidden="true"
                 className="clay-active-pill glass-btn--active absolute inset-0 rounded-xl pointer-events-none"
               >
-                <span className="absolute bottom-1 left-4 right-4 h-[2.5px] rounded-full bg-gradient-to-r from-[#20C7E8] via-white/90 to-[#267AFF] shadow-[0_0_10px_rgba(32,199,232,0.85)]" />
+                <span className="absolute bottom-1 left-3 sm:left-4 right-3 sm:right-4 h-[2.5px] rounded-full bg-gradient-to-r from-[#20C7E8] via-white/90 to-[#267AFF] shadow-[0_0_10px_rgba(32,199,232,0.85)]" />
               </motion.span>
             )}
 
@@ -69,13 +69,13 @@ export const NavigationTabs: React.FC = () => {
               aria-hidden="true"
               animate={isActive ? { scale: 1.12, rotate: -4 } : { scale: 1, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 380, damping: 24 }}
-              className="relative z-10 inline-flex items-center justify-center"
+              className="relative z-10 inline-flex items-center justify-center shrink-0"
             >
-              <IconComponent className={`w-4 h-4 ${isActive ? 'text-[#20C7E8] drop-shadow-[0_0_8px_rgba(32,199,232,0.65)]' : ''}`} />
+              <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-white drop-shadow-[0_0_8px_rgba(32,199,232,0.75)]' : ''}`} />
             </motion.span>
 
-            <span className="relative z-10 hidden sm:inline whitespace-nowrap">{tab.label}</span>
-            <span className="relative z-10 sm:hidden whitespace-nowrap text-[10px]">{tab.shortLabel}</span>
+            <span className="relative z-10 hidden sm:inline truncate">{tab.label}</span>
+            <span className="relative z-10 sm:hidden truncate">{tab.shortLabel}</span>
           </motion.button>
         );
       })}

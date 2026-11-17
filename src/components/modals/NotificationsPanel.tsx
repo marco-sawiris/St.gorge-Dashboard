@@ -28,7 +28,8 @@ import {
   Sparkles,
   RotateCcw,
   ShieldAlert,
-  CalendarClock
+  CalendarClock,
+  Trash2
 } from 'lucide-react';
 
 export const NotificationsPanel: React.FC = () => {
@@ -40,6 +41,7 @@ export const NotificationsPanel: React.FC = () => {
     notifications,
     markNotificationRead,
     markAllNotificationsRead,
+    clearReadNotifications,
     addNotification
   } = useApp();
 
@@ -60,6 +62,7 @@ export const NotificationsPanel: React.FC = () => {
   if (!isNotificationsOpen) return null;
 
   const unreadCount = notifications.filter((n) => n.unread).length;
+  const readCount = notifications.filter((n) => !n.unread).length;
   const activeCount = settings.masterEnabled
     ? DEFAULT_WEEKLY_REMINDERS.filter((r) => settings.enabledRules[r.key] !== false).length
     : 0;
@@ -211,24 +214,24 @@ export const NotificationsPanel: React.FC = () => {
       {/* Panel Container */}
       <div className="fixed top-20 left-3 right-3 sm:right-auto sm:left-6 sm:w-[440px] max-h-[82vh] z-50 glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] flex flex-col overflow-hidden animate-wordIn select-none">
         {/* Header */}
-        <div className="flex flex-col gap-3 p-4 border-b border-[var(--border-color)] bg-[var(--surface-primary)]/40">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex flex-col gap-3 p-4 border-b border-[var(--border-color)] bg-[var(--surface-primary)]/40 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-8 h-8 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs shrink-0">
-                {activeTab === 'settings' ? <BellRing className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                {activeTab === 'settings' ? <BellRing className="w-4 h-4 shrink-0" /> : <Bell className="w-4 h-4 shrink-0" />}
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-sm sm:text-base text-[var(--text-primary)] m-0 truncate">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h3 className="font-extrabold text-sm sm:text-base text-[var(--text-primary)] m-0 leading-snug">
                     {activeTab === 'settings' ? 'إعدادات التذكير الأسبوعي' : 'التنبيهات'}
                   </h3>
                   {unreadCount > 0 && activeTab === 'feed' && (
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent-secondary)]/15 text-[var(--accent-secondary)] border border-[var(--accent-secondary)]/30">
-                      {unreadCount} جديد
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent-secondary)]/15 text-[var(--accent-secondary)] border border-[var(--accent-secondary)]/30 shrink-0">
+                      {unreadCount} غير مقروء
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-[var(--text-muted)] m-0 truncate">
+                <p className="text-[11px] text-[var(--text-muted)] m-0 break-words leading-snug">
                   {activeTab === 'settings'
                     ? 'بتوقيت القاهرة (Africa/Cairo) • تلقائي'
                     : 'إشعارات المزامنة، التحديثات، وأحداث الخدمة'}
@@ -236,15 +239,15 @@ export const NotificationsPanel: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               {activeTab === 'feed' && unreadCount > 0 && (
                 <button
                   type="button"
                   onClick={markAllNotificationsRead}
-                  className="text-xs font-bold text-[var(--accent-secondary)] hover:text-[var(--primary)] flex items-center gap-1 cursor-pointer transition-colors px-2 py-1 rounded-lg hover:bg-[var(--surface-primary)]"
+                  className="min-h-[36px] text-xs font-bold text-[var(--accent-secondary)] hover:text-[var(--primary)] flex items-center gap-1 cursor-pointer transition-colors px-2 py-1 rounded-lg hover:bg-[var(--surface-primary)]"
                   title="تحديد كل التنبيهات كمقروءة"
                 >
-                  <CheckCheck className="w-3.5 h-3.5" />
+                  <CheckCheck className="w-3.5 h-3.5 shrink-0" />
                   <span className="hidden sm:inline">قراءة الكل</span>
                 </button>
               )}
@@ -252,10 +255,10 @@ export const NotificationsPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsNotificationsOpen(false)}
-                className="glass-btn w-8 h-8 rounded-xl text-[var(--text-muted)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer"
+                className="glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl text-[var(--text-muted)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer shrink-0"
                 aria-label="إغلاق التنبيهات"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 shrink-0" />
               </button>
             </div>
           </div>
@@ -279,7 +282,7 @@ export const NotificationsPanel: React.FC = () => {
                   role="tab"
                   aria-selected={isTabActive}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative py-1.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                  className={`relative min-h-[40px] h-auto py-1.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 text-center leading-snug transition-colors cursor-pointer ${
                     isTabActive
                       ? 'text-white'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -293,12 +296,35 @@ export const NotificationsPanel: React.FC = () => {
                       className="glass-btn--primary absolute inset-0 rounded-xl pointer-events-none"
                     />
                   )}
-                  <Icon className="relative z-10 w-3.5 h-3.5" />
-                  <span className="relative z-10">{tab.label}</span>
+                  <Icon className="relative z-10 w-3.5 h-3.5 shrink-0" />
+                  <span className="relative z-10 min-w-0 break-words">{tab.label}</span>
                 </button>
               );
             })}
           </div>
+
+          {/* Feed Cleanup Bar (Deletes ONLY read notifications, keeps all unread) */}
+          {activeTab === 'feed' && notifications.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5 text-[11px]">
+              <span className="text-[var(--text-muted)] font-semibold tabular-nums">
+                الإجمالي: <strong className="text-[var(--text-primary)]">{notifications.length}</strong> · غير مقروء:{' '}
+                <strong className="text-[var(--accent-secondary)]">{unreadCount}</strong> · مقروء:{' '}
+                <strong className="text-[var(--text-secondary)]">{readCount}</strong>
+              </span>
+
+              {readCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearReadNotifications}
+                  className="glass-btn min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] font-bold text-rose-500 dark:text-rose-400 border-rose-500/35 hover:bg-rose-500/12 inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                  title="حذف الإشعارات المقروءة فقط والاحتفاظ بغير المقروءة"
+                >
+                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>مسح الإشعارات المقروءة</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Body Content */}
@@ -311,7 +337,7 @@ export const NotificationsPanel: React.FC = () => {
                 </div>
                 <p className="text-sm font-bold text-[var(--text-primary)] m-0">لا توجد تنبيهات حالياً</p>
                 <p className="text-xs text-[var(--text-muted)] m-0">
-                  ستظهر هنا رسائل نجاح المزامنة، تنبيهات الأوفلاين، وتحديثات الطلاب.
+                  ستظهر هنا رسائل نجاح المزامنة، تنبيهات العمل المحلي، وتحديثات المخدومين.
                 </p>
               </div>
             ) : (
@@ -348,8 +374,8 @@ export const NotificationsPanel: React.FC = () => {
                     onClick={() => notif.unread && markNotificationRead(notif.id)}
                     className={`word-in p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer text-right flex items-start gap-3 ${
                       notif.unread
-                        ? 'bg-[var(--surface-primary)] border-[var(--accent-secondary)]/35 shadow-[0_2px_12px_rgba(32,199,232,0.1)]'
-                        : 'bg-[var(--surface-primary)]/50 border-[var(--border-color)] opacity-85 hover:opacity-100 hover:bg-[var(--surface-primary)]'
+                        ? 'bg-[var(--surface-primary)] border-[var(--accent-secondary)]/55 shadow-[0_2px_12px_rgba(32,199,232,0.14)]'
+                        : 'bg-[var(--surface-inset)]/75 border-[var(--border-color)] opacity-85 hover:opacity-100 hover:bg-[var(--surface-primary)]'
                     } ${typeConfig.border}`}
                   >
                     <div
@@ -358,9 +384,13 @@ export const NotificationsPanel: React.FC = () => {
                       <TypeIcon className="w-4 h-4" />
                     </div>
 
-                    <div className="flex-1 space-y-1 min-w-0">
+                    <div className="flex-1 space-y-1.5 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <h4 className="font-bold text-xs sm:text-sm text-[var(--text-primary)] m-0 truncate">
+                        <h4
+                          className={`text-xs sm:text-sm text-[var(--text-primary)] m-0 truncate ${
+                            notif.unread ? 'font-extrabold' : 'font-semibold'
+                          }`}
+                        >
                           {notif.title}
                         </h4>
                         <span className="text-[10px] text-[var(--text-muted)] font-mono shrink-0">
@@ -377,10 +407,10 @@ export const NotificationsPanel: React.FC = () => {
                         </p>
                       )}
 
-                      {notif.unread && (
-                        <div className="pt-1.5 flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--accent-secondary)]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-secondary)] animate-pulse" />
+                      {notif.unread ? (
+                        <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[var(--accent-secondary)]/15 text-[var(--accent-secondary)] border border-[var(--accent-secondary)]/35 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-secondary)] animate-pulse shrink-0" />
                             <span>غير مقروء</span>
                           </span>
 
@@ -390,12 +420,19 @@ export const NotificationsPanel: React.FC = () => {
                               e.stopPropagation();
                               markNotificationRead(notif.id);
                             }}
-                            className="text-[11px] font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center gap-1 cursor-pointer transition-colors"
+                            className="min-h-[32px] px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[var(--surface-inset)] text-[var(--accent-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)] flex items-center gap-1 cursor-pointer transition-colors shrink-0"
                             title="تحديد كمقروء"
                           >
-                            <Check className="w-3 h-3 text-[var(--accent-secondary)]" />
+                            <Check className="w-3 h-3 shrink-0" />
                             <span>تمييز كمقروء</span>
                           </button>
+                        </div>
+                      ) : (
+                        <div className="pt-1 flex items-center justify-start">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/12 text-[var(--text-muted)] border border-[var(--border-color)]">
+                            <CheckCheck className="w-3 h-3 shrink-0" />
+                            <span>مقروء</span>
+                          </span>
                         </div>
                       )}
                     </div>
@@ -407,12 +444,12 @@ export const NotificationsPanel: React.FC = () => {
         ) : (
           <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
             {/* Master Switch Card */}
-            <div className="p-3 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[var(--text-primary)] m-0">
+            <div className="p-3 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[var(--text-primary)] m-0 leading-snug">
                   تفعيل التذكيرات الأسبوعية
                 </h4>
-                <p className="text-[11px] text-[var(--text-muted)] m-0 mt-0.5">
+                <p className="text-[11px] text-[var(--text-muted)] m-0 mt-0.5 break-words leading-snug">
                   جدولة تلقائية بتوقيت القاهرة بدون تكرار عند إعادة التشغيل
                 </p>
               </div>
@@ -437,10 +474,10 @@ export const NotificationsPanel: React.FC = () => {
             </div>
 
             {/* Android / Browser Notification Permission Banner */}
-            <div className="p-2.5 rounded-2xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]/80 flex items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="p-2.5 rounded-2xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)]/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <BellRing className="w-4 h-4 text-[var(--accent-secondary)] shrink-0" />
-                <span className="font-bold text-[var(--text-secondary)] truncate">
+                <span className="font-bold text-[var(--text-secondary)] break-words">
                   حالة إذن الإشعارات:{' '}
                   <strong
                     className={
@@ -465,7 +502,7 @@ export const NotificationsPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleRequestPermission}
-                  className="glass-btn--primary px-2.5 py-1 rounded-xl text-[11px] font-extrabold shrink-0 cursor-pointer"
+                  className="glass-btn--primary min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] font-extrabold shrink-0 cursor-pointer"
                 >
                   طلب الإذن
                 </button>
@@ -483,7 +520,7 @@ export const NotificationsPanel: React.FC = () => {
                   <div
                     key={rule.id}
                     style={{ '--i': idx } as React.CSSProperties}
-                    className={`word-in p-3 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
+                    className={`word-in p-3 rounded-2xl border transition-all flex flex-wrap items-start justify-between gap-3 ${
                       settings.masterEnabled && isRuleEnabled
                         ? 'bg-[var(--surface-primary)] border-[var(--accent-secondary)]/35'
                         : 'bg-[var(--surface-primary)]/40 border-[var(--border-color)] opacity-70'
@@ -536,9 +573,9 @@ export const NotificationsPanel: React.FC = () => {
                 type="button"
                 onClick={handleResetDefaults}
                 disabled={isUpdatingSchedule}
-                className="glass-btn w-full py-2 px-3 rounded-xl text-xs font-extrabold text-[var(--accent-secondary)] flex items-center justify-center gap-1.5 cursor-pointer"
+                className="glass-btn w-full min-h-[40px] py-2 px-3 rounded-xl text-xs font-extrabold text-[var(--accent-secondary)] flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                 <span>استعادة المواعيد الافتراضية</span>
               </button>
             </div>

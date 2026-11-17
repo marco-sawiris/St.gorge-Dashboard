@@ -13,7 +13,7 @@ export const ThemeSwitcher: React.FC<{ className?: string }> = ({ className = ''
 
   return (
     <div
-      className={`relative inline-flex items-center p-1 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] shadow-xs select-none ${className}`}
+      className={`relative inline-flex flex-wrap items-center gap-1 p-1 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] shadow-xs select-none ${className}`}
       role="group"
       aria-label="مبدل المظهر (داكن / خافت / فاتح)"
     >
@@ -26,7 +26,7 @@ export const ThemeSwitcher: React.FC<{ className?: string }> = ({ className = ''
             type="button"
             onClick={() => setTheme(t.id)}
             aria-pressed={isActive}
-            className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${
+            className={`relative z-10 min-h-[36px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${
               isActive
                 ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--royal)] text-white shadow-[0_0_12px_rgba(32,199,232,0.35)]'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-secondary)]/50'

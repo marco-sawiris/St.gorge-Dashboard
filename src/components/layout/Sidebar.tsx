@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../../context/AppContext';
 
-const appHeaderIcon = new URL('../../../Aset/Icon-2.png', import.meta.url).href;
+const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
 import {
   X,
   CreditCard,
@@ -116,9 +116,9 @@ export const Sidebar: React.FC = () => {
   };
 
   const navLinkClass = (isActive: boolean) =>
-    `sidebar-nav-item relative flex items-center ${
-      isSidebarCollapsed ? 'lg:justify-center lg:px-0' : 'gap-2.5 px-3'
-    } py-1.5 rounded-xl text-[13px] font-bold text-right cursor-pointer ${
+    `sidebar-nav-item relative flex items-center w-full min-w-0 h-auto min-h-[36px] ${
+      isSidebarCollapsed ? 'lg:justify-center lg:px-0' : 'justify-start gap-2.5 ps-3 pe-2.5'
+    } py-1.5 rounded-lg text-[12.5px] leading-snug font-bold text-right cursor-pointer ${
       isActive ? 'text-[var(--text-primary)] font-extrabold' : ''
     }`;
 
@@ -161,8 +161,8 @@ export const Sidebar: React.FC = () => {
         }
         className={`sidebar-glass-panel sidebar-drawer-spring fixed top-0 right-0 bottom-0 z-50 flex flex-col overflow-hidden select-none ${
           isSidebarOpen ? 'sidebar-drawer-open translate-x-0' : 'translate-x-full lg:translate-x-0'
-        } w-[84vw] max-w-[290px] ${
-          isSidebarCollapsed ? 'lg:w-[84px]' : 'lg:w-[272px]'
+        } w-[74vw] max-w-[244px] ${
+          isSidebarCollapsed ? 'lg:w-[76px]' : 'lg:w-[232px]'
         }`}
       >
         {/* Organic Animated Morphing Liquid Blobs & Moving Glowing Light Orb Behind Glass Surface */}
@@ -177,248 +177,270 @@ export const Sidebar: React.FC = () => {
           aria-hidden="true"
         />
 
-        {/* Compact Foreground Layer (Scrollable on compact/landscape viewports) */}
-        <div className="relative z-10 flex flex-col h-full p-3 overflow-y-auto overflow-x-hidden justify-start gap-2">
-          <div className="flex flex-col min-h-0">
-            {/* Brand Header & Collapse / Close Controls */}
-            <div
-              className={`flex items-center ${
-                isSidebarCollapsed ? 'lg:flex-col lg:gap-2 lg:justify-center' : 'justify-between'
-              } pb-2.5 border-b border-[var(--border-color)] mb-2.5 shrink-0`}
-            >
-              <div className={`flex items-center gap-2.5 min-w-0 ${isSidebarCollapsed ? 'lg:justify-center' : ''}`}>
+        {/* Scrollable Foreground Layer (shrink-0 children guarantee zero overlap at any height) */}
+        <div className="relative z-10 flex flex-col flex-1 min-h-0 p-2.5 pb-[max(0.85rem,env(safe-area-inset-bottom))] overflow-y-auto overflow-x-hidden justify-start gap-1.5">
+          {/* Brand Header & Collapse / Close Controls */}
+          <div
+            className={`flex items-center gap-2 ${
+              isSidebarCollapsed ? 'lg:flex-col lg:gap-2 lg:justify-center' : 'justify-between'
+            } pb-2 border-b border-[var(--border-color)] shrink-0`}
+          >
+            <div className={`flex items-center gap-2 min-w-0 flex-1 ${isSidebarCollapsed ? 'lg:flex-none lg:justify-center' : ''}`}>
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#123fce]/30 to-[#20c7e8]/30 p-0.5 border border-[#20c7e8]/40 shadow-[0_0_12px_rgba(32,199,232,0.2)] shrink-0">
                 <img
-                  src={appHeaderIcon}
-                  alt="St. George Dashboard Icon"
-                  width={331}
-                  height={331}
-                  className="w-9 h-9 object-contain shrink-0 drop-shadow-[0_2px_8px_rgba(3,7,17,0.38)]"
+                  src={stGeorgeIcon}
+                  alt="St. George Dashboard"
+                  width={1024}
+                  height={1024}
+                  className="w-full h-full aspect-square object-contain rounded-[10px] block"
                 />
-                <div className={`min-w-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-                  <h2 className="font-extrabold text-[13.5px] text-[var(--text-primary)] m-0 truncate">
-                    St. George Dashboard
-                  </h2>
-                  <p className="text-[10.5px] text-[var(--accent-secondary)] m-0 font-bold truncate">
-                    فصل الشهيد مارجرجس
-                  </p>
-                </div>
               </div>
-
-              {/* Mobile Close Drawer Button */}
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(false)}
-                className="glass-btn lg:hidden w-8 h-8 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
-                aria-label="إغلاق القائمة"
-              >
-                <X className="w-4 h-4" />
-              </button>
-
-              {/* Desktop Collapse / Expand Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                className="glass-btn hidden lg:flex w-8 h-8 rounded-xl text-[var(--accent-secondary)] items-center justify-center cursor-pointer shrink-0"
-                aria-label={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'}
-                title={isSidebarCollapsed ? 'توسيع القائمة' : 'طي القائمة'}
-              >
-                {isSidebarCollapsed ? (
-                  <PanelRightOpen className="w-4 h-4" />
-                ) : (
-                  <PanelRightClose className="w-4 h-4" />
-                )}
-              </button>
+              <div className={`min-w-0 flex-1 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                <h2 className="font-extrabold text-[13px] leading-tight text-[var(--text-primary)] m-0 break-words">
+                  St. George Dashboard
+                </h2>
+                <p className="text-[10px] leading-tight text-[var(--accent-secondary)] m-0 mt-0.5 font-bold break-words">
+                  فصل الشهيد مارجرجس
+                </p>
+              </div>
             </div>
 
-            {/* Direct Service Mode Indicator */}
-            <div
-              className={`mb-2.5 px-2.5 py-2 rounded-xl bg-[var(--surface-primary)]/55 backdrop-blur-md border border-[var(--border-color)]/70 flex items-center shrink-0 ${
-                isSidebarCollapsed ? 'lg:justify-center lg:p-2' : 'gap-2.5'
-              }`}
-              title="وضع الخدمة المباشر — مزامنة Google Sheets ودعم الأوفلاين"
+            {/* Mobile Close Drawer Button */}
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(false)}
+              className="glass-btn lg:hidden min-w-[34px] min-h-[34px] w-8 h-8 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
+              aria-label="إغلاق القائمة"
             >
-              <div className="w-7 h-7 rounded-lg bg-[#20c7e8]/15 border border-[#20c7e8]/35 flex items-center justify-center text-[#20c7e8] shrink-0">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div className={`min-w-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-                <p className="text-[11.5px] font-extrabold text-[var(--text-primary)] truncate m-0 leading-tight">
-                  وضع الخدمة المباشر
-                </p>
-                <p className="text-[10px] font-bold text-[var(--accent-secondary)] m-0 truncate">
-                  Google Sheets + Offline
-                </p>
-              </div>
-            </div>
+              <X className="w-4 h-4 shrink-0" />
+            </button>
 
-            {/* Clean Sleek Flat Navigation List with Staggered --i Spring Entrance & Gliding Active Bar */}
-            <nav key={drawerOpenKey} className="flex flex-col gap-0.5 shrink-0" aria-label="أقسام التطبيق">
-              <button
-                type="button"
-                onClick={() => handleNav('cards')}
-                title="كروت المخدومين"
-                aria-current={activeView === 'cards' ? 'page' : undefined}
-                style={{ '--i': 0 } as React.CSSProperties}
-                className={navLinkClass(activeView === 'cards')}
-              >
-                {renderActiveBar(activeView === 'cards')}
-                <CreditCard className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'cards' ? 'text-[#20c7e8] scale-110' : 'text-[var(--text-secondary)]'}`} />
-                <span className={`relative z-10 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>كروت المخدومين</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleNav('table')}
-                title="جدول الحضور"
-                aria-current={activeView === 'table' ? 'page' : undefined}
-                style={{ '--i': 1 } as React.CSSProperties}
-                className={navLinkClass(activeView === 'table')}
-              >
-                {renderActiveBar(activeView === 'table')}
-                <TableIcon className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'table' ? 'text-[#20c7e8] scale-110' : 'text-[var(--text-secondary)]'}`} />
-                <span className={`relative z-10 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>جدول الحضور</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleNav('charts')}
-                title="الإحصائيات الذكية"
-                aria-current={activeView === 'charts' ? 'page' : undefined}
-                style={{ '--i': 2 } as React.CSSProperties}
-                className={navLinkClass(activeView === 'charts')}
-              >
-                {renderActiveBar(activeView === 'charts')}
-                <PieChart className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'charts' ? 'text-[#20c7e8] scale-110' : 'text-[var(--text-secondary)]'}`} />
-                <span className={`relative z-10 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>الإحصائيات الذكية</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleNav('followup')}
-                title="سجل الافتقاد"
-                aria-current={activeView === 'followup' ? 'page' : undefined}
-                style={{ '--i': 3 } as React.CSSProperties}
-                className={navLinkClass(activeView === 'followup')}
-              >
-                {renderActiveBar(activeView === 'followup')}
-                <PhoneCall className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'followup' ? 'text-[#20c7e8] scale-110' : 'text-[var(--text-secondary)]'}`} />
-                <span className={`relative z-10 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>سجل الافتقاد</span>
-              </button>
-
-              <div className="my-1.5 border-t border-[var(--border-color)]/60" />
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSidebarOpen(false);
-                  setIsAreaModalOpen(true);
-                }}
-                title="المناطق السكنية"
-                style={{ '--i': 4 } as React.CSSProperties}
-                className={navLinkClass(false)}
-              >
-                <MapPin className="w-4 h-4 shrink-0 text-[#20c7e8]" />
-                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>المناطق السكنية</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSidebarOpen(false);
-                  setIsSyncModalOpen(true);
-                }}
-                title="حالة وتفاصيل المزامنة"
-                style={{ '--i': 5 } as React.CSSProperties}
-                className={navLinkClass(false)}
-              >
-                <RefreshCw
-                  className={`w-4 h-4 shrink-0 text-[#20c7e8] ${syncState === 'syncing' ? 'animate-spin' : ''}`}
-                />
-                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>حالة المزامنة</span>
-              </button>
-
-              <a
-                href="https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="فتح ملف الشيت"
-                style={{ '--i': 6 } as React.CSSProperties}
-                className={navLinkClass(false)}
-              >
-                <ExternalLink className="w-4 h-4 shrink-0 text-[#20c7e8]" />
-                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>فتح ملف الشيت</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSidebarOpen(false);
-                  setIsAssistantOpen(true);
-                }}
-                title="المساعد الذكي"
-                style={{ '--i': 7 } as React.CSSProperties}
-                className={navLinkClass(false)}
-              >
-                <Bot className="w-4 h-4 shrink-0 text-[#20c7e8]" />
-                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>المساعد الذكي</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSidebarOpen(false);
-                  setIsPdfImportModalOpen(true);
-                }}
-                title="استيراد كشف PDF"
-                style={{ '--i': 8 } as React.CSSProperties}
-                className={navLinkClass(false)}
-              >
-                <FileUp className="w-4 h-4 shrink-0 text-[#20c7e8]" />
-                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>استيراد كشف PDF</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSidebarOpen(false);
-                  setIsAppearanceModalOpen(true);
-                }}
-                title="مظهر وسمة التطبيق"
-                style={{ '--i': 9 } as React.CSSProperties}
-                className={navLinkClass(false)}
-              >
-                <Palette className="w-4 h-4 shrink-0 text-[#20c7e8]" />
-                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>مظهر وسمة التطبيق</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSidebarOpen(false);
-                  setIsAboutModalOpen(true);
-                }}
-                title="عن التطبيق"
-                style={{ '--i': 10 } as React.CSSProperties}
-                className={navLinkClass(false)}
-              >
-                <Info className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
-                <span className={isSidebarCollapsed ? 'lg:hidden' : ''}>عن التطبيق</span>
-              </button>
-            </nav>
+            {/* Desktop Collapse / Expand Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              className="glass-btn hidden lg:flex min-w-[34px] min-h-[34px] w-8 h-8 rounded-xl text-[var(--accent-secondary)] items-center justify-center cursor-pointer shrink-0"
+              aria-label={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'}
+              title={isSidebarCollapsed ? 'توسيع القائمة' : 'طي القائمة'}
+            >
+              {isSidebarCollapsed ? (
+                <PanelRightOpen className="w-4 h-4 shrink-0" />
+              ) : (
+                <PanelRightClose className="w-4 h-4 shrink-0" />
+              )}
+            </button>
           </div>
 
-          {/* Compact Servants Filter Section (Zero Scrollbar) */}
-          <div className={`pt-2 mt-0 border-t border-[var(--border-color)]/70 shrink-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[11px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5 m-0">
-                <ShieldAlert className="w-3.5 h-3.5 text-[#20c7e8]" />
+          {/* Direct Service Mode Indicator */}
+          <div
+            className={`px-2.5 py-1.5 rounded-xl bg-[var(--surface-primary)]/55 backdrop-blur-md border border-[var(--border-color)]/70 flex items-center shrink-0 ${
+              isSidebarCollapsed ? 'lg:justify-center lg:p-1.5' : 'gap-2'
+            }`}
+            title="وضع الخدمة المباشر — مزامنة Google Sheets ودعم الأوفلاين"
+          >
+            <div className="w-7 h-7 rounded-lg bg-[#20c7e8]/15 border border-[#20c7e8]/35 flex items-center justify-center text-[#20c7e8] shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+            </div>
+            <div className={`min-w-0 flex-1 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <p className="text-[11px] font-extrabold text-[var(--text-primary)] m-0 leading-tight break-words">
+                وضع الخدمة المباشر
+              </p>
+              <p className="text-[9.5px] font-bold text-[var(--accent-secondary)] m-0 mt-0.5 leading-tight break-words">
+                Google Sheets + العمل دون اتصال
+              </p>
+            </div>
+          </div>
+
+          {/* Clean Sleek Flat Navigation List with Compact Spacing & Gliding Active Bar */}
+          <nav key={drawerOpenKey} className="flex flex-col gap-1 shrink-0" aria-label="أقسام التطبيق">
+            <button
+              type="button"
+              onClick={() => handleNav('cards')}
+              title="كروت المخدومين"
+              aria-current={activeView === 'cards' ? 'page' : undefined}
+              style={{ '--i': 0 } as React.CSSProperties}
+              className={navLinkClass(activeView === 'cards')}
+            >
+              {renderActiveBar(activeView === 'cards')}
+              <CreditCard className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'cards' ? 'text-[#20c7e8] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                كروت المخدومين
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('table')}
+              title="جدول الحضور"
+              aria-current={activeView === 'table' ? 'page' : undefined}
+              style={{ '--i': 1 } as React.CSSProperties}
+              className={navLinkClass(activeView === 'table')}
+            >
+              {renderActiveBar(activeView === 'table')}
+              <TableIcon className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'table' ? 'text-[#20c7e8] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                جدول الحضور
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('charts')}
+              title="الإحصائيات الذكية"
+              aria-current={activeView === 'charts' ? 'page' : undefined}
+              style={{ '--i': 2 } as React.CSSProperties}
+              className={navLinkClass(activeView === 'charts')}
+            >
+              {renderActiveBar(activeView === 'charts')}
+              <PieChart className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'charts' ? 'text-[#20c7e8] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                الإحصائيات الذكية
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('followup')}
+              title="سجل الافتقاد"
+              aria-current={activeView === 'followup' ? 'page' : undefined}
+              style={{ '--i': 3 } as React.CSSProperties}
+              className={navLinkClass(activeView === 'followup')}
+            >
+              {renderActiveBar(activeView === 'followup')}
+              <PhoneCall className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'followup' ? 'text-[#20c7e8] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                سجل الافتقاد
+              </span>
+            </button>
+
+            <div className="my-1 border-t border-[var(--border-color)]/60 shrink-0" />
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setIsAreaModalOpen(true);
+              }}
+              title="المناطق السكنية"
+              style={{ '--i': 4 } as React.CSSProperties}
+              className={navLinkClass(false)}
+            >
+              <MapPin className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                المناطق السكنية
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setIsSyncModalOpen(true);
+              }}
+              title="حالة وتفاصيل المزامنة"
+              style={{ '--i': 5 } as React.CSSProperties}
+              className={navLinkClass(false)}
+            >
+              <RefreshCw
+                className={`w-4 h-4 shrink-0 text-[#20c7e8] ${syncState === 'syncing' ? 'animate-spin' : ''}`}
+              />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                حالة المزامنة
+              </span>
+            </button>
+
+            <a
+              href="https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="فتح ملف الشيت"
+              style={{ '--i': 6 } as React.CSSProperties}
+              className={navLinkClass(false)}
+            >
+              <ExternalLink className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                فتح ملف الشيت
+              </span>
+            </a>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setIsAssistantOpen(true);
+              }}
+              title="المساعد الذكي"
+              style={{ '--i': 7 } as React.CSSProperties}
+              className={navLinkClass(false)}
+            >
+              <Bot className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                المساعد الذكي
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setIsPdfImportModalOpen(true);
+              }}
+              title="استيراد كشف PDF"
+              style={{ '--i': 8 } as React.CSSProperties}
+              className={navLinkClass(false)}
+            >
+              <FileUp className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                استيراد كشف PDF
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setIsAppearanceModalOpen(true);
+              }}
+              title="مظهر وسمة التطبيق"
+              style={{ '--i': 9 } as React.CSSProperties}
+              className={navLinkClass(false)}
+            >
+              <Palette className="w-4 h-4 shrink-0 text-[#20c7e8]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                مظهر وسمة التطبيق
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setIsAboutModalOpen(true);
+              }}
+              title="عن التطبيق"
+              style={{ '--i': 10 } as React.CSSProperties}
+              className={navLinkClass(false)}
+            >
+              <Info className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                عن التطبيق
+              </span>
+            </button>
+          </nav>
+
+          {/* Compact Servants Filter Section */}
+          <div className={`pt-2 border-t border-[var(--border-color)]/70 shrink-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+            <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
+              <p className="text-[10.5px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5 m-0 min-w-0">
+                <ShieldAlert className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
                 <span>أشابين وخدام الفصل</span>
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {uniqueServants.length > 6 && (
                   <button
                     type="button"
                     onClick={() => setShowAllServants((v) => !v)}
-                    className="text-[10.5px] font-bold text-[#20c7e8] hover:underline cursor-pointer"
+                    className="text-[10px] font-bold text-[#20c7e8] hover:underline cursor-pointer"
                   >
                     {showAllServants ? 'أقل' : `+${uniqueServants.length - 6}`}
                   </button>
@@ -429,7 +451,7 @@ export const Sidebar: React.FC = () => {
 
             <div className="flex flex-wrap gap-1">
               {uniqueServants.length === 0 ? (
-                <span className="text-[11px] text-[var(--text-muted)] italic">لا يوجد خدام محملون</span>
+                <span className="text-[10.5px] text-[var(--text-muted)] italic">لا يوجد خدام محملون</span>
               ) : (
                 visibleServants.map((servantName) => {
                   const isActive = filters.servant === servantName;
@@ -439,7 +461,7 @@ export const Sidebar: React.FC = () => {
                       type="button"
                       aria-pressed={isActive}
                       onClick={() => handleToggleServant(servantName)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer select-none border transition-all duration-200 active:scale-95 ${
+                      className={`min-h-[28px] px-2 py-0.5 rounded-lg text-[10.5px] font-bold leading-snug max-w-full break-words text-right cursor-pointer select-none border transition-all duration-200 active:scale-95 ${
                         isActive
                           ? 'bg-gradient-to-r from-[#123FCE] to-[#20C7E8] text-white border-[#20C7E8]/65 shadow-[0_2px_10px_rgba(32,199,232,0.35)]'
                           : 'bg-[var(--surface-primary)]/45 border-[var(--border-color)]/60 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[#20C7E8]/45'
@@ -455,7 +477,7 @@ export const Sidebar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFilters((p) => ({ ...p, servant: '' }))}
-                className="mt-2 w-full px-3 py-2 rounded-xl text-[11px] font-bold text-[var(--accent-secondary)] bg-[var(--surface-primary)]/60 border border-[var(--border-color)] hover:border-[var(--accent-secondary)]/50 transition-colors cursor-pointer"
+                className="mt-1.5 w-full px-2.5 py-1.5 rounded-lg text-[10.5px] font-bold text-[var(--accent-secondary)] bg-[var(--surface-primary)]/60 border border-[var(--border-color)] hover:border-[var(--accent-secondary)]/50 transition-colors cursor-pointer"
                 aria-label="مسح فلتر الأشبين وعرض كل المخدومين"
               >
                 اعرض الكل

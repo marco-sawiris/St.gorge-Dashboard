@@ -28,6 +28,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   useEffect(() => {
+    // Ensure root element always uses native default font sizing (no leftover manual font scaling)
+    if (typeof document !== 'undefined') {
+      document.documentElement.style.removeProperty('font-size');
+    }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('stgorge_font_size');
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     // Apply immediate data-theme and classes to root element
     const root = document.documentElement;
     root.setAttribute('data-theme', theme);
@@ -60,7 +72,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const isDark = theme === 'dark' || theme === 'dim';
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, isDark }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        toggleTheme,
+        setTheme,
+        isDark
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

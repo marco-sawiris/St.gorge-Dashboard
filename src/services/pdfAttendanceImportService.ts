@@ -1,5 +1,6 @@
 import { Student } from '../types/student';
 import { ParsedPdfAttendanceReport, PdfAttendanceCellStatus } from './pdfAttendanceParser';
+import { AttendanceHistoryRecord } from './indexedDbService';
 
 export interface PdfImportResolutionState {
   rowMappings: Record<string, string | null>; // rowKey -> chosen studentId
@@ -47,11 +48,33 @@ export interface AttendanceImportPlan {
     status: boolean;
   }>;
   conflicts: AttendanceImportConflict[];
+  existingRecordedCount: number;
+  newRecordsCount: number;
+  conflictingRecordsCount: number;
+  hasPreviouslyRecordedData: boolean;
   skippedEmptyCount: number;
   skippedUnmatchedRowsCount: number;
   excludedRowsCount: number;
   unresolvedCellsCount: number;
   summaryByDate: Record<string, { newCount: number; overwriteCount: number; duplicateCount: number; conflictCount: number }>;
+}
+
+/**
+ * Generates a stable, ASCII-safe idempotency key for batch attendance imports
+ * anchored to (operationId, studentId, fridayDate) so retries and timeouts
+ * never create duplicate server mutations.
+ */
+export function computeDeterministicImportKey(
+  operationId: string,
+  studentId: string,
+  fridayDate: string
+): string {
+  const cleanOp = String(operationId || 'batch').replace(/[^\x20-\x7E]/g, '').replace(/[^a-zA-Z0-9_-]/g, '') || 'batch';
+  const cleanStudent = Array.from(String(studentId || 'std'))
+    .map((ch) => (ch.charCodeAt(0) >= 0x20 && ch.charCodeAt(0) <= 0x7e && /[a-zA-Z0-9_-]/.test(ch) ? ch : '_'))
+    .join('')
+    .slice(0, 40) || 'std';
+  return `ATT_${cleanStudent}_${fridayDate}_${cleanOp}`;
 }
 
 export function getEffectiveCellStatus(
@@ -79,9 +102,17 @@ export function getEffectiveMatchedStudentId(
 export function buildAttendanceImportPlan(
   report: ParsedPdfAttendanceReport,
   existingStudents: Student[],
-  resolution: PdfImportResolutionState
+  resolution: PdfImportResolutionState,
+  existingHistoryRecords: ReadonlyArray<AttendanceHistoryRecord> = []
 ): AttendanceImportPlan {
   const studentsById = new Map(existingStudents.map((s) => [s.id, s]));
+  const historyStatusByLogicalKey = new Map<string, boolean>();
+  for (const h of existingHistoryRecords) {
+    if (h && h.studentId && h.fridayDate && typeof h.status === 'boolean') {
+      historyStatusByLogicalKey.set(`${h.studentId}__${h.fridayDate}`, h.status);
+    }
+  }
+
   const toApply: PlannedAttendanceEntry[] = [];
   const unchangedDuplicates: AttendanceImportPlan['unchangedDuplicates'] = [];
   const conflicts: AttendanceImportConflict[] = [];
@@ -95,8 +126,9 @@ export function buildAttendanceImportPlan(
   let skippedUnmatchedRowsCount = 0;
   let excludedRowsCount = 0;
   let unresolvedCellsCount = 0;
+  let newRecordsCount = 0;
 
-  // Logical key deduplication across rows in the same plan
+  // Logical key deduplication across rows in the same plan using Student ID + Attendance Date
   const seenLogicalKeys = new Set<string>();
 
   for (const row of report.rows) {
@@ -134,7 +166,16 @@ export function buildAttendanceImportPlan(
       }
       seenLogicalKeys.add(logicalKey);
 
-      const existingVal = student.att?.[dateIso];
+      // Authoritative check against BOTH live student attendance map AND IndexedDB attendance_history
+      const studentAttVal = student.att?.[dateIso];
+      const historyVal = historyStatusByLogicalKey.get(logicalKey);
+      const existingVal =
+        typeof studentAttVal === 'boolean'
+          ? studentAttVal
+          : typeof historyVal === 'boolean'
+          ? historyVal
+          : undefined;
+
       if (typeof existingVal === 'boolean') {
         if (existingVal === incomingIsPresent) {
           unchangedDuplicates.push({
@@ -180,15 +221,23 @@ export function buildAttendanceImportPlan(
           isPresent: incomingIsPresent,
           isOverwrite: false
         });
+        newRecordsCount++;
         summaryByDate[dateIso].newCount++;
       }
     }
   }
 
+  const existingRecordedCount = unchangedDuplicates.length + conflicts.length;
+  const conflictingRecordsCount = conflicts.length;
+
   return {
     toApply,
     unchangedDuplicates,
     conflicts,
+    existingRecordedCount,
+    newRecordsCount,
+    conflictingRecordsCount,
+    hasPreviouslyRecordedData: existingRecordedCount > 0,
     skippedEmptyCount,
     skippedUnmatchedRowsCount,
     excludedRowsCount,

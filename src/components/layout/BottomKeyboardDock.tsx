@@ -59,11 +59,11 @@ export const BottomKeyboardDock: React.FC = () => {
       aria-hidden={hasModalBlockingDock}
       className={`fixed bottom-0 left-0 right-0 ${
         isSidebarCollapsed ? 'lg:right-[84px]' : 'lg:right-[272px]'
-      } z-30 glass-strong border-t border-[var(--border-color)] shadow-[var(--shadow)] px-2 sm:px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-[var(--ease-spring)] select-none overflow-hidden ${
+      } z-30 glass-strong border-t border-[var(--border-color)] shadow-[var(--shadow)] px-2 sm:px-3 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-[var(--ease-spring)] select-none overflow-hidden ${
         hasModalBlockingDock
           ? 'translate-y-full opacity-0 pointer-events-none'
           : isCollapsed
-          ? 'translate-y-[calc(100%-38px)]'
+          ? 'translate-y-[calc(100%-32px)]'
           : 'translate-y-0'
       }`}
     >
@@ -77,25 +77,24 @@ export const BottomKeyboardDock: React.FC = () => {
         className="pointer-events-none absolute -bottom-10 left-12 w-40 h-40 rounded-full bg-radial from-[#6548F5]/20 via-[#20C7E8]/10 to-transparent blur-2xl"
       />
 
-      {/* Centered Keyboard Handle — preserve the All/Clear filter action */}
-      <div className="relative z-10 max-w-4xl mx-auto grid grid-cols-[1fr_auto_1fr] items-center gap-2 h-8 px-1 mb-1.5">
-        <span aria-hidden="true" />
+      {/* Keyboard Handle & All/Clear filter action — compact bar keeping clear tap targets */}
+      <div className="relative z-10 max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-1.5 min-h-[30px] h-auto px-1 mb-1">
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="glass-btn px-3 py-1 rounded-full flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold cursor-pointer shrink-0 justify-self-center border border-[var(--border-color)] whitespace-nowrap"
+          className="glass-btn min-h-[28px] px-2.5 py-0.5 rounded-full flex items-center justify-center gap-1 text-[11px] sm:text-xs font-extrabold cursor-pointer shrink-0 border border-[var(--border-color)] whitespace-nowrap"
           aria-expanded={!isCollapsed}
           title={isCollapsed ? 'إظهار الكيبورد' : 'إخفاء الكيبورد'}
         >
           {isCollapsed ? (
-            <ChevronUp className="w-3.5 h-3.5 text-[#20c7e8]" />
+            <ChevronUp className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
           ) : (
-            <ChevronDown className="w-3.5 h-3.5 text-[#20c7e8]" />
+            <ChevronDown className="w-3.5 h-3.5 text-[#20c7e8] shrink-0" />
           )}
-          <span className="truncate">الكيبورد</span>
+          <span>الكيبورد</span>
         </button>
 
-        <div className="flex items-center justify-end gap-2 shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0">
           {activeSelectedBucket && (
             <span className="text-[11px] font-bold text-[var(--accent-secondary)] tabular-nums whitespace-nowrap">
               حرف {activeSelectedBucket.letter} · {activeSelectedBucket.count}
@@ -106,7 +105,7 @@ export const BottomKeyboardDock: React.FC = () => {
             type="button"
             onClick={handleClearLetter}
             aria-pressed={filters.alphabetLetter === null}
-            className={`glass-btn text-xs font-bold px-3 py-1 rounded-xl cursor-pointer whitespace-nowrap ${
+            className={`glass-btn min-h-[28px] text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-lg cursor-pointer whitespace-nowrap shrink-0 ${
               filters.alphabetLetter === null ? 'glass-btn--active' : ''
             }`}
           >
@@ -116,13 +115,13 @@ export const BottomKeyboardDock: React.FC = () => {
       </div>
 
       {/* Dynamic Arabic Alphabet Quick Filter (Used Letters Only) */}
-      <div className="relative z-10 max-w-4xl mx-auto pb-0.5">
+      <div className="relative z-10 max-w-4xl mx-auto">
         {availableAlphabetBuckets.length === 0 ? (
-          <p className="text-[11px] font-semibold text-[var(--text-muted)] text-center py-2 m-0">
+          <p className="text-[11px] font-semibold text-[var(--text-muted)] text-center py-1.5 m-0">
             لا توجد حروف متاحة في النطاق الحالي
           </p>
         ) : (
-          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 max-h-[112px] overflow-y-auto px-0.5 py-0.5">
+          <div className="flex flex-nowrap items-center justify-start sm:justify-center gap-1.5 overflow-x-auto no-scrollbar px-0.5 py-0.5">
             {availableAlphabetBuckets.map(({ letter, count }, index) => {
               const isSelected = filters.alphabetLetter === letter;
               return (
@@ -131,9 +130,9 @@ export const BottomKeyboardDock: React.FC = () => {
                   type="button"
                   onClick={() => handleSelectLetter(letter)}
                   aria-pressed={isSelected}
-                  initial={shouldReduceMotion ? false : { opacity: 0, y: 8, scale: 0.94 }}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 6, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  whileHover={shouldReduceMotion ? undefined : { y: -2, scale: 1.04 }}
+                  whileHover={shouldReduceMotion ? undefined : { y: -1.5, scale: 1.03 }}
                   whileTap={shouldReduceMotion ? undefined : { scale: 0.92 }}
                   transition={{
                     type: 'spring',
@@ -141,9 +140,9 @@ export const BottomKeyboardDock: React.FC = () => {
                     damping: 30,
                     delay: shouldReduceMotion ? 0 : Math.min(index, 14) * 0.012
                   }}
-                  className={`glass-keyboard-key min-w-[40px] sm:min-w-[44px] min-h-[40px] px-2.5 text-xs sm:text-sm font-bold flex items-center justify-center cursor-pointer select-none whitespace-nowrap ${
+                  className={`glass-keyboard-key w-[34px] min-w-[34px] h-[34px] sm:w-[38px] sm:min-w-[38px] sm:h-[38px] px-1 text-[13px] sm:text-sm font-extrabold leading-none flex items-center justify-center shrink-0 cursor-pointer select-none whitespace-nowrap ${
                     isSelected
-                      ? '!bg-gradient-to-br !from-[#267aff] !to-[#123fce] !text-white font-black shadow-[0_0_15px_rgba(38,122,255,0.45)] scale-105 border-white/45'
+                      ? '!bg-gradient-to-br !from-[#267aff] !to-[#123fce] !text-white font-black shadow-[0_0_12px_rgba(38,122,255,0.45)] scale-[1.03] border-white/45'
                       : ''
                   }`}
                   title={`حرف ${letter} (${count} مخدوم)`}

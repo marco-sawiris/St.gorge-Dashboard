@@ -64,20 +64,20 @@ export const AppearanceModal: React.FC = () => {
     >
       <div className="w-full max-w-lg glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center justify-between gap-2 p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60 shrink-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-10 h-10 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shrink-0">
-              <Palette className="w-5 h-5" />
+              <Palette className="w-5 h-5 shrink-0" />
             </div>
             <div className="min-w-0">
               <h3
                 id="appearance-modal-title"
-                className="font-extrabold text-base text-[var(--text-primary)] m-0 truncate"
+                className="font-extrabold text-base text-[var(--text-primary)] m-0 leading-snug"
               >
                 مظهر وسمة التطبيق
               </h3>
-              <p className="text-[11px] font-semibold text-[var(--text-muted)] m-0 mt-0.5 truncate">
-                اختيار الوضع الداكن أو الخافت أو الفاتح · يُحفظ تلقائياً
+              <p className="text-[11px] font-semibold text-[var(--text-muted)] m-0 mt-0.5 leading-snug">
+                اختر المظهر المناسب للعين · يُحفظ تلقائياً
               </p>
             </div>
           </div>
@@ -86,16 +86,16 @@ export const AppearanceModal: React.FC = () => {
             type="button"
             onClick={() => setIsAppearanceModalOpen(false)}
             aria-label="إغلاق نافذة مظهر وسمة التطبيق"
-            className="glass-btn w-9 h-9 rounded-xl text-[var(--text-secondary)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer shrink-0"
+            className="glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl text-[var(--text-secondary)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 shrink-0" />
           </button>
         </div>
 
         {/* Body */}
         <div className="p-4 overflow-y-auto space-y-4 flex-1 text-xs sm:text-sm">
           {/* Primary Segmented Theme Switcher */}
-          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-3">
+          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs sm:text-sm font-extrabold text-[var(--text-primary)] m-0">
                 تبديل السمة الفوري

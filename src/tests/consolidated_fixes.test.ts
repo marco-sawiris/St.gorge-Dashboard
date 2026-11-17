@@ -341,8 +341,11 @@ async function runConsolidatedTests() {
       !appSrc.includes('liquid-lens-btn') &&
         !searchBarSrc.includes('liquid-lens-btn') &&
         !indexCssSrc.includes('.liquid-lens-btn') &&
-        appSrc.includes('glass-btn--primary btn--lens px-4 py-2 rounded-xl') &&
-        searchBarSrc.includes('glass-btn--primary btn--lens flex-1 h-11 px-4 rounded-xl'),
+        appSrc.includes('glass-btn--primary btn--lens') &&
+        appSrc.includes('px-4 py-2 rounded-xl') &&
+        searchBarSrc.includes('glass-btn--primary btn--lens flex-1') &&
+        searchBarSrc.includes('min-h-[44px]') &&
+        searchBarSrc.includes('px-4 rounded-xl'),
       'Task 7a: Original styling restored cleanly for both Add Student and Sync Server buttons'
     );
 

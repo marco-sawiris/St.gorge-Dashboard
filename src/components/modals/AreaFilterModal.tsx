@@ -30,12 +30,12 @@ export const AreaFilterModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
       <div className="w-full max-w-md glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[85vh] animate-wordIn">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#20c7e8]/10 border border-[#20c7e8]/30 flex items-center justify-center text-[#20c7e8]">
-              <MapPin className="w-4 h-4" />
+        <div className="flex items-center justify-between gap-2 p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-xl bg-[#20c7e8]/10 border border-[#20c7e8]/30 flex items-center justify-center text-[#20c7e8] shrink-0">
+              <MapPin className="w-4 h-4 shrink-0" />
             </div>
-            <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0">
+            <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0 leading-snug min-w-0">
               المناطق السكنية لمخدومي الفصل
             </h3>
           </div>
@@ -43,9 +43,9 @@ export const AreaFilterModal: React.FC = () => {
             type="button"
             onClick={() => setIsAreaModalOpen(false)}
             aria-label="إغلاق نافذة المناطق"
-            className="glass-btn w-8 h-8 rounded-xl text-[var(--text-secondary)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer"
+            className="glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl text-[var(--text-secondary)] flex items-center justify-center hover:text-[var(--text-primary)] cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 shrink-0" />
           </button>
         </div>
 
@@ -57,7 +57,7 @@ export const AreaFilterModal: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-2.5">
             {areaCounts.length === 0 ? (
-              <span className="text-xs text-[var(--text-muted)] col-span-2 text-center py-4">
+              <span className="text-xs text-[var(--text-muted)] col-span-full text-center py-4">
                 لا توجد مناطق مسجلة حالياً
               </span>
             ) : (
@@ -69,11 +69,11 @@ export const AreaFilterModal: React.FC = () => {
                     type="button"
                     onClick={() => handleSelectArea(areaName)}
                     aria-pressed={isSelected}
-                    className={`glass-btn p-3 rounded-2xl text-center cursor-pointer ${
+                    className={`glass-btn min-h-[54px] h-auto p-3 rounded-2xl text-center cursor-pointer min-w-0 ${
                       isSelected ? 'glass-btn--active' : 'text-[var(--text-primary)]'
                     }`}
                   >
-                    <strong className="block text-sm font-extrabold mb-1">{areaName}</strong>
+                    <strong className="block text-sm font-extrabold mb-1 break-words leading-snug">{areaName}</strong>
                     <span className={`text-xs font-semibold ${isSelected ? 'text-white/90' : 'text-[var(--accent-secondary)]'}`}>{count} مخدوم</span>
                   </button>
                 );
@@ -83,11 +83,11 @@ export const AreaFilterModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-between items-center bg-[var(--surface-secondary)]/60">
+        <div className="p-3.5 border-t border-[var(--border-color)] flex flex-wrap justify-between items-center gap-2 bg-[var(--surface-secondary)]/60 shrink-0">
           <button
             type="button"
             onClick={handleClear}
-            className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-rose-400 cursor-pointer"
+            className="glass-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold text-rose-400 cursor-pointer"
           >
             إلغاء تصفية المنطقة
           </button>
@@ -95,7 +95,7 @@ export const AreaFilterModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAreaModalOpen(false)}
-            className="glass-btn px-4 py-1.5 rounded-xl text-xs font-bold text-[var(--text-primary)] cursor-pointer"
+            className="glass-btn min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-bold text-[var(--text-primary)] cursor-pointer"
           >
             إغلاق
           </button>

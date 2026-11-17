@@ -248,6 +248,7 @@ export async function idbAtomicRecordAttendanceWithMutation(
 }
 
 // 2c. Atomic Batch Record Attendance + History + Sequential FIFO Mutations in ONE transaction
+// Deduplicates superseded pending attendance mutations by logical key (studentId + fridayDate)
 export async function idbAtomicBatchRecordAttendanceWithMutations(
   updatedStudents: Student[],
   historyRecords: AttendanceHistoryRecord[],
@@ -281,28 +282,57 @@ export async function idbAtomicBatchRecordAttendanceWithMutations(
     tx.onerror = () => safeReject(tx.error || new Error('فشلت المعاملة الذرية لاستيراد سجلات الحضور'));
     tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء معاملة استيراد سجلات الحضور'));
 
-    try {
-      for (const student of updatedStudents) {
-        const studentReq = studentStore.put(student);
-        studentReq.onerror = () => tx.abort();
-      }
-
-      for (const historyRecord of historyRecords) {
-        const historyReq = historyStore.put({
-          ...historyRecord,
-          id: `${historyRecord.studentId}__${historyRecord.fridayDate}`
-        });
-        historyReq.onerror = () => tx.abort();
-      }
-
-      for (const mutation of mutations) {
-        const mutReq = mutationStore.put(mutation);
-        mutReq.onerror = () => tx.abort();
-      }
-    } catch (err) {
-      tx.abort();
-      safeReject(err);
+    const incomingKeys = new Set<string>();
+    for (const h of historyRecords) {
+      incomingKeys.add(`${h.studentId}__${h.fridayDate}`);
     }
+    for (const mut of mutations) {
+      const fri = String(mut.payload?.friday || mut.payload?.date || '');
+      if (mut.studentId && fri) {
+        incomingKeys.add(`${mut.studentId}__${fri}`);
+      }
+    }
+
+    const getExistingMutReq = mutationStore.getAll();
+    getExistingMutReq.onerror = () => tx.abort();
+    getExistingMutReq.onsuccess = () => {
+      try {
+        const existingMutations: OfflineMutation[] = getExistingMutReq.result || [];
+        // Replace any superseded pending attendance mutation for identical (studentId, fridayDate)
+        for (const existing of existingMutations) {
+          const existingFriday = String(existing.payload?.friday || existing.payload?.date || '');
+          const existingLogicalKey = `${existing.studentId}__${existingFriday}`;
+          if (
+            existing.action === 'attendance' &&
+            existing.status === 'pending' &&
+            incomingKeys.has(existingLogicalKey)
+          ) {
+            mutationStore.delete(existing.id);
+          }
+        }
+
+        for (const student of updatedStudents) {
+          const studentReq = studentStore.put(student);
+          studentReq.onerror = () => tx.abort();
+        }
+
+        for (const historyRecord of historyRecords) {
+          const historyReq = historyStore.put({
+            ...historyRecord,
+            id: `${historyRecord.studentId}__${historyRecord.fridayDate}`
+          });
+          historyReq.onerror = () => tx.abort();
+        }
+
+        for (const mutation of mutations) {
+          const mutReq = mutationStore.put(mutation);
+          mutReq.onerror = () => tx.abort();
+        }
+      } catch (err) {
+        tx.abort();
+        safeReject(err);
+      }
+    };
   });
 }
 
@@ -1115,10 +1145,11 @@ export async function idbResetMutationRetry(id: string): Promise<void> {
   });
 }
 
-export async function idbClearMutations(): Promise<void> {
+export async function idbClearMutations(): Promise<number> {
   const db = await getIndexedDB();
   return new Promise((resolve, reject) => {
     let settled = false;
+    let clearedCount = 0;
     const safeReject = (err: any) => {
       if (!settled) {
         settled = true;
@@ -1129,12 +1160,22 @@ export async function idbClearMutations(): Promise<void> {
     const tx = db.transaction('mutations', 'readwrite');
     const store = tx.objectStore('mutations');
 
-    tx.oncomplete = () => resolve();
+    tx.oncomplete = () => {
+      if (!settled) {
+        settled = true;
+        resolve(clearedCount);
+      }
+    };
     tx.onerror = () => safeReject(tx.error || new Error('فشل تفريغ طابور العمليات'));
     tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء تفريغ طابور العمليات'));
 
-    const clearReq = store.clear();
-    clearReq.onerror = () => tx.abort();
+    const countReq = store.count();
+    countReq.onerror = () => tx.abort();
+    countReq.onsuccess = () => {
+      clearedCount = countReq.result || 0;
+      const clearReq = store.clear();
+      clearReq.onerror = () => tx.abort();
+    };
   });
 }
 

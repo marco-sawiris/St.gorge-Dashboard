@@ -459,10 +459,10 @@ export const AssistantModal: React.FC = () => {
     >
       <div className="w-full max-w-2xl h-[min(90dvh,760px)] max-h-[90dvh] min-w-0 glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col animate-wordIn">
         {/* Header */}
-        <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--surface-primary)]/50 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/50 shrink-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-[#123fce] via-[#267aff] to-[#20c7e8] flex items-center justify-center text-white shadow-[0_0_16px_rgba(32,199,232,0.45)] shrink-0">
-              <Bot className="w-5 h-5" />
+              <Bot className="w-5 h-5 shrink-0" />
               <span
                 className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-[#20c7e8] border-2 border-[var(--surface-primary)] shadow-[0_0_8px_#20c7e8]"
                 aria-hidden="true"
@@ -489,13 +489,13 @@ export const AssistantModal: React.FC = () => {
               type="button"
               onClick={handleToggleHistory}
               title={showHistory ? 'العودة للمحادثة' : 'سجل المحادثات السابقة'}
-              className={`glass-btn w-8 h-8 rounded-xl flex items-center justify-center cursor-pointer transition-colors ${
+              className={`glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-colors shrink-0 ${
                 showHistory
                   ? 'text-[#20c7e8] bg-[#20c7e8]/20 border border-[#20c7e8]/50'
                   : 'text-[var(--text-muted)] hover:text-[#20c7e8]'
               }`}
             >
-              <History className="w-4 h-4" />
+              <History className="w-4 h-4 shrink-0" />
             </button>
 
             {/* New Session Button */}
@@ -503,9 +503,9 @@ export const AssistantModal: React.FC = () => {
               type="button"
               onClick={handleStartNewSession}
               title="بدء محادثة جديدة مستقلة"
-              className="glass-btn w-8 h-8 rounded-xl text-[var(--text-muted)] hover:text-[#20c7e8] flex items-center justify-center cursor-pointer"
+              className="glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl text-[var(--text-muted)] hover:text-[#20c7e8] flex items-center justify-center cursor-pointer shrink-0"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-4 h-4 shrink-0" />
             </button>
 
             {/* Close Modal Button */}
@@ -513,17 +513,17 @@ export const AssistantModal: React.FC = () => {
               type="button"
               onClick={handleCloseModal}
               title="إغلاق"
-              className="glass-btn w-8 h-8 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer"
+              className="glass-btn min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer shrink-0"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 shrink-0" />
             </button>
           </div>
         </div>
 
         {/* Viewing Past Session Banner */}
         {viewingPastSessionId && !showHistory && (
-          <div className="mx-3.5 mt-2.5 px-3.5 py-2 rounded-2xl bg-[#20c7e8]/10 border border-[#20c7e8]/30 flex items-center justify-between gap-3 text-xs text-[var(--text-primary)] shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="mx-3.5 mt-2.5 px-3.5 py-2 rounded-2xl bg-[#20c7e8]/10 border border-[#20c7e8]/30 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-primary)] shrink-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <Clock className="w-4 h-4 text-[#20c7e8] shrink-0" />
               <span className="truncate">
                 أنت تستعرض محادثة سابقة: <strong>{session.title}</strong>
@@ -532,9 +532,9 @@ export const AssistantModal: React.FC = () => {
             <button
               type="button"
               onClick={handleStartNewSession}
-              className="btn--lens px-2.5 py-1 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-[11px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
+              className="btn--lens min-h-[34px] px-2.5 py-1 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-[11px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 shrink-0" />
               <span>محادثة جديدة</span>
             </button>
           </div>
@@ -543,9 +543,9 @@ export const AssistantModal: React.FC = () => {
         {/* Content Area: Either History Drawer or Active Chat Messages */}
         {showHistory ? (
           <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-3 bg-[var(--app-bg)]/40 animate-fadeIn">
-            <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
-              <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-[#20c7e8]" />
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[var(--border-color)]">
+              <div className="flex items-center gap-2 min-w-0">
+                <History className="w-4 h-4 text-[#20c7e8] shrink-0" />
                 <h4 className="font-extrabold text-sm text-[var(--text-primary)] m-0">
                   سجل المحادثات السابقة ({storedSessions.length})
                 </h4>
@@ -553,9 +553,9 @@ export const AssistantModal: React.FC = () => {
               <button
                 type="button"
                 onClick={handleStartNewSession}
-                className="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-[#20c7e8] flex items-center gap-1.5 cursor-pointer"
+                className="glass-btn min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold text-[#20c7e8] flex items-center gap-1.5 cursor-pointer shrink-0"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span>+ محادثة جديدة</span>
               </button>
             </div>
@@ -659,12 +659,12 @@ export const AssistantModal: React.FC = () => {
                           >
                             {copiedId === msg.id ? (
                               <>
-                                <Check className="w-3 h-3 text-[#20c7e8]" />
+                                <Check className="w-3 h-3 text-[#20c7e8] shrink-0" />
                                 <span>تم النسخ</span>
                               </>
                             ) : (
                               <>
-                                <Copy className="w-3 h-3 text-[#20c7e8]" />
+                                <Copy className="w-3 h-3 text-[#20c7e8] shrink-0" />
                                 <span>نسخ</span>
                               </>
                             )}
@@ -678,7 +678,7 @@ export const AssistantModal: React.FC = () => {
                             rel="noopener noreferrer"
                             className="px-2.5 py-1 rounded-lg bg-[#20c7e8]/15 hover:bg-[#20c7e8]/25 border border-[#20c7e8]/40 text-[11px] font-bold text-[#20c7e8] flex items-center gap-1 transition-colors"
                           >
-                            <MessageSquare className="w-3 h-3" />
+                            <MessageSquare className="w-3 h-3 shrink-0" />
                             <span>إرسال واتساب</span>
                           </a>
                         )}
@@ -692,7 +692,7 @@ export const AssistantModal: React.FC = () => {
                               onClick={() => syncData('__ALL__')}
                               className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
                             >
-                              <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                              <RefreshCw className={`w-3 h-3 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
                               <span>{act.label}</span>
                             </button>
                           ) : (
@@ -734,7 +734,7 @@ export const AssistantModal: React.FC = () => {
                 if (showHistory) setShowHistory(false);
                 submitQuery(qp.query);
               }}
-              className="glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-[var(--text-primary)] whitespace-nowrap cursor-pointer shrink-0"
+              className="glass-btn min-h-[34px] px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-[var(--text-primary)] whitespace-nowrap cursor-pointer shrink-0"
             >
               {qp.label}
             </button>
@@ -755,16 +755,16 @@ export const AssistantModal: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="اسأل عن الحضور والغياب وأعياد الميلاد، أو قل: سجل حضور + اسم المخدوم..."
-            className="flex-1 min-w-0 h-10 px-3.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs sm:text-sm font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#20c7e8]"
+            className="flex-1 min-w-0 min-h-[42px] h-auto py-2 px-3.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs sm:text-sm font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#20c7e8]"
             dir="rtl"
           />
           <button
             type="submit"
             disabled={!input.trim() || isTyping}
-            className="btn--lens h-10 px-4 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer disabled:opacity-45 active:scale-95 border border-[#20c7e8]/30 shrink-0"
+            className="btn--lens min-h-[42px] h-auto py-2 px-4 rounded-xl bg-gradient-to-r from-[#123fce] to-[#267aff] text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer disabled:opacity-45 active:scale-95 border border-[#20c7e8]/30 shrink-0"
             aria-label="إرسال"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline">إرسال</span>
           </button>
         </form>

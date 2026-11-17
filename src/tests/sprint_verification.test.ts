@@ -581,7 +581,7 @@ async function runSprintTests() {
   assert(cssSrc.includes('prefers-reduced-motion'), 'Test 13c: Motion reduction accessibility supported');
 
   assert(sidebarSrc.includes('sidebar-glass-panel') && sidebarSrc.includes('sidebar-blob'), 'Test 13d: Sidebar.tsx renders animated morphing glass structure');
-  assert(sidebarSrc.includes('lg:w-[272px]') && sidebarSrc.includes('lg:w-[84px]'), 'Test 13e: Desktop sidebar supports collapsible expanded/collapsed widths');
+  assert(sidebarSrc.includes('lg:w-[232px]') && sidebarSrc.includes('lg:w-[76px]'), 'Test 13e: Desktop sidebar supports compact collapsible expanded/collapsed widths');
   assert(sidebarSrc.includes('translate-x-full lg:translate-x-0'), 'Test 13f: Mobile drawer smoothly slides RTL without overlapping desktop');
   assert(sidebarSrc.includes('حالة المزامنة') && !sidebarSrc.includes('إعدادات المزامنة') && sidebarSrc.includes('المناطق السكنية') && sidebarSrc.includes('عن التطبيق'), 'Test 13g: All sidebar navigation & action items preserved without technical sync config link');
   console.log('✅ Test 13 Passed: Premium Animated Liquid Glass Sidebar (Desktop + RTL Mobile + Accessibility) verified\n');

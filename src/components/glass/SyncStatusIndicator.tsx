@@ -78,7 +78,7 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
     <button
       type="button"
       onClick={() => setIsSyncModalOpen(true)}
-      className={`relative inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 h-7 sm:h-8 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-semibold transition-all duration-200 cursor-pointer select-none active:scale-95 shadow-xs border min-w-0 max-w-[116px] sm:max-w-[230px] md:max-w-none overflow-hidden ${config.bgClass} ${config.colorClass} ${className}`}
+      className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] sm:min-h-[38px] h-auto rounded-xl text-[10.5px] sm:text-[11.5px] font-semibold transition-all duration-200 cursor-pointer select-none active:scale-95 shadow-xs border min-w-0 max-w-[132px] sm:max-w-[240px] md:max-w-none shrink-0 overflow-hidden ${config.bgClass} ${config.colorClass} ${className}`}
       title={
         lastSuccessfulSyncTime
           ? `آخر مزامنة ناجحة: ${lastSuccessfulSyncTime} — اضغط للتفاصيل`
@@ -87,12 +87,12 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
       aria-label={`حالة المزامنة: ${config.label}`}
     >
       <IconComponent
-        className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${isSyncing || syncState === 'syncing' ? 'animate-spin' : ''}`}
+        className={`w-3.5 h-3.5 shrink-0 ${isSyncing || syncState === 'syncing' ? 'animate-spin' : ''}`}
       />
 
-      {/* Text Label: compact 1-word status on small screens, full status on >= sm */}
-      <span className="hidden sm:inline whitespace-nowrap truncate leading-none">{config.label}</span>
-      <span className="inline sm:hidden whitespace-nowrap text-[10px] font-semibold leading-none truncate">{config.mobileLabel}</span>
+      {/* Text Label: compact status on small screens, full status on >= sm */}
+      <span className="hidden sm:inline whitespace-nowrap truncate leading-snug">{config.label}</span>
+      <span className="inline sm:hidden whitespace-nowrap font-semibold leading-snug truncate">{config.mobileLabel}</span>
 
       {/* Indicator status light dot */}
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${config.dotClass}`} />
