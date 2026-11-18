@@ -505,7 +505,7 @@ async function runTests() {
   );
   assert.ok(
     cssSrc.includes('[data-theme="light"] .card-anchored-pill--active') &&
-      cssSrc.includes('background: linear-gradient(135deg, #123FCE 0%, #267AFF 100%);') &&
+      cssSrc.includes('background: linear-gradient(135deg, #123FCE 0%, #1D4ED8 100%);') &&
       cssSrc.includes('[data-theme="light"] .text-rose-500') &&
       cssSrc.includes('[data-theme="light"] .text-amber-500'),
     'Light theme active pills and rose/amber accents must maintain high contrast'

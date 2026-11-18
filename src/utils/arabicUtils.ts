@@ -11,6 +11,11 @@ export function normalizeArabicText(value: string | undefined | null): string {
     .replace(/[أإآٱ]/g, 'ا')
     .replace(/ى/g, 'ي')
     .replace(/ة/g, 'ه')
+    .replace(/چ/g, 'ج')
+    .replace(/ڤ/g, 'ف')
+    .replace(/پ/g, 'ب')
+    .replace(/گ/g, 'ك')
+    .replace(/ژ/g, 'ز')
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660))
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0))
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
@@ -367,11 +372,15 @@ export function computeMonthlyFollowupSummary(
       };
     }
 
+    const studentNormName = normalizeArabicText((student as any).name);
     const matchingLogs = followupRecords.filter((r) => {
       if (!r || isEmptyFollowupValue(r.type)) return false;
+      const rCode = String(r.studentCode || '').trim();
+      const sCode = String(student.code || '').trim();
       const matchesStudent =
         (r.studentId && r.studentId === student.id) ||
-        (Boolean(r.studentCode) && Boolean(student.code) && r.studentCode === student.code);
+        (Boolean(rCode) && Boolean(sCode) && rCode === sCode) ||
+        (Boolean(studentNormName) && Boolean((r as any).studentName) && normalizeArabicText((r as any).studentName) === studentNormName);
       if (!matchesStudent) return false;
       if (r.fridayDate === fridayDate) return true;
       if (r.date && r.date >= weekStartDate && r.date <= fridayDate && (!r.fridayDate || r.fridayDate === fridayDate)) {
@@ -559,14 +568,14 @@ export function getLatestFollowupComment(
   followupRecords: ReadonlyArray<FollowupRecord>
 ): LatestFollowupCommentInfo | null {
   const normalizedCode = (student.code || '').trim();
-  const normalizedName = (student.name || '').trim();
+  const normalizedName = normalizeArabicText(student.name);
 
   const matchingWithNotes = (Array.isArray(followupRecords) ? followupRecords : [])
     .filter((rec) => {
       if (!rec || !String(rec.notes || '').trim()) return false;
       if (rec.studentId && student.id && rec.studentId === student.id) return true;
       if (rec.studentCode && normalizedCode && rec.studentCode.trim() === normalizedCode) return true;
-      if (rec.studentName && normalizedName && rec.studentName.trim() === normalizedName) return true;
+      if (rec.studentName && normalizedName && normalizeArabicText(rec.studentName) === normalizedName) return true;
       return false;
     })
     .sort((a, b) => {
@@ -593,3 +602,250 @@ export function getLatestFollowupComment(
 
   return null;
 }
+
+export type FollowupMethodCategory = 'call' | 'visit' | 'whatsapp' | 'sms' | 'excuse' | 'none' | 'other';
+
+export function classifyFollowupMethod(rawType: unknown): FollowupMethodCategory {
+  const raw = String(rawType ?? '').trim();
+  if (!raw || raw === '-' || raw === 'بدون' || raw === 'لم يتم' || raw === 'لم يتفتقد' || raw === 'غير مسجل') {
+    return 'none';
+  }
+  const norm = normalizeArabicText(raw);
+  if (!norm || norm === 'بدون' || norm === 'لم يتم' || norm === 'غير مسجل') {
+    return 'none';
+  }
+  if (norm.includes('زيار')) return 'visit';
+  if (norm.includes('تليفون') || norm.includes('هاتف') || norm.includes('تلفون') || norm.includes('اتصال') || norm.includes('مكالم')) {
+    return 'call';
+  }
+  if (norm.includes('واتس')) return 'whatsapp';
+  if (norm.includes('نصي') || norm.includes('sms') || norm.includes('رساله')) return 'sms';
+  if (norm.includes('اعتذار')) return 'excuse';
+  return 'other';
+}
+
+export function extractFollowupCallOutcome(
+  rawType: unknown,
+  explicitOutcome?: unknown
+): 'تم التواصل' | 'لم يتم التواصل' | undefined {
+  const explicitRaw = String(explicitOutcome ?? '').trim();
+  if (explicitRaw) {
+    const normExp = normalizeArabicText(explicitRaw);
+    if (normExp.includes('لم يتم التواصل') || normExp.includes('لم يتم الوصول') || normExp.includes('لم يرد') || normExp.includes('لم يتم الرد')) {
+      return 'لم يتم التواصل';
+    }
+    if (normExp.includes('تم التواصل') || normExp.includes('تم الوصول') || normExp.includes('تم الرد')) {
+      return 'تم التواصل';
+    }
+  }
+
+  const normType = normalizeArabicText(String(rawType ?? ''));
+  if (!normType) return undefined;
+  if (normType.includes('لم يتم الوصول') || normType.includes('لم يتم التواصل') || normType.includes('لم يرد') || normType.includes('لم يتم الرد')) {
+    return 'لم يتم التواصل';
+  }
+  if (normType.includes('تم الوصول') || normType.includes('تم التواصل') || normType.includes('تم الرد')) {
+    return 'تم التواصل';
+  }
+  return undefined;
+}
+
+export function formatFollowupTypeDisplay(rawType: unknown): string {
+  const raw = String(rawType ?? '').trim();
+  if (!raw) return 'بدون';
+  const cat = classifyFollowupMethod(raw);
+  if (cat === 'call') return 'اتصال تليفوني';
+  if (cat === 'visit') return 'زيارة منزلية';
+  if (cat === 'whatsapp') return 'واتساب';
+  if (cat === 'sms') return 'رسالة نصية';
+  if (cat === 'excuse') return 'اعتذار';
+  return raw;
+}
+
+export function getFridayWeekForDateIso(dateIso: string): string {
+  const clean = String(dateIso || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  const [y, m, d] = clean.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const dow = dt.getUTCDay(); // 0=Sun..5=Fri..6=Sat
+  const deltaToFriday = (5 - dow + 7) % 7;
+  dt.setUTCDate(dt.getUTCDate() + deltaToFriday);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
+export function findStudentForFollowupRecord(
+  record: Pick<FollowupRecord, 'studentId' | 'studentCode' | 'studentName'>,
+  students: ReadonlyArray<Student>
+): Student | undefined {
+  if (!record || !Array.isArray(students) || students.length === 0) return undefined;
+  const targetId = String(record.studentId || '').trim();
+  if (targetId) {
+    const byId = students.find((s) => s.id === targetId);
+    if (byId) return byId;
+  }
+  const targetCode = String(record.studentCode || '').trim();
+  if (targetCode) {
+    const byCode = students.find((s) => s.code && s.code.trim() === targetCode);
+    if (byCode) return byCode;
+  }
+  const normName = normalizeArabicText(record.studentName);
+  if (normName) {
+    const byName = students.find((s) => normalizeArabicText(s.name) === normName);
+    if (byName) return byName;
+  }
+  return undefined;
+}
+
+export function getCanonicalFollowupStudentKey(
+  record: Pick<FollowupRecord, 'studentId' | 'studentCode' | 'studentName'>,
+  matchedStudent?: Student
+): string {
+  if (matchedStudent?.id) return matchedStudent.id;
+  const normName = normalizeArabicText(record.studentName);
+  if (normName) return `name:${normName}`;
+  const cleanCode = String(record.studentCode || '').trim();
+  if (cleanCode) return `code:${cleanCode}`;
+  return String(record.studentId || '');
+}
+
+/**
+ * Unifies authoritative 'سجل الافتقاد' records with real per-date followup columns
+ * (`student.fu[YYYY-MM-DD]`, e.g. 'افتقاد 2026-10-30') without creating duplicates
+ * and strictly NEVER turning standalone text notes (without a followup date + method)
+ * into a followup record.
+ */
+export function buildUnifiedFollowupRecords(
+  sheetRecords: ReadonlyArray<FollowupRecord>,
+  students: ReadonlyArray<Student>
+): FollowupRecord[] {
+  const byId = new Map<string, Student>();
+  const byCode = new Map<string, Student>();
+  const byNormName = new Map<string, Student>();
+
+  for (const s of students) {
+    if (s.id) byId.set(s.id, s);
+    if (s.code && s.code.trim()) byCode.set(s.code.trim(), s);
+    const nn = normalizeArabicText(s.name);
+    if (nn && !byNormName.has(nn)) byNormName.set(nn, s);
+  }
+
+  const resolveMatch = (rec: Pick<FollowupRecord, 'studentId' | 'studentCode' | 'studentName'>): Student | undefined => {
+    const tid = String(rec.studentId || '').trim();
+    if (tid && byId.has(tid)) return byId.get(tid);
+    const tcode = String(rec.studentCode || '').trim();
+    if (tcode && byCode.has(tcode)) return byCode.get(tcode);
+    const tname = normalizeArabicText(rec.studentName);
+    if (tname && byNormName.has(tname)) return byNormName.get(tname);
+    return undefined;
+  };
+
+  const unified: FollowupRecord[] = [];
+  const exactIndexMap = new Map<string, number>();
+  const weekKeySet = new Set<string>();
+
+  for (const rawRec of sheetRecords) {
+    if (!rawRec) continue;
+    const cat = classifyFollowupMethod(rawRec.type);
+    const rawDate = String(rawRec.date || '').trim();
+    const rawFriday = String(rawRec.fridayDate || '').trim();
+    const resolvedDate = rawDate && rawDate !== '-' ? rawDate : (rawFriday && rawFriday !== '-' ? rawFriday : '-');
+
+    // Never include blank/placeholder rows with neither valid method nor date
+    if (cat === 'none' && (resolvedDate === '-' || !resolvedDate)) continue;
+    if (cat === 'none') continue;
+
+    const matched = resolveMatch(rawRec);
+    const resolvedFriday =
+      rawFriday && rawFriday !== '-'
+        ? rawFriday
+        : /^\d{4}-\d{2}-\d{2}$/.test(resolvedDate)
+        ? getFridayWeekForDateIso(resolvedDate)
+        : resolvedDate;
+
+    const studentKey = getCanonicalFollowupStudentKey(rawRec, matched);
+    const exactKey = `${studentKey}__${resolvedDate}__${cat}`;
+    const weekKey = `${studentKey}__${resolvedFriday}__${cat}`;
+    const extractedOutcome = extractFollowupCallOutcome(rawRec.type, rawRec.callOutcome);
+
+    const normalizedRec: FollowupRecord = {
+      id: rawRec.id,
+      date: resolvedDate,
+      fridayDate: resolvedFriday,
+      studentId: matched?.id || rawRec.studentId || rawRec.studentCode || rawRec.studentName,
+      studentCode: String(rawRec.studentCode || '').trim() || matched?.code || '',
+      studentName: String(rawRec.studentName || '').trim() || matched?.name || '',
+      servant:
+        rawRec.servant && rawRec.servant.trim() && rawRec.servant.trim() !== 'غير محدد'
+          ? rawRec.servant.trim()
+          : matched?.servant || 'غير محدد',
+      type: String(rawRec.type || '').trim(),
+      ...(extractedOutcome ? { callOutcome: extractedOutcome } : {}),
+      notes: String(rawRec.notes || '').trim()
+    };
+
+    if (exactIndexMap.has(exactKey)) {
+      // Merge richer fields without duplicating the same student/date/method record
+      const idx = exactIndexMap.get(exactKey)!;
+      const existing = unified[idx];
+      if (!existing.notes && normalizedRec.notes) existing.notes = normalizedRec.notes;
+      if (!existing.callOutcome && normalizedRec.callOutcome) existing.callOutcome = normalizedRec.callOutcome;
+      if ((!existing.studentCode || existing.studentCode === '-') && normalizedRec.studentCode) existing.studentCode = normalizedRec.studentCode;
+      if ((!existing.servant || existing.servant === 'غير محدد') && normalizedRec.servant !== 'غير محدد') existing.servant = normalizedRec.servant;
+      continue;
+    }
+
+    exactIndexMap.set(exactKey, unified.length);
+    if (resolvedFriday && resolvedFriday !== '-') {
+      weekKeySet.add(weekKey);
+    }
+    unified.push(normalizedRec);
+  }
+
+  // Synthesize historical per-date followups from student.fu columns when not already in 'سجل الافتقاد'
+  for (const s of students) {
+    if (!s.fu || typeof s.fu !== 'object') continue;
+    for (const [fuDate, fuMethod] of Object.entries(s.fu)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fuDate)) continue;
+      const cat = classifyFollowupMethod(fuMethod);
+      if (cat === 'none') continue;
+
+      const weekFriday = getFridayWeekForDateIso(fuDate);
+      const exactKey = `${s.id}__${fuDate}__${cat}`;
+      const weekKey = `${s.id}__${weekFriday}__${cat}`;
+
+      if (exactIndexMap.has(exactKey) || weekKeySet.has(weekKey)) {
+        continue;
+      }
+
+      const outcome = extractFollowupCallOutcome(fuMethod, s.fuOutcomes?.[fuDate]);
+      exactIndexMap.set(exactKey, unified.length);
+      weekKeySet.add(weekKey);
+
+      unified.push({
+        id: `sheet_fu_${s.id}_${fuDate}_${cat}`,
+        date: fuDate,
+        fridayDate: weekFriday,
+        studentId: s.id,
+        studentCode: s.code || '',
+        studentName: s.name || '',
+        servant: s.servant || 'غير محدد',
+        type: String(fuMethod).trim(),
+        ...(outcome ? { callOutcome: outcome } : {}),
+        notes: ''
+      });
+    }
+  }
+
+  // Sort descending chronologically by date (newest first), stable tie-break by id
+  unified.sort((a, b) => {
+    const dateA = /^\d{4}-\d{2}-\d{2}$/.test(a.date) ? a.date : '';
+    const dateB = /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : '';
+    const cmp = dateB.localeCompare(dateA);
+    if (cmp !== 0) return cmp;
+    return String(b.fridayDate || '').localeCompare(String(a.fridayDate || ''));
+  });
+
+  return unified;
+}
+

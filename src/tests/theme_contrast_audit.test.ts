@@ -350,12 +350,24 @@ async function runTests() {
       surfPrimary
     );
 
-    // White button text contrast on unified primary/active gradient stops
+    // Input fields & placeholders (--text-primary and --text-muted on --input-bg composited over --app-bg)
+    const inputBg = resolveCssVar(themeVars, '--input-bg');
+    assertContrast(themeName, '--text-primary on --input-bg', textPrimary, inputBg, 4.5, appBg);
+    assertContrast(themeName, 'placeholder (--text-muted) on --input-bg', textMuted, inputBg, 4.5, appBg);
+
+    // Hover surfaces (--text-primary & --text-secondary over --surface-hover composited over --surface-primary)
+    const surfHover = resolveCssVar(themeVars, '--surface-hover');
+    assertContrast(themeName, '--text-primary on --surface-hover', textPrimary, surfHover, 4.5, surfPrimary);
+    assertContrast(themeName, '--text-secondary on --surface-hover', textSecondary, surfHover, 4.5, surfPrimary);
+
+    // White button text contrast on unified primary/active & danger gradient stops
     assertContrast(themeName, 'white on #123FCE', '#FFFFFF', '#123FCE', 4.5);
     assertContrast(themeName, 'white on #1D4ED8', '#FFFFFF', '#1D4ED8', 4.5);
     assertContrast(themeName, 'white on #0369A1', '#FFFFFF', '#0369A1', 4.5);
+    assertContrast(themeName, 'white on #BE123C', '#FFFFFF', '#BE123C', 4.5);
+    assertContrast(themeName, 'white on #9F1239', '#FFFFFF', '#9F1239', 4.5);
   }
-  console.log('✅ Test 1 Passed: All Dark, Dim, and Light CSS tokens satisfy WCAG 2.2 AA contrast ratios');
+  console.log('✅ Test 1 Passed: All Dark, Dim, and Light CSS tokens (including inputs, placeholders & hover) satisfy WCAG 2.2 AA contrast ratios');
 
   // --------------------------------------------------------------------------
   // 2. Cascade & Layering Regression Guard (prevents white-on-white pill collapse)
@@ -399,7 +411,33 @@ async function runTests() {
   const queueModalSource = readProjectFile('src/components/modals/QueueDetailsModal.tsx');
   assert.ok(queueModalSource.includes('var(--warning-bg)') && queueModalSource.includes('var(--success-text)'), 'QueueDetailsModal must use semantic status tokens');
 
-  console.log('✅ Test 3 Passed: Modals and components pass semantic token & high-contrast source checks');
+  // Verify instant binary toggle removed and Sidebar -> AppearanceModal popup preserved cleanly
+  const themeCtxSource = readProjectFile('src/context/ThemeContext.tsx');
+  assert.ok(!themeCtxSource.includes('toggleTheme'), 'ThemeContext must not expose duplicate instant binary toggleTheme handler');
+
+  const appearanceModalSource = readProjectFile('src/components/modals/AppearanceModal.tsx');
+  assert.ok(
+    !appearanceModalSource.includes('تبديل السمة الفوري') &&
+      !appearanceModalSource.includes('<ThemeSwitcher />') &&
+      appearanceModalSource.includes("'dark'") &&
+      appearanceModalSource.includes("'dim'") &&
+      appearanceModalSource.includes("'light'"),
+    'AppearanceModal must preserve all 3 theme options without duplicate Instant Theme Toggle UI'
+  );
+
+  const sidebarSource = readProjectFile('src/components/layout/Sidebar.tsx');
+  assert.ok(
+    sidebarSource.includes('مظهر وسمة التطبيق') && sidebarSource.includes('setIsAppearanceModalOpen(true)'),
+    'Sidebar must keep Appearance button opening AppearanceModal popup'
+  );
+
+  const appSource = readProjectFile('src/App.tsx');
+  assert.ok(
+    appSource.includes('!bg-[var(--surface-glass-strong)]'),
+    'App.tsx floating toasts & alerts must keep opaque glass-strong surface backdrop'
+  );
+
+  console.log('✅ Test 3 Passed: Modals, Theme Selector hygiene, and semantic contrast token checks');
 
   // --------------------------------------------------------------------------
   // 4. Dual-Theme SSR Render Smoke Audit (Light Mode & Dark Mode)

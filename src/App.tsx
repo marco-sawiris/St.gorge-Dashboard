@@ -144,21 +144,33 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.94 }}
               transition={{ duration: 0.28, ease: SPRING_EASE }}
-              className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[60] glass-strong rounded-2xl p-3.5 border shadow-[var(--shadow-lg)] flex items-start gap-3 ${
+              className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[60] glass-strong !bg-[var(--surface-glass-strong)] rounded-2xl p-3.5 border shadow-[var(--shadow-lg)] flex items-start gap-3 ${
                 activeToast.type === 'danger'
-                  ? 'border-[var(--danger-border)] bg-[var(--danger-bg)]'
+                  ? 'border-[var(--danger-border)]'
                   : activeToast.type === 'warn'
-                  ? 'border-[var(--warning-border)] bg-[var(--warning-bg)]'
-                  : 'border-[var(--info-border)] bg-[var(--info-bg)]'
+                  ? 'border-[var(--warning-border)]'
+                  : activeToast.type === 'success'
+                  ? 'border-[var(--success-border)]'
+                  : 'border-[var(--info-border)]'
               }`}
             >
-              <div className="shrink-0 mt-0.5">
+              <div
+                className={`w-7 h-7 rounded-xl border flex items-center justify-center shrink-0 mt-0.5 ${
+                  activeToast.type === 'danger'
+                    ? 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger-text)]'
+                    : activeToast.type === 'warn'
+                    ? 'bg-[var(--warning-bg)] border-[var(--warning-border)] text-[var(--warning-text)]'
+                    : activeToast.type === 'success'
+                    ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success-text)]'
+                    : 'bg-[var(--info-bg)] border-[var(--info-border)] text-[var(--info-text)]'
+                }`}
+              >
                 {activeToast.type === 'danger' || activeToast.type === 'warn' ? (
-                  <AlertTriangle className={`w-4 h-4 ${activeToast.type === 'danger' ? 'text-[var(--danger-text)]' : 'text-[var(--warning-text)]'}`} />
+                  <AlertTriangle className="w-4 h-4" />
                 ) : activeToast.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-[var(--success-text)]" />
+                  <CheckCircle2 className="w-4 h-4" />
                 ) : (
-                  <Info className="w-4 h-4 text-[var(--info-text)]" />
+                  <Info className="w-4 h-4" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -238,7 +250,7 @@ export default function App() {
                 </p>
               </div>
             ) : students.length === 0 ? (
-              <div className="glass p-8 sm:p-10 text-center rounded-3xl border border-[var(--danger-border)] bg-[var(--danger-bg)] space-y-4 my-4 word-in">
+              <div className="glass !bg-[var(--surface-glass-strong)] p-8 sm:p-10 text-center rounded-3xl border border-[var(--danger-border)] space-y-4 my-4 word-in">
                 <div className="w-12 h-12 rounded-2xl bg-[var(--danger-bg)] border border-[var(--danger-border)] flex items-center justify-center text-[var(--danger-text)] mx-auto">
                   <AlertTriangle className="w-6 h-6" />
                 </div>

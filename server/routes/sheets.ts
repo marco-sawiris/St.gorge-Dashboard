@@ -36,10 +36,19 @@ function resolveSafeSheetName(candidates: unknown[], fallback: string = ALL_SHEE
     const trimmed = String(raw).trim();
     if (!trimmed) continue;
     const lower = trimmed.toLowerCase();
-    if (lower === 'undefined' || lower === 'null' || lower === 'nan') continue;
+    if (lower === 'undefined' || lower === 'null' || lower === 'nan' || lower === '[object object]') continue;
     return trimmed;
   }
   return fallback;
+}
+
+function isExplicitlyInvalidSheetInput(raw: unknown): boolean {
+  if (raw === undefined) return false;
+  if (raw === null) return true;
+  const trimmed = String(raw).trim();
+  if (!trimmed || trimmed === ALL_SHEETS_SENTINEL) return true;
+  const lower = trimmed.toLowerCase();
+  return lower === 'undefined' || lower === 'null' || lower === 'nan' || lower === '[object object]';
 }
 
 async function handleGetSheetStudents(req: AuthenticatedRequest, res: Response) {
@@ -115,6 +124,13 @@ router.post(
 
     if (!action || !studentId) {
       return res.status(400).json({ error: 'بيانات العملية غير مكتملة (action و studentId مطلوبان)' });
+    }
+    if (
+      isExplicitlyInvalidSheetInput(sourceSheet) ||
+      isExplicitlyInvalidSheetInput(req.body?.sheet) ||
+      isExplicitlyInvalidSheetInput(req.body?.tab)
+    ) {
+      return res.status(400).json({ error: 'اسم التاب المرسل غير صالح أو غير محدد (undefined / __ALL__).' });
     }
     if (action !== 'add' && (!Number.isInteger(expectedVersion) || expectedVersion < 1)) {
       return res.status(400).json({ error: 'expectedVersion إلزامي ويجب أن يكون رقم إصدار صحيحاً لكل تعديل على سجل موجود.' });
@@ -475,6 +491,18 @@ router.post(
           mutationId: itemKey,
           studentId,
           error: 'المعالجة المجمعة تقبل عمليات الحضور الصحيحة فقط'
+        };
+        continue;
+      }
+
+      const explicitMutSheet = mut.sourceSheet !== undefined ? mut.sourceSheet : (mut.sheet !== undefined ? mut.sheet : mut.tab);
+      if (isExplicitlyInvalidSheetInput(explicitMutSheet)) {
+        results[i] = {
+          ok: false,
+          status: 400,
+          mutationId: itemKey,
+          studentId,
+          error: `اسم التاب غير صالح للمخدوم: ${String(explicitMutSheet)}`
         };
         continue;
       }

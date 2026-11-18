@@ -13,7 +13,19 @@ import {
   Download,
   Printer
 } from 'lucide-react';
-import { getLatestHeldFridayString, getNearestFridayString, formatTelHref, formatWhatsAppUrl } from '../../utils/arabicUtils';
+import {
+  getLatestHeldFridayString,
+  getNearestFridayString,
+  formatTelHref,
+  formatWhatsAppUrl,
+  buildUnifiedFollowupRecords,
+  classifyFollowupMethod,
+  extractFollowupCallOutcome,
+  formatFollowupTypeDisplay,
+  findStudentForFollowupRecord,
+  getCanonicalFollowupStudentKey,
+  normalizeArabicText
+} from '../../utils/arabicUtils';
 import { downloadCsvReport, downloadPrintableHtmlReport } from '../../utils/exportUtils';
 
 export const FollowupLogView: React.FC = () => {
@@ -36,6 +48,12 @@ export const FollowupLogView: React.FC = () => {
     };
   }, []);
 
+  // Unified non-duplicated followup records combining 'سجل الافتقاد' tab + real student.fu dates
+  // (Strictly never turns standalone text notes into followup records)
+  const unifiedRecords = useMemo(() => {
+    return buildUnifiedFollowupRecords(followupRecords, students);
+  }, [followupRecords, students]);
+
   // Servants list
   const servantsList = useMemo(() => {
     const set = new Set<string>();
@@ -43,27 +61,73 @@ export const FollowupLogView: React.FC = () => {
       const name = s.servant?.trim();
       if (name && name !== 'غير محدد') set.add(name);
     });
+    unifiedRecords.forEach((r) => {
+      const name = r.servant?.trim();
+      if (name && name !== 'غير محدد') set.add(name);
+    });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [students]);
+  }, [students, unifiedRecords]);
 
   // Filtered records
   const filteredRecords = useMemo(() => {
-    return followupRecords.filter((r) => {
-      if (selectedServant && r.servant !== selectedServant) return false;
-      if (selectedType && r.type !== selectedType) return false;
-      if (searchQuery) {
-        const q = searchQuery.trim().toLowerCase();
-        const matchName = r.studentName.toLowerCase().includes(q);
-        const matchCode = r.studentCode.toLowerCase().includes(q);
-        const matchNotes = (r.notes || '').toLowerCase().includes(q);
-        if (!matchName && !matchCode && !matchNotes) return false;
+    const selectedCategory = selectedType ? classifyFollowupMethod(selectedType) : null;
+    const normQuery = normalizeArabicText(searchQuery);
+    const rawQueryLower = searchQuery.trim().toLowerCase();
+
+    return unifiedRecords.filter((r) => {
+      const studentMatch = findStudentForFollowupRecord(r, students);
+      const effectiveServant = (r.servant && r.servant !== 'غير محدد' ? r.servant : studentMatch?.servant || '').trim();
+
+      if (selectedServant && effectiveServant !== selectedServant) return false;
+
+      if (selectedType) {
+        if (selectedCategory && selectedCategory !== 'other' && selectedCategory !== 'none') {
+          if (classifyFollowupMethod(r.type) !== selectedCategory) return false;
+        } else if (r.type !== selectedType) {
+          return false;
+        }
+      }
+
+      if (rawQueryLower) {
+        const studentNotes = studentMatch?.notes || '';
+        const matchNorm =
+          (normQuery &&
+            (normalizeArabicText(r.studentName).includes(normQuery) ||
+              normalizeArabicText(r.studentCode).includes(normQuery) ||
+              normalizeArabicText(r.notes).includes(normQuery) ||
+              normalizeArabicText(studentNotes).includes(normQuery) ||
+              normalizeArabicText(r.type).includes(normQuery) ||
+              normalizeArabicText(effectiveServant).includes(normQuery))) ||
+          r.studentName.toLowerCase().includes(rawQueryLower) ||
+          r.studentCode.toLowerCase().includes(rawQueryLower) ||
+          (r.notes || '').toLowerCase().includes(rawQueryLower) ||
+          studentNotes.toLowerCase().includes(rawQueryLower) ||
+          (r.date || '').toLowerCase().includes(rawQueryLower);
+        if (!matchNorm) return false;
       }
       return true;
     });
-  }, [followupRecords, selectedServant, selectedType, searchQuery]);
+  }, [unifiedRecords, students, selectedServant, selectedType, searchQuery]);
 
-  // WhatsApp Report Generator (Works for BOTH specific servant OR All Servants Summary)
+  // WhatsApp Report Generator (Works for BOTH specific servant OR All Servants Detailed Report)
   const generatedWhatsAppReport = useMemo(() => {
+    const formatRecordDetailLine = (r: (typeof unifiedRecords)[number], idx: number) => {
+      const stMatch = findStudentForFollowupRecord(r, students);
+      const cat = classifyFollowupMethod(r.type);
+      const outcome = extractFollowupCallOutcome(r.type, r.callOutcome);
+      const methodLabel = formatFollowupTypeDisplay(r.type);
+      const outcomeSuffix = cat === 'call' ? ` — نتيجة الاتصال: ${outcome || 'غير مسجل'}` : '';
+      const recNote = String(r.notes || '').trim();
+      const studentNote = String(stMatch?.notes || '').trim();
+      const notesParts: string[] = [];
+      if (recNote) notesParts.push(recNote);
+      if (studentNote && normalizeArabicText(studentNote) !== normalizeArabicText(recNote)) {
+        notesParts.push(`ملاحظة المخدوم: ${studentNote}`);
+      }
+      const notesStr = notesParts.length > 0 ? ` — ${notesParts.join(' | ')}` : '';
+      return `${idx + 1}. ${r.studentName} — ${methodLabel}${outcomeSuffix} (${r.date})${notesStr}\n`;
+    };
+
     if (!selectedServant) {
       const grouped = new Map<string, { total: number; present: number; absent: number; calls: number; visits: number }>();
       students.forEach((s) => {
@@ -74,34 +138,58 @@ export const FollowupLogView: React.FC = () => {
         if (s.att && s.att[attendanceFriday]) row.present++;
         else row.absent++;
       });
-      followupRecords.forEach((r) => {
-        const key = r.servant?.trim() || 'غير محدد';
+      unifiedRecords.forEach((r) => {
+        const stMatch = findStudentForFollowupRecord(r, students);
+        const key = (r.servant && r.servant !== 'غير محدد' ? r.servant : stMatch?.servant)?.trim() || 'غير محدد';
         if (!grouped.has(key)) grouped.set(key, { total: 0, present: 0, absent: 0, calls: 0, visits: 0 });
         const row = grouped.get(key)!;
-        if (r.type === 'تم تليفونياً') row.calls++;
-        if (r.type === 'تم بزيارة') row.visits++;
+        const cat = classifyFollowupMethod(r.type);
+        if (cat === 'call') row.calls++;
+        if (cat === 'visit') row.visits++;
       });
 
-      const distinctStudents = new Set(followupRecords.map((r) => r.studentId || r.studentCode || r.studentName)).size;
-      const totalCalls = followupRecords.filter((r) => r.type === 'تم تليفونياً').length;
-      const totalVisits = followupRecords.filter((r) => r.type === 'تم بزيارة').length;
+      const distinctStudents = new Set(
+        unifiedRecords.map((r) => getCanonicalFollowupStudentKey(r, findStudentForFollowupRecord(r, students)))
+      ).size;
+      const totalCalls = unifiedRecords.filter((r) => classifyFollowupMethod(r.type) === 'call').length;
+      const totalVisits = unifiedRecords.filter((r) => classifyFollowupMethod(r.type) === 'visit').length;
 
       let text = `✝️ *تقرير الافتقاد الشامل — كل الأشابين*\n`;
       text += `📅 جمعة الحضور: ${attendanceFriday} | أسبوع المتابعة: ${currentFriday}\n`;
-      text += `• إجمالي المخدومين: ${students.length} | سجلات الافتقاد: ${followupRecords.length} (${distinctStudents} مخدوم)\n`;
+      text += `• إجمالي المخدومين: ${students.length} | سجلات الافتقاد: ${unifiedRecords.length} (${distinctStudents} مخدوم)\n`;
       text += `• اتصالات تليفونية: ${totalCalls} | زيارات منزلية: ${totalVisits}\n\n`;
       text += `📋 *ملخص حسب الأشبين:*\n`;
       Array.from(grouped.entries()).forEach(([srv, st], idx) => {
         text += `${idx + 1}. أ/ ${srv}: حضور ${st.present}/${st.total} • غياب ${st.absent} • اتصال ${st.calls} • زيارة ${st.visits}\n`;
       });
+
+      if (unifiedRecords.length > 0) {
+        text += `\n📝 *تفاصيل سجلات الافتقاد المسجلة (${unifiedRecords.length}):*\n`;
+        unifiedRecords.forEach((r, idx) => {
+          text += formatRecordDetailLine(r, idx);
+        });
+      }
+
+      const studentsWithNotes = students.filter((s) => Boolean(String(s.notes || '').trim()));
+      if (studentsWithNotes.length > 0) {
+        text += `\n🗒️ *ملاحظات المخدومين المسجلة (${studentsWithNotes.length}):*\n`;
+        studentsWithNotes.forEach((s, idx) => {
+          text += `${idx + 1}. ${s.name}: ${String(s.notes || '').trim()}\n`;
+        });
+      }
+
       text += `\nصلواتكم للخدمة والخدام 🙏`;
       return text;
     }
 
-    const servantStudents = students.filter((s) => s.servant === selectedServant);
+    const servantStudents = students.filter((s) => s.servant?.trim() === selectedServant);
     const attended = servantStudents.filter((s) => s.att && s.att[attendanceFriday]);
     const absent = servantStudents.filter((s) => !s.att || !s.att[attendanceFriday]);
-    const servantLogs = followupRecords.filter((r) => r.servant === selectedServant);
+    const servantLogs = unifiedRecords.filter((r) => {
+      const stMatch = findStudentForFollowupRecord(r, students);
+      const effSrv = (r.servant && r.servant !== 'غير محدد' ? r.servant : stMatch?.servant || '').trim();
+      return effSrv === selectedServant;
+    });
 
     let text = `✝️ *فصل الشهيد مارجرجس - كنيسة العذراء بالزيتون*\n`;
     text += `سلام ونعمة يا أ/ ${selectedServant}،\n`;
@@ -110,27 +198,34 @@ export const FollowupLogView: React.FC = () => {
     // Strict zero-green: Use Blue / Cyan symbol
     text += `🔹 *المخدومين الحاضرين (${attended.length}):*\n`;
     attended.forEach((s, idx) => {
-      text += `${idx + 1}. ${s.name} (${s.code})\n`;
+      text += `${idx + 1}. ${s.name} (${s.code})${s.notes?.trim() ? ` — ${s.notes.trim()}` : ''}\n`;
     });
 
     text += `\n🔸 *المخدومين الغائبين ويحتاجون افتقاد (${absent.length}):*\n`;
     absent.forEach((s, idx) => {
       const phone = s.phoneStudent || s.phoneParent1 || 'بدون هاتف';
-      text += `${idx + 1}. ${s.name} (${s.code})\n   📞 ${phone} | ${s.followupStatus || 'لم يفتقد'}\n`;
+      const noteText = s.notes?.trim() ? ` | 📝 ${s.notes.trim()}` : '';
+      text += `${idx + 1}. ${s.name} (${s.code})\n   📞 ${phone} | ${s.followupStatus || 'لم يفتقد'}${noteText}\n`;
     });
 
     if (servantLogs.length > 0) {
-      text += `\n📝 *آخر عمليات الافتقاد المسجلة (${servantLogs.length}):*\n`;
-      servantLogs.slice(0, 6).forEach((r, idx) => {
-        const isPhone = r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي';
-        const outcomeSuffix = isPhone ? ` — نتيجة الاتصال: ${r.callOutcome || 'غير مسجل'}` : '';
-        text += `${idx + 1}. ${r.studentName} — ${r.type}${outcomeSuffix} (${r.date})${r.notes ? `: ${r.notes}` : ''}\n`;
+      text += `\n📝 *عمليات الافتقاد المسجلة (${servantLogs.length}):*\n`;
+      servantLogs.forEach((r, idx) => {
+        text += formatRecordDetailLine(r, idx);
+      });
+    }
+
+    const servantStudentsWithNotes = servantStudents.filter((s) => Boolean(String(s.notes || '').trim()));
+    if (servantStudentsWithNotes.length > 0) {
+      text += `\n🗒️ *ملاحظات المخدومين المسجلة (${servantStudentsWithNotes.length}):*\n`;
+      servantStudentsWithNotes.forEach((s, idx) => {
+        text += `${idx + 1}. ${s.name}: ${String(s.notes || '').trim()}\n`;
       });
     }
 
     text += `\nصلواتكم للخدمة والخدام 🙏`;
     return text;
-  }, [selectedServant, students, followupRecords, currentFriday, attendanceFriday]);
+  }, [selectedServant, students, unifiedRecords, currentFriday, attendanceFriday]);
 
   const handleCopyReport = async () => {
     if (!generatedWhatsAppReport) return;
@@ -142,20 +237,31 @@ export const FollowupLogView: React.FC = () => {
     } catch {}
   };
 
+  const resolveCombinedNotes = (r: (typeof unifiedRecords)[number], studentNotes?: string) => {
+    const recNote = String(r.notes || '').trim();
+    const stNote = String(studentNotes || '').trim();
+    if (recNote && stNote && normalizeArabicText(recNote) !== normalizeArabicText(stNote)) {
+      return `${recNote} | ملاحظات المخدوم: ${stNote}`;
+    }
+    return recNote || stNote;
+  };
+
   const handleExportFollowupCSV = () => {
     if (filteredRecords.length === 0) return;
     const headers = ['التاريخ', 'أسبوع الجمعة', 'الكود', 'الاسم', 'الأشبين', 'النوع', 'نتيجة الاتصال', 'ملاحظات'];
     const rows = filteredRecords.map((r) => {
-      const isPhone = r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي';
+      const studentMatch = findStudentForFollowupRecord(r, students);
+      const isPhone = classifyFollowupMethod(r.type) === 'call';
+      const outcome = extractFollowupCallOutcome(r.type, r.callOutcome);
       return [
         r.date,
         r.fridayDate,
-        r.studentCode,
+        r.studentCode || studentMatch?.code || '',
         r.studentName,
-        r.servant,
-        r.type,
-        r.callOutcome || (isPhone ? 'غير مسجل' : '-'),
-        r.notes || ''
+        r.servant || studentMatch?.servant || 'غير محدد',
+        formatFollowupTypeDisplay(r.type),
+        outcome || (isPhone ? 'غير مسجل' : '-'),
+        resolveCombinedNotes(r, studentMatch?.notes)
       ];
     });
     downloadCsvReport(headers, rows, `سجل_الافتقاد_${currentFriday}.csv`);
@@ -165,16 +271,18 @@ export const FollowupLogView: React.FC = () => {
     if (filteredRecords.length === 0) return;
     const headers = ['التاريخ', 'أسبوع الجمعة', 'الكود', 'الاسم', 'الأشبين', 'الوسيلة', 'نتيجة الاتصال', 'ملاحظات'];
     const rows = filteredRecords.map((r) => {
-      const isPhone = r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي';
+      const studentMatch = findStudentForFollowupRecord(r, students);
+      const isPhone = classifyFollowupMethod(r.type) === 'call';
+      const outcome = extractFollowupCallOutcome(r.type, r.callOutcome);
       return [
         r.date,
         r.fridayDate,
-        r.studentCode,
+        r.studentCode || studentMatch?.code || '',
         r.studentName,
-        r.servant,
-        r.type,
-        r.callOutcome || (isPhone ? 'غير مسجل' : '-'),
-        r.notes || '-'
+        r.servant || studentMatch?.servant || 'غير محدد',
+        formatFollowupTypeDisplay(r.type),
+        outcome || (isPhone ? 'غير مسجل' : '-'),
+        resolveCombinedNotes(r, studentMatch?.notes) || '-'
       ];
     });
     downloadPrintableHtmlReport(
@@ -354,7 +462,16 @@ export const FollowupLogView: React.FC = () => {
           </div>
         ) : (
           filteredRecords.map((r, idx) => {
-            const studentMatch = students.find((s) => s.id === r.studentId);
+            const studentMatch = findStudentForFollowupRecord(r, students);
+            const methodCategory = classifyFollowupMethod(r.type);
+            const isPhoneCall = methodCategory === 'call';
+            const resolvedOutcome = extractFollowupCallOutcome(r.type, r.callOutcome);
+            const displayCode = r.studentCode || studentMatch?.code || '';
+            const studentLinkedNotes = String(studentMatch?.notes || '').trim();
+            const hasDistinctStudentNotes =
+              Boolean(studentLinkedNotes) &&
+              normalizeArabicText(studentLinkedNotes) !== normalizeArabicText(r.notes);
+
             return (
               <div
                 key={r.id}
@@ -364,23 +481,25 @@ export const FollowupLogView: React.FC = () => {
                 <div className="space-y-1.5 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-extrabold text-sm text-[var(--text-primary)]">{r.studentName}</span>
-                    <span className="font-mono text-xs font-bold text-[var(--info-text)] bg-[var(--info-bg)] px-2 py-0.5 rounded-md border border-[var(--info-border)]">
-                      {r.studentCode}
-                    </span>
+                    {displayCode && (
+                      <span className="font-mono text-xs font-bold text-[var(--info-text)] bg-[var(--info-bg)] px-2 py-0.5 rounded-md border border-[var(--info-border)]">
+                        {displayCode}
+                      </span>
+                    )}
                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--info-bg)] text-[var(--accent-primary)] border border-[var(--info-border)]">
-                      {r.type === 'تم تليفونياً' ? 'اتصال تليفوني' : r.type}
+                      {formatFollowupTypeDisplay(r.type)}
                     </span>
-                    {(r.type === 'تم تليفونياً' || r.type === 'اتصال تليفوني' || r.type === 'اتصال هاتفي' || r.callOutcome) && (
+                    {(isPhoneCall || resolvedOutcome) && (
                       <span
                         className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                          r.callOutcome === 'تم التواصل'
+                          resolvedOutcome === 'تم التواصل'
                             ? 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]'
-                            : r.callOutcome === 'لم يتم التواصل'
+                            : resolvedOutcome === 'لم يتم التواصل'
                             ? 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)]'
                             : 'bg-[var(--surface-inset)] text-[var(--text-muted)] border-[var(--border-color)]'
                         }`}
                       >
-                        نتيجة الاتصال: {r.callOutcome || 'غير مسجل'}
+                        نتيجة الاتصال: {resolvedOutcome || r.callOutcome || 'غير مسجل'}
                       </span>
                     )}
                   </div>
@@ -396,9 +515,11 @@ export const FollowupLogView: React.FC = () => {
                     </span>
                   </div>
 
-                  {r.notes && (
+                  {(r.notes || hasDistinctStudentNotes) && (
                     <p className="text-xs text-[var(--text-secondary)] bg-[var(--surface-primary)] p-2.5 rounded-xl m-0 border border-[var(--border-color)] break-words">
                       {r.notes}
+                      {r.notes && hasDistinctStudentNotes ? ' · ' : ''}
+                      {hasDistinctStudentNotes ? `ملاحظات المخدوم: ${studentLinkedNotes}` : ''}
                     </p>
                   )}
                 </div>
@@ -440,3 +561,4 @@ export const FollowupLogView: React.FC = () => {
     </div>
   );
 };
+

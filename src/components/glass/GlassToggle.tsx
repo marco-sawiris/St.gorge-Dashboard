@@ -23,8 +23,8 @@ export const GlassToggle: React.FC<GlassToggleProps> = ({
         onClick={() => !disabled && onChange(!checked)}
         className={`relative w-12 h-6.5 rounded-full p-0.5 transition-all duration-300 backdrop-blur-md cursor-pointer border ${
           checked
-            ? 'bg-gradient-to-r from-[var(--primary)]/80 to-[var(--accent)]/90 border-[var(--accent)] shadow-[0_0_14px_rgba(32,199,232,0.5)]'
-            : 'bg-[var(--navy)]/80 border-[var(--glass-border)] shadow-inner'
+            ? 'bg-gradient-to-r from-[#123FCE] to-[#0369A1] border-[var(--accent)] shadow-[0_0_14px_rgba(56,189,248,0.5)]'
+            : 'bg-slate-600 dark:bg-[#071B3B]/90 border-[var(--border-strong)] shadow-inner'
         }`}
       >
         {/* Glossy Liquid Thumb */}

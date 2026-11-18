@@ -1,7 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { Theme, useTheme } from '../../context/ThemeContext';
-import { ThemeSwitcher } from '../glass/ThemeSwitcher';
 import { Check, CloudMoon, Moon, Palette, Sun, X } from 'lucide-react';
 
 const THEME_OPTIONS: Array<{
@@ -77,7 +76,7 @@ export const AppearanceModal: React.FC = () => {
                 مظهر وسمة التطبيق
               </h3>
               <p className="text-[11px] font-semibold text-[var(--text-muted)] m-0 mt-0.5 leading-snug">
-                اختر المظهر المناسب للعين · يُحفظ تلقائياً
+                السمة النشطة حالياً: <strong className="text-[var(--accent-secondary)]">{activeThemeMeta.label}</strong> · يُحفظ الاختيار تلقائياً
               </p>
             </div>
           </div>
@@ -94,19 +93,6 @@ export const AppearanceModal: React.FC = () => {
 
         {/* Body */}
         <div className="p-4 overflow-y-auto space-y-4 flex-1 text-xs sm:text-sm">
-          {/* Primary Segmented Theme Switcher */}
-          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-extrabold text-[var(--text-primary)] m-0">
-                تبديل السمة الفوري
-              </p>
-              <p className="text-[11px] text-[var(--text-muted)] m-0 mt-0.5">
-                السمة النشطة حالياً: <strong className="text-[var(--accent-secondary)]">{activeThemeMeta.label}</strong>
-              </p>
-            </div>
-            <ThemeSwitcher />
-          </div>
-
           {/* Dedicated Visual Mode Cards */}
           <div className="space-y-2.5" role="radiogroup" aria-label="اختيار سمة التطبيق">
             {THEME_OPTIONS.map((option) => {

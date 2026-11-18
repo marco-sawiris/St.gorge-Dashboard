@@ -22,6 +22,7 @@ export interface PlannedAttendanceEntry {
   studentId: string;
   studentName: string;
   studentCode: string;
+  sourceSheet?: string;
   fridayDate: string;
   isPresent: boolean;
   isOverwrite: boolean;
@@ -205,6 +206,7 @@ export function buildAttendanceImportPlan(
               studentId: student.id,
               studentName: student.name,
               studentCode: student.code,
+              sourceSheet: student.sourceSheet,
               fridayDate: dateIso,
               isPresent: incomingIsPresent,
               isOverwrite: true
@@ -217,6 +219,7 @@ export function buildAttendanceImportPlan(
           studentId: student.id,
           studentName: student.name,
           studentCode: student.code,
+          sourceSheet: student.sourceSheet,
           fridayDate: dateIso,
           isPresent: incomingIsPresent,
           isOverwrite: false
@@ -245,3 +248,75 @@ export function buildAttendanceImportPlan(
     summaryByDate
   };
 }
+
+export interface PdfImportBatchEntryPayload {
+  studentId: string;
+  fridayDate: string;
+  isPresent: boolean;
+  sourceSheet: string;
+}
+
+export function isValidPdfImportTabName(rawTab: unknown): boolean {
+  if (rawTab === null || rawTab === undefined) return false;
+  const s = String(rawTab).trim();
+  if (
+    !s ||
+    s === '__ALL__' ||
+    /^undefined$/i.test(s) ||
+    /^null$/i.test(s) ||
+    /^nan$/i.test(s) ||
+    /^\[object\s+object\]$/i.test(s)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function validateAndResolvePdfImportEntries(
+  rawEntries: ReadonlyArray<{ studentId: string; fridayDate: string; isPresent: boolean; sourceSheet?: string }>,
+  studentsById: Map<string, Student>,
+  fallbackTab?: string
+): {
+  ok: boolean;
+  entries: PdfImportBatchEntryPayload[];
+  resolvedTabs: string[];
+  error?: string;
+} {
+  const safeFallback = isValidPdfImportTabName(fallbackTab) ? String(fallbackTab).trim() : '';
+  const entries: PdfImportBatchEntryPayload[] = [];
+  const tabsSet = new Set<string>();
+
+  for (const item of rawEntries) {
+    const student = studentsById.get(item.studentId);
+    const candidateTab = isValidPdfImportTabName(item.sourceSheet)
+      ? String(item.sourceSheet).trim()
+      : isValidPdfImportTabName(student?.sourceSheet)
+      ? String(student!.sourceSheet).trim()
+      : safeFallback;
+
+    if (!candidateTab) {
+      const label = student?.name || item.studentId;
+      return {
+        ok: false,
+        entries: [],
+        resolvedTabs: [],
+        error: `تعذر إرسال الحضور: اسم التاب غير محدد أو غير صالح (${String(item.sourceSheet ?? student?.sourceSheet)}) للمخدوم "${label}".`
+      };
+    }
+
+    tabsSet.add(candidateTab);
+    entries.push({
+      studentId: item.studentId,
+      fridayDate: item.fridayDate,
+      isPresent: item.isPresent,
+      sourceSheet: candidateTab
+    });
+  }
+
+  return {
+    ok: true,
+    entries,
+    resolvedTabs: Array.from(tabsSet)
+  };
+}
+

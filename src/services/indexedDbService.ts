@@ -6,6 +6,7 @@ import {
   OfflineMutation,
   SyncOutcomeStatus
 } from '../types/auth';
+import { classifyFollowupMethod, normalizeArabicText } from '../utils/arabicUtils';
 
 const DB_NAME = 'StGorgeServiceDB';
 const DB_VERSION = 2;
@@ -786,7 +787,7 @@ export async function idbGetFollowupRecords(): Promise<FollowupRecord[]> {
   });
 }
 
-// Reconcile remote Google Sheet سجل الافتقاد rows while preserving locally pending followup entries
+// Reconcile remote Google Sheet سجل الافتقاد rows while preserving locally pending AND unique synced local followup entries
 export async function idbSaveRemoteFollowupRecords(remoteRecords: FollowupRecord[]): Promise<FollowupRecord[]> {
   if (!Array.isArray(remoteRecords) || remoteRecords.length === 0) {
     return idbGetFollowupRecords();
@@ -805,6 +806,13 @@ export async function idbSaveRemoteFollowupRecords(remoteRecords: FollowupRecord
     const fuStore = tx.objectStore('followup');
     const mutStore = tx.objectStore('mutations');
 
+    const buildLogicalKey = (rec: FollowupRecord): string => {
+      const studentPart = normalizeArabicText(rec.studentName) || String(rec.studentCode || '').trim() || String(rec.studentId || '').trim();
+      const datePart = (rec.date && rec.date !== '-' ? rec.date : rec.fridayDate) || '';
+      const methodPart = classifyFollowupMethod(rec.type);
+      return `${studentPart}__${datePart}__${methodPart}`;
+    };
+
     const getMutReq = mutStore.getAll();
     getMutReq.onerror = () => tx.abort();
     getMutReq.onsuccess = () => {
@@ -815,12 +823,31 @@ export async function idbSaveRemoteFollowupRecords(remoteRecords: FollowupRecord
           .map((m) => String(m.payload.recordId))
       );
 
+      const remoteLogicalMap = new Map<string, FollowupRecord>();
+      for (const remote of remoteRecords) {
+        remoteLogicalMap.set(buildLogicalKey(remote), remote);
+      }
+
       const getExistingReq = fuStore.getAll();
       getExistingReq.onerror = () => tx.abort();
       getExistingReq.onsuccess = () => {
         const existing: FollowupRecord[] = getExistingReq.result || [];
         for (const rec of existing) {
-          if (!pendingRecordIds.has(rec.id)) {
+          if (pendingRecordIds.has(rec.id)) continue;
+
+          // Previous remote Gviz snapshot rows (gs_fu_*) are replaced cleanly by fresh snapshot
+          if (String(rec.id).startsWith('gs_fu_')) {
+            fuStore.delete(rec.id);
+            continue;
+          }
+
+          // Local records created in-app: if already reflected in remote 'سجل الافتقاد', enrich & deduplicate;
+          // if NOT yet in 'سجل الافتقاد' (e.g. notes-v2 only updates per-date sheet columns), KEEP locally!
+          const lKey = buildLogicalKey(rec);
+          const matchingRemote = remoteLogicalMap.get(lKey);
+          if (matchingRemote) {
+            if (!matchingRemote.notes && rec.notes) matchingRemote.notes = rec.notes;
+            if (!matchingRemote.callOutcome && rec.callOutcome) matchingRemote.callOutcome = rec.callOutcome;
             fuStore.delete(rec.id);
           }
         }

@@ -163,7 +163,7 @@ export interface SyncQueueExecutionReport {
   lastError?: string;
 }
 
-interface AppContextType {
+export interface AppContextType {
   students: Student[];
   filteredStudents: Student[];
   availableAlphabetBuckets: DynamicAlphabetBucket[];
@@ -218,7 +218,7 @@ interface AppContextType {
   syncData: (overrideSheet?: SheetName) => Promise<boolean>;
   markAttendance: (studentId: string, isPresent: boolean, targetFridayDate?: string) => Promise<boolean>;
   importAttendanceBatch: (
-    entries: Array<{ studentId: string; fridayDate: string; isPresent: boolean }>,
+    entries: Array<{ studentId: string; fridayDate: string; isPresent: boolean; sourceSheet?: string }>,
     options?: { operationId?: string }
   ) => Promise<{
     success: boolean;
@@ -259,10 +259,10 @@ interface AppContextType {
   dismissToast: () => void;
 }
 
-const AppContext = createContext<AppContextType | null>(null);
+export const AppContext = createContext<AppContextType | null>(null);
 
-export function resolveValidSheetName(rawSheet: unknown, fallback: string = 'نشط'): string {
-  if (rawSheet === null || rawSheet === undefined) return fallback;
+export function isValidTargetTabName(rawSheet: unknown): boolean {
+  if (rawSheet === null || rawSheet === undefined) return false;
   const s = String(rawSheet).trim();
   if (
     !s ||
@@ -272,9 +272,14 @@ export function resolveValidSheetName(rawSheet: unknown, fallback: string = 'ن�
     /^nan$/i.test(s) ||
     /^\[object\s+object\]$/i.test(s)
   ) {
-    return fallback;
+    return false;
   }
-  return s;
+  return true;
+}
+
+export function resolveValidSheetName(rawSheet: unknown, fallback: string = 'نشط'): string {
+  if (!isValidTargetTabName(rawSheet)) return fallback;
+  return String(rawSheet).trim();
 }
 
 export function normalizeStudentRecord(raw: Partial<Student>): Student {
@@ -319,6 +324,7 @@ export interface BatchAttendanceEntryInput {
   studentId: string;
   fridayDate: string;
   isPresent: boolean;
+  sourceSheet?: string;
 }
 
 export interface PreparedBatchAttendancePlan {
@@ -329,6 +335,7 @@ export interface PreparedBatchAttendancePlan {
   skippedDuplicateCount: number;
   blockedCount: number;
   futureBlockedCount: number;
+  invalidSheetCount?: number;
 }
 
 /**
@@ -361,6 +368,7 @@ export function prepareBatchAttendanceMutations(
   let skippedDuplicateCount = 0;
   let blockedCount = 0;
   let futureBlockedCount = 0;
+  let invalidSheetCount = 0;
 
   for (const rawEntry of entries) {
     const friday = String(rawEntry.fridayDate || '').trim();
@@ -387,6 +395,13 @@ export function prepareBatchAttendanceMutations(
       continue;
     }
 
+    const explicitSheet = rawEntry.sourceSheet !== undefined ? resolveValidSheetName(rawEntry.sourceSheet, '') : '';
+    const resolvedEntrySheet = explicitSheet || resolveValidSheetName(student.sourceSheet, '');
+    if (!resolvedEntrySheet || (rawEntry.sourceSheet !== undefined && !explicitSheet)) {
+      invalidSheetCount++;
+      continue;
+    }
+
     if (friday > cairoTodayIso) {
       futureBlockedCount++;
       continue;
@@ -401,7 +416,8 @@ export function prepareBatchAttendanceMutations(
     grouped.get(student.id)!.push({
       studentId: student.id,
       fridayDate: friday,
-      isPresent: rawEntry.isPresent
+      isPresent: rawEntry.isPresent,
+      sourceSheet: resolvedEntrySheet
     });
   }
 
@@ -422,9 +438,10 @@ export function prepareBatchAttendanceMutations(
     const baseVersion = student.version || 1;
     let totalDelta = 0;
     const safeStudentId = toSafeHeaderAscii(studentId);
-    const validSheet = resolveValidSheetName(student.sourceSheet, 'نشط');
+    const validSheet = resolveValidSheetName(studentEntries[0]?.sourceSheet || student.sourceSheet, 'نشط');
 
     studentEntries.forEach((entry, idx) => {
+      const entrySheet = resolveValidSheetName(entry.sourceSheet || validSheet, validSheet);
       const prevVal = nextAtt[entry.fridayDate];
       if (entry.isPresent && prevVal !== true) totalDelta += 1;
       else if (!entry.isPresent && prevVal === true) totalDelta -= 1;
@@ -440,7 +457,7 @@ export function prepareBatchAttendanceMutations(
         studentId,
         studentCode: student.code,
         studentName: student.name,
-        sourceSheet: validSheet,
+        sourceSheet: entrySheet,
         payload: { friday: entry.fridayDate, isPresent: entry.isPresent },
         expectedVersion: baseVersion + idx,
         timestamp: seqTimestamp++,
@@ -455,7 +472,7 @@ export function prepareBatchAttendanceMutations(
         fridayDate: entry.fridayDate,
         status: entry.isPresent,
         recordedAt: seqTimestamp,
-        sourceSheet: validSheet
+        sourceSheet: entrySheet
       });
 
       appliedCount++;
@@ -499,7 +516,8 @@ export function prepareBatchAttendanceMutations(
     appliedCount,
     skippedDuplicateCount,
     blockedCount,
-    futureBlockedCount
+    futureBlockedCount,
+    invalidSheetCount
   };
 }
 
@@ -674,6 +692,7 @@ async function verifyMutationsAfterTimeout(
   try {
     if (appsScriptUrl) {
       const relayKey = getEffectiveRelayKey();
+      const firstValidSheet = resolveValidSheetName(timedOutMutations[0]?.sourceSheet, 'نشط');
       const controller = new AbortController();
       const tId = setTimeout(() => controller.abort(), verifyTimeoutMs);
       try {
@@ -682,6 +701,9 @@ async function verifyMutationsAfterTimeout(
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
             action: 'checkIdempotency',
+            sheet: firstValidSheet,
+            sourceSheet: firstValidSheet,
+            tab: firstValidSheet,
             relayKey,
             token: relayKey,
             keys
@@ -698,27 +720,43 @@ async function verifyMutationsAfterTimeout(
           }
         } else if (
           String(checkJson?.error || '').includes('action غير معروف') ||
+          String(checkJson?.error || '').includes('التاب مش موجود') ||
           checkResp.status === 404
         ) {
-          // Graceful fallback against un-upgraded live Apps Script: verify via getStudents row version + date cell
+          // Graceful fallback against un-upgraded live Apps Script: verify via getStudents OR Gviz row state
           const sheetsNeeded = Array.from(
             new Set(
               timedOutMutations
                 .filter((m) => m.action === 'attendance')
-                .map((m) => m.sourceSheet || 'نشط')
+                .map((m) => resolveValidSheetName(m.sourceSheet, 'نشط'))
             )
           );
           for (const sh of sheetsNeeded) {
-            const gsUrl = `${appsScriptUrl}?action=getStudents&sheet=${encodeURIComponent(sh)}&relayKey=${encodeURIComponent(relayKey)}&token=${encodeURIComponent(relayKey)}`;
-            const gsResp = await fetch(gsUrl, { signal: controller.signal });
-            if (!gsResp.ok) continue;
-            const gsJson = await gsResp.json().catch(() => null);
-            const serverStudents: Student[] = Array.isArray(gsJson?.students) ? gsJson.students : [];
+            let serverStudents: Student[] = [];
+            try {
+              const gsUrl = `${appsScriptUrl}?action=getStudents&sheet=${encodeURIComponent(sh)}&relayKey=${encodeURIComponent(relayKey)}&token=${encodeURIComponent(relayKey)}`;
+              const gsResp = await fetch(gsUrl, { signal: controller.signal });
+              if (gsResp.ok) {
+                const gsJson = await gsResp.json().catch(() => null);
+                if (Array.isArray(gsJson?.students)) {
+                  serverStudents = gsJson.students;
+                }
+              }
+            } catch {}
+
+            if (serverStudents.length === 0 && APPROVED_SHEETS.includes(sh as any)) {
+              try {
+                const gvizRes = await fetchSheetStudentsViaGviz(SPREADSHEET_ID, sh);
+                serverStudents = gvizRes.students;
+              } catch {}
+            }
+
+            if (serverStudents.length === 0) continue;
             const byId = new Map(serverStudents.map((s) => [s.id, s]));
             const byCode = new Map(serverStudents.map((s) => [s.code, s]));
 
             for (const mut of timedOutMutations) {
-              if (mut.action !== 'attendance' || (mut.sourceSheet || 'نشط') !== sh) continue;
+              if (mut.action !== 'attendance' || resolveValidSheetName(mut.sourceSheet, 'نشط') !== sh) continue;
               const friday = String(mut.payload?.friday || mut.payload?.date || '').trim();
               const isPresent = Boolean(mut.payload?.isPresent ?? mut.payload?.present);
               const sRec = byId.get(mut.studentId) || (mut.studentCode ? byCode.get(mut.studentCode) : undefined);
@@ -905,6 +943,14 @@ async function runProcessOfflineQueueSerial(
   let cursor = 0;
   while (cursor < pending.length) {
     const head = pending[cursor];
+    const headResolvedSheet = resolveValidSheetName(head.sourceSheet, '');
+    if (!headResolvedSheet) {
+      const invalidErr = `اسم التاب غير محدد أو غير صالح (${String(head.sourceSheet)}) — تم إيقاف الإرسال قبل الوصول للخادم`;
+      lastErrorMsg = invalidErr;
+      await idbUpdateMutationError(head.id, invalidErr, 'failed');
+      callbacks?.onMutationError?.(head, invalidErr);
+      break;
+    }
 
     // Check if we can process a contiguous attendance chunk in batch mode (>= 3 consecutive same-sheet attendance ops)
     const canTryBatch =
@@ -914,10 +960,11 @@ async function runProcessOfflineQueueSerial(
 
     let batchSlice: OfflineMutation[] = [];
     if (canTryBatch) {
-      const targetSheet = head.sourceSheet || 'نشط';
+      const targetSheet = headResolvedSheet;
       for (let j = cursor; j < pending.length && batchSlice.length < maxChunkSize; j++) {
         const candidate = pending[j];
-        if (candidate.action !== 'attendance' || (candidate.sourceSheet || 'نشط') !== targetSheet) {
+        const candidateSheet = resolveValidSheetName(candidate.sourceSheet, '');
+        if (candidate.action !== 'attendance' || !candidateSheet || candidateSheet !== targetSheet) {
           break;
         }
         batchSlice.push(candidate);
@@ -936,6 +983,9 @@ async function runProcessOfflineQueueSerial(
           const relayKey = getEffectiveRelayKey();
           const chunkPayload = {
             action: 'batch',
+            sheet: headResolvedSheet,
+            sourceSheet: headResolvedSheet,
+            tab: headResolvedSheet,
             relayKey,
             token: relayKey,
             mutations: batchSlice.map((m) => buildAppsScriptSinglePayload(m, relayKey))
@@ -961,8 +1011,12 @@ async function runProcessOfflineQueueSerial(
               method: 'POST',
               headers: getAuthHeaders(user?.token),
               body: JSON.stringify({
+                sheet: headResolvedSheet,
+                sourceSheet: headResolvedSheet,
+                tab: headResolvedSheet,
                 mutations: batchSlice.map((m) => ({
                   ...m,
+                  sourceSheet: resolveValidSheetName(m.sourceSheet, headResolvedSheet),
                   idempotencyKey: m.id
                 }))
               }),
@@ -1182,6 +1236,15 @@ async function runProcessOfflineQueueSerial(
 
     // Single-mutation path (for single items, non-attendance ops, or automatic fallback from older Apps Script)
     const mutation = pending[cursor];
+    const resolvedSingleSheet = resolveValidSheetName(mutation.sourceSheet, '');
+    if (!resolvedSingleSheet) {
+      const invalidErr = `اسم التاب غير محدد أو غير صالح (${String(mutation.sourceSheet)}) — تم إيقاف الإرسال`;
+      lastErrorMsg = invalidErr;
+      await idbUpdateMutationError(mutation.id, invalidErr, 'failed');
+      callbacks?.onMutationError?.(mutation, invalidErr);
+      break;
+    }
+
     const singleStartMs = Date.now();
     usedSingle = true;
     callbacks?.onMutationStart?.(mutation);
@@ -1190,7 +1253,10 @@ async function runProcessOfflineQueueSerial(
       let response: Response;
       if (appsScriptUrl) {
         const relayKey = getEffectiveRelayKey();
-        const appsScriptBody = buildAppsScriptSinglePayload(mutation, relayKey);
+        const appsScriptBody = buildAppsScriptSinglePayload(
+          { ...mutation, sourceSheet: resolvedSingleSheet },
+          relayKey
+        );
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), singleTimeoutMs);
         try {
@@ -1218,7 +1284,7 @@ async function runProcessOfflineQueueSerial(
           response = await fetch(mutateUrl, {
             method: 'POST',
             headers,
-            body: JSON.stringify(mutation),
+            body: JSON.stringify({ ...mutation, sourceSheet: resolvedSingleSheet }),
             signal: controller.signal
           });
         } finally {
@@ -1482,11 +1548,19 @@ export async function executeSyncData(
 
       // Gviz is the read fallback (and the normal read path when the relay key is absent).
       // Every requested sheet must be confirmed before reconciliation can modify local data.
+      const existingList = await idbGetStudents().catch(() => []);
+      const mergeForFollowupLinking = (freshList: Student[]): Student[] => {
+        const byId = new Map<string, Student>();
+        existingList.forEach((s) => { if (s?.id) byId.set(s.id, s); });
+        freshList.forEach((s) => { if (s?.id) byId.set(s.id, s); });
+        return Array.from(byId.values());
+      };
+
       if (!relayReadSucceeded) {
-        const existingList = await idbGetStudents().catch(() => []);
         const existingMap = new Map(existingList.map((student) => [student.id, student]));
         const gvizResult = await fetchSheetStudentsViaGviz(SPREADSHEET_ID, targetSheet, existingMap);
-        const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, gvizResult.students).catch((error) => {
+        const linkRoster = mergeForFollowupLinking(gvizResult.students);
+        const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, linkRoster).catch((error) => {
           console.warn('Gviz follow-up log read failed:', error);
           return [];
         });
@@ -1502,13 +1576,22 @@ export async function executeSyncData(
       } else if (Array.isArray(data.followupRecords) && data.followupRecords.length > 0) {
         const reconciledFu = await idbSaveRemoteFollowupRecords(data.followupRecords).catch(() => data.followupRecords);
         onUpdateFollowups?.(reconciledFu);
+      } else if (typeof onUpdateFollowups === 'function') {
+        const linkRoster = mergeForFollowupLinking(Array.isArray(data.students) ? data.students : []);
+        const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, linkRoster).catch(() => []);
+        if (remoteFollowups.length > 0) {
+          const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
+          onUpdateFollowups(reconciledFu);
+        }
       }
     } else if (!hasExpressCredentials && (isNativeCapacitorRuntime() || typeof window !== 'undefined')) {
       // Path B: Direct Real Google Sheets Visualization Reader (gviz/tq) when Relay/Express Auth not configured
       const existingList = await idbGetStudents().catch(() => []);
       const existingMap = new Map(existingList.map((s) => [s.id, s]));
       const gvizResult = await fetchSheetStudentsViaGviz(SPREADSHEET_ID, targetSheet, existingMap);
-      const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, gvizResult.students).catch(() => []);
+      const mergedMap = new Map(existingList.map((s) => [s.id, s]));
+      gvizResult.students.forEach((s) => mergedMap.set(s.id, s));
+      const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, Array.from(mergedMap.values())).catch(() => []);
       if (remoteFollowups.length > 0) {
         const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
         onUpdateFollowups?.(reconciledFu);
@@ -1574,6 +1657,17 @@ export async function executeSyncData(
       data = await res.json();
       if (!data || !Array.isArray(data.students)) {
         throw new Error('بيانات الاستجابة من الشيت غير صالحة');
+      }
+
+      if (Array.isArray(data.followupRecords) && data.followupRecords.length > 0) {
+        const reconciledFu = await idbSaveRemoteFollowupRecords(data.followupRecords).catch(() => data.followupRecords);
+        onUpdateFollowups?.(reconciledFu);
+      } else {
+        const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, data.students).catch(() => []);
+        if (remoteFollowups.length > 0) {
+          const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
+          onUpdateFollowups?.(reconciledFu);
+        }
       }
     }
 
@@ -1967,8 +2061,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (mounted && onlineNow) {
           setIsSyncing(true);
           setLastSyncAttemptTime(new Date().toISOString());
-          const hasActiveCached = cachedStudents.some((s) => s.sourceSheet === 'نشط');
-          const targetOnBoot: SheetName = hasActiveCached ? 'نشط' : '__ALL__';
+          const targetOnBoot: SheetName = '__ALL__';
           const ok = await executeSyncData(
             targetOnBoot,
             user,
@@ -2494,6 +2587,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         existingPending
       );
       const extraQueuedSkipped = 0;
+
+      if ((plan.invalidSheetCount || 0) > 0 && plan.appliedCount === 0) {
+        const badTabMsg = 'تعذر إرسال سجلات الحضور: اسم التاب المستهدف غير محدد أو غير صالح (undefined).';
+        addNotification('تاب غير صالح للاستيراد', badTabMsg, 'danger');
+        return {
+          success: false,
+          appliedCount: 0,
+          skippedDuplicateCount: plan.skippedDuplicateCount + extraQueuedSkipped,
+          blockedCount: plan.blockedCount,
+          futureBlockedCount: plan.futureBlockedCount,
+          queuedCount: 0,
+          error: badTabMsg
+        };
+      }
+
+      if (plan.mutations.some((m) => !isValidTargetTabName(m.sourceSheet))) {
+        const badMutMsg = 'تم إيقاف الحفظ: توجد عمليات بدون اسم تاب صحيح في ملف الاستيراد.';
+        addNotification('تاب غير صالح للاستيراد', badMutMsg, 'danger');
+        return {
+          success: false,
+          appliedCount: 0,
+          skippedDuplicateCount: plan.skippedDuplicateCount + extraQueuedSkipped,
+          blockedCount: plan.blockedCount,
+          futureBlockedCount: plan.futureBlockedCount,
+          queuedCount: 0,
+          error: badMutMsg
+        };
+      }
 
       if (plan.appliedCount === 0) {
         if (plan.blockedCount > 0 && plan.skippedDuplicateCount === 0) {

@@ -1,5 +1,6 @@
 import { Student, APPROVED_SHEETS, ALL_SHEETS_SENTINEL } from '../types/student';
 import { FollowupRecord, CallOutcome } from '../types/followup';
+import { extractFollowupCallOutcome, normalizeArabicText } from '../utils/arabicUtils';
 
 export const DEFAULT_SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
 
@@ -135,16 +136,23 @@ export function parse2DRowsToStudents(
     }
 
     const fu: Record<string, string> = { ...(existing?.fu || {}) };
+    const fuOutcomes: Record<string, 'تم التواصل' | 'لم يتم التواصل'> = { ...(existing?.fuOutcomes || {}) };
     let latestFuMethod = followupColIdx >= 0 ? normalizeCellValue(row[followupColIdx]) : '';
     let latestFuDate = lastFuIdx >= 0 ? normalizeCellValue(row[lastFuIdx]) : '';
+    let latestCallOutcome = existing?.lastCallOutcome;
 
     for (const col of fridayFuCols) {
       const fuVal = normalizeCellValue(row[col.idx]);
       if (fuVal && fuVal !== 'بدون') {
         fu[col.date] = fuVal;
+        const parsedOutcome = extractFollowupCallOutcome(fuVal);
+        if (parsedOutcome) {
+          fuOutcomes[col.date] = parsedOutcome;
+        }
         if (!latestFuDate || col.date >= latestFuDate) {
           latestFuDate = col.date;
           latestFuMethod = fuVal;
+          if (parsedOutcome) latestCallOutcome = parsedOutcome;
         }
       }
     }
@@ -183,7 +191,9 @@ export function parse2DRowsToStudents(
       sourceSheet: sheetName,
       version: versionIdx >= 0 ? parseInt(normalizeCellValue(row[versionIdx]) || '1', 10) || 1 : (existing?.version || 1),
       att,
-      fu
+      fu,
+      ...(Object.keys(fuOutcomes).length > 0 ? { fuOutcomes } : {}),
+      ...(latestCallOutcome ? { lastCallOutcome: latestCallOutcome } : {})
     });
   }
 
@@ -272,6 +282,14 @@ export function parseGoogleVisualizationFollowupLog(
   const outcomeIdx = findHeaderIndex(headers, ['نتيجة الاتصال', 'نتيجه الاتصال', 'callOutcome', 'النتيجة']);
   const notesIdx = findHeaderIndex(headers, ['ملاحظات', 'ملا حظات']);
 
+  const normNameLookup = new Map<string, Student>();
+  if (studentsByCodeOrName) {
+    for (const s of studentsByCodeOrName.values()) {
+      const nn = normalizeArabicText(s.name);
+      if (nn && !normNameLookup.has(nn)) normNameLookup.set(nn, s);
+    }
+  }
+
   const records: FollowupRecord[] = [];
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
@@ -281,16 +299,15 @@ export function parseGoogleVisualizationFollowupLog(
 
     const dateVal = dateIdx >= 0 ? normalizeCellValue(row[dateIdx]) : '';
     const fridayVal = fridayIdx >= 0 ? normalizeCellValue(row[fridayIdx]) : '';
+    const normStudentName = normalizeArabicText(studentName);
     const linked: Student | undefined =
       (studentCode ? studentsByCodeOrName?.get(studentCode) : undefined) ||
-      (studentName ? studentsByCodeOrName?.get(studentName) : undefined);
+      (studentName ? studentsByCodeOrName?.get(studentName) : undefined) ||
+      (normStudentName ? studentsByCodeOrName?.get(normStudentName) || normNameLookup.get(normStudentName) : undefined);
     const servant = (servantIdx >= 0 ? normalizeCellValue(row[servantIdx]) : '') || linked?.servant || 'غير محدد';
     const typeVal = (typeIdx >= 0 ? normalizeCellValue(row[typeIdx]) : '') || 'بدون';
     const rawOutcome = outcomeIdx >= 0 ? normalizeCellValue(row[outcomeIdx]) : '';
-    const callOutcome: CallOutcome | undefined =
-      rawOutcome === 'تم التواصل' || rawOutcome === 'لم يتم التواصل'
-        ? rawOutcome
-        : undefined;
+    const callOutcome: CallOutcome | undefined = extractFollowupCallOutcome(typeVal, rawOutcome);
     const notesVal = notesIdx >= 0 ? normalizeCellValue(row[notesIdx]) : '';
 
     // Skip rows that have neither date nor followup method (empty template rows)
@@ -310,7 +327,11 @@ export function parseGoogleVisualizationFollowupLog(
     });
   }
 
-  return records.reverse();
+  return records.reverse().sort((a, b) => {
+    const da = /^\d{4}-\d{2}-\d{2}$/.test(a.date) ? a.date : '';
+    const db = /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : '';
+    return db.localeCompare(da);
+  });
 }
 
 export async function fetchFollowupLogViaGviz(
@@ -324,7 +345,11 @@ export async function fetchFollowupLogViaGviz(
   const lookup = new Map<string, Student>();
   students.forEach((s) => {
     if (s.code) lookup.set(s.code.trim(), s);
-    if (s.name) lookup.set(s.name.trim(), s);
+    if (s.name) {
+      lookup.set(s.name.trim(), s);
+      const nn = normalizeArabicText(s.name);
+      if (nn && !lookup.has(nn)) lookup.set(nn, s);
+    }
   });
   return parseGoogleVisualizationFollowupLog(text, lookup);
 }

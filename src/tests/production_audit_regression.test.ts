@@ -305,13 +305,14 @@ async function runTests() {
     'Sidebar مظهر وسمة التطبيق button is strictly wired to setIsAppearanceModalOpen(true)'
   );
   assert(
-    appearanceModalSrc.includes('<ThemeSwitcher />') &&
-      appearanceModalSrc.includes('مظهر وسمة التطبيق') &&
+    appearanceModalSrc.includes('مظهر وسمة التطبيق') &&
+      !appearanceModalSrc.includes('تبديل السمة الفوري') &&
+      !appearanceModalSrc.includes('<ThemeSwitcher />') &&
       appearanceModalSrc.includes("'dark'") &&
       appearanceModalSrc.includes("'dim'") &&
       appearanceModalSrc.includes("'light'") &&
       appearanceModalSrc.includes('setTheme('),
-    'AppearanceModal independently hosts ThemeSwitcher and all 3 themes (dark/dim/light) with setTheme'
+    'AppearanceModal independently hosts all 3 themes (dark/dim/light) with setTheme and zero duplicate instant toggle UI'
   );
   assert(
     appTsxSrc.includes('<AppearanceModal />'),

@@ -180,12 +180,17 @@ async function runConsolidatedTests() {
       'Task 3h: Sidebar links appearance option directly to independent AppearanceModal'
     );
     assert(
-      appearanceModalSrc.includes('<ThemeSwitcher />') &&
       appearanceModalSrc.includes('مظهر وسمة التطبيق') &&
+      !appearanceModalSrc.includes('تبديل السمة الفوري') &&
+      !appearanceModalSrc.includes('<ThemeSwitcher />') &&
+      appearanceModalSrc.includes("'dark'") &&
+      appearanceModalSrc.includes("'dim'") &&
+      appearanceModalSrc.includes("'light'") &&
       appearanceModalSrc.includes('داكن') &&
       appearanceModalSrc.includes('خافت') &&
-      appearanceModalSrc.includes('فاتح'),
-      'Task 3i: AppearanceModal renders ThemeSwitcher for all 3 themes'
+      appearanceModalSrc.includes('فاتح') &&
+      appearanceModalSrc.includes('setTheme('),
+      'Task 3i: AppearanceModal renders 3-theme radio selector cleanly without duplicate instant toggle UI'
     );
     void AppearanceModal;
     console.log('✅ Task 3 Passed: 3-State Theme Selector hosted cleanly in independent Sidebar -> AppearanceModal destination');

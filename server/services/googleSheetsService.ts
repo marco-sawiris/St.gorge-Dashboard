@@ -239,7 +239,7 @@ export class GoogleSheetsService {
     if (versionColumnIndex < 0) {
       versionColumnIndex = headers.length;
       const versionColumn = headerColumnName(versionColumnIndex);
-      const versionHeaderRange = encodeURIComponent(`'${student.sourceSheet}'!${versionColumn}1`);
+      const versionHeaderRange = encodeURIComponent(`'${safeTab}'!${versionColumn}1`);
       const versionHeaderResponse = await fetch(`${sheetPrefix}/${versionHeaderRange}?valueInputOption=RAW`, {
         method: 'PUT',
         headers: {
@@ -330,7 +330,7 @@ export class GoogleSheetsService {
 
     if (existingRowNumber) {
       const lastColumn = columnName(Math.max(headers.length, 12) - 1);
-      const updateRange = encodeURIComponent(`'${student.sourceSheet}'!A${existingRowNumber}:${lastColumn}${existingRowNumber}`);
+      const updateRange = encodeURIComponent(`'${safeTab}'!A${existingRowNumber}:${lastColumn}${existingRowNumber}`);
       const response = await fetch(`${sheetPrefix}/${updateRange}?valueInputOption=USER_ENTERED`, {
         method: 'PUT',
         headers: {
@@ -348,7 +348,7 @@ export class GoogleSheetsService {
 
     const appendWidth = Math.max(headers.length, 12);
     while (rowValues.length < appendWidth) rowValues.push('');
-    const appendRange = encodeURIComponent(`'${student.sourceSheet}'!A:${columnName(appendWidth - 1)}`);
+    const appendRange = encodeURIComponent(`'${safeTab}'!A:${columnName(appendWidth - 1)}`);
     const appendResponse = await fetch(`${sheetPrefix}/${appendRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
       method: 'POST',
       headers: {

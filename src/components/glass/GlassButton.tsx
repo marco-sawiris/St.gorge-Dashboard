@@ -27,7 +27,7 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
 
   const variantClasses = {
     primary:
-      'bg-gradient-to-r from-[var(--primary)] to-[var(--royal)] text-white border border-[var(--glass-border-2)] shadow-[0_0_18px_rgba(38,122,255,0.4)] hover:shadow-[0_0_24px_rgba(32,199,232,0.55)] hover:border-[var(--accent)]',
+      'bg-gradient-to-r from-[#123FCE] to-[#1D4ED8] text-white border border-[var(--glass-border-2)] shadow-[0_0_18px_rgba(18,63,206,0.4)] hover:shadow-[0_0_24px_rgba(56,189,248,0.55)] hover:border-[var(--accent)]',
     lens:
       'btn--lens',
     secondary:
@@ -35,13 +35,13 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
     ghost:
       'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-color)]',
     danger:
-      'bg-gradient-to-r from-red-600/80 to-[var(--indigo)] text-white border border-red-500/30 shadow-[0_0_14px_rgba(225,29,72,0.3)] hover:border-red-400'
+      'bg-gradient-to-r from-[#BE123C] to-[#9F1239] text-white border border-rose-400/50 shadow-[0_0_14px_rgba(190,18,60,0.3)] hover:border-rose-300'
   }[variant];
 
   return (
     <button
       disabled={disabled || isLoading}
-      className={`inline-flex items-center justify-center font-extrabold transition-all duration-250 cursor-pointer active:scale-95 disabled:opacity-50 disabled:pointer-events-none select-none ${sizeClasses} ${variantClasses} ${className}`}
+      className={`inline-flex items-center justify-center font-extrabold transition-all duration-250 cursor-pointer active:scale-95 disabled:opacity-65 disabled:pointer-events-none select-none ${sizeClasses} ${variantClasses} ${className}`}
       {...props}
     >
       {isLoading ? (

@@ -954,7 +954,7 @@ export const AssistantModal: React.FC = () => {
                     className={`max-w-[94%] sm:max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap select-text shadow-xs ${
                       isBot
                         ? 'bg-[var(--surface-primary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-tr-sm'
-                        : 'bg-gradient-to-l from-[#123fce] to-[#267aff] text-white border border-[#20c7e8]/30 rounded-tl-sm'
+                        : 'bg-gradient-to-l from-[#123fce] to-[#1d4ed8] text-white border border-[#38bdf8]/40 rounded-tl-sm'
                     }`}
                   >
                     {msg.text}

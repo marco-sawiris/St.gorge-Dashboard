@@ -46,6 +46,21 @@ function resolveTargetSheetName(candidates, fallbackSheet) {
   return fallbackSheet || 'نشط';
 }
 
+function normalizeArabicForMatch(val) {
+  var s = String(val || '').trim();
+  if (!s) return '';
+  s = s.replace(/[\u064B-\u065F\u0670\u0640]/g, '');
+  s = s.replace(/[أإآٱ]/g, 'ا');
+  s = s.replace(/ى/g, 'ي');
+  s = s.replace(/ة/g, 'ه');
+  s = s.replace(/چ/g, 'ج');
+  s = s.replace(/ڤ/g, 'ف');
+  s = s.replace(/پ/g, 'ب');
+  s = s.replace(/گ/g, 'ك');
+  s = s.replace(/ژ/g, 'ز');
+  return s.replace(/\s+/g, ' ').toLowerCase();
+}
+
 function jsonResponse(payload) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
@@ -230,7 +245,7 @@ function doPost(e) {
 
     if (action === 'batch') {
       var batchItems = Array.isArray(body.mutations) ? body.mutations : [];
-      var batchRes = processBatchMutations(batchItems, postStartMs);
+      var batchRes = processBatchMutations(batchItems, postStartMs, body);
       return jsonResponse(batchRes);
     }
 
@@ -311,9 +326,14 @@ function doPost(e) {
       }
     }
     if (rowIndex === -1 && targetName && nameLookupCol >= 0) {
+      var normTargetName = normalizeArabicForMatch(targetName);
       for (var r = 1; r < values.length; r++) {
         var candidateName = String(values[r][nameLookupCol] || '').trim();
-        if (candidateName === targetName || candidateName.replace(/\s+/g, ' ') === targetName.replace(/\s+/g, ' ')) {
+        if (
+          candidateName === targetName ||
+          candidateName.replace(/\s+/g, ' ') === targetName.replace(/\s+/g, ' ') ||
+          (normTargetName && normalizeArabicForMatch(candidateName) === normTargetName)
+        ) {
           rowIndex = r;
           break;
         }
@@ -702,7 +722,8 @@ function saveDurableIdempotencyBatch(ss, entries) {
   } catch (e) {}
 }
 
-function processBatchMutations(batchItems, postStartMs) {
+function processBatchMutations(batchItems, postStartMs, topBody) {
+  topBody = topBody || {};
   if (!batchItems || batchItems.length === 0) {
     return { ok: true, status: 200, action: 'batch', results: [], serverDurationMs: Date.now() - postStartMs };
   }
@@ -754,7 +775,10 @@ function processBatchMutations(batchItems, postStartMs) {
       itemMutation.tab,
       itemPayload.sourceSheet,
       itemPayload.sheet,
-      itemPayload.tab
+      itemPayload.tab,
+      topBody.sheet,
+      topBody.sourceSheet,
+      topBody.tab
     ], 'نشط');
     if (APPROVED_SHEETS.indexOf(sheetName) === -1) {
       results[idx] = { ok: false, status: 400, mutationId: mutKey, error: 'اسم الفصل غير معتمد: ' + sheetName };
@@ -861,6 +885,8 @@ function processBatchMutations(batchItems, postStartMs) {
       if (nameLookupCol >= 0) {
         var nv = String(values[r][nameLookupCol] || '').trim().replace(/\s+/g, ' ');
         if (nv && byName[nv] === undefined) byName[nv] = r;
+        var normNv = normalizeArabicForMatch(nv);
+        if (normNv && byName[normNv] === undefined) byName[normNv] = r;
       }
       rowVersionMap[r] = (versionCol >= 0) ? (parseInt(values[r][versionCol], 10) || 1) : 1;
     }
@@ -888,10 +914,12 @@ function processBatchMutations(batchItems, postStartMs) {
       var qCode = String(qItem.studentCode || qItem.code || '').trim();
       var qId = String(qItem.studentId || '').trim();
       var qName = String(qItem.studentName || qItem.name || '').trim().replace(/\s+/g, ' ');
+      var normQName = normalizeArabicForMatch(qName);
       var rowIndex = -1;
       if (qCode && byCode[qCode] !== undefined) rowIndex = byCode[qCode];
       else if (qId && byId[qId] !== undefined) rowIndex = byId[qId];
       else if (qName && byName[qName] !== undefined) rowIndex = byName[qName];
+      else if (normQName && byName[normQName] !== undefined) rowIndex = byName[normQName];
 
       if (rowIndex === -1) {
         results[qIdx] = { ok: false, status: 404, mutationId: qKey, error: 'الاسم غير موجود' };

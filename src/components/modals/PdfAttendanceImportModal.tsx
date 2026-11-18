@@ -27,7 +27,9 @@ import {
   createInitialPdfResolutionState,
   getEffectiveCellStatus,
   getEffectiveMatchedStudentId,
-  PdfImportResolutionState
+  isValidPdfImportTabName,
+  PdfImportResolutionState,
+  validateAndResolvePdfImportEntries
 } from '../../services/pdfAttendanceImportService';
 import {
   AttendanceHistoryRecord,
@@ -53,6 +55,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
     isPdfImportModalOpen,
     setIsPdfImportModalOpen,
     students,
+    filters,
     importAttendanceBatch,
     isOnline,
     pendingMutationsCount,
@@ -60,6 +63,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
     setIsSyncModalOpen,
     processOfflineQueue
   } = useApp();
+  const activeSheet = filters.sheet;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -90,6 +94,35 @@ export const PdfAttendanceImportModal: React.FC = () => {
     if (!report) return null;
     return buildAttendanceImportPlan(report, students, resolution, existingHistory);
   }, [report, students, resolution, existingHistory]);
+
+  const resolvedTargetTabs = useMemo(() => {
+    const tabs = new Set<string>();
+    const fallbackTab = isValidPdfImportTabName(activeSheet) ? String(activeSheet).trim() : '';
+    if (plan) {
+      for (const item of plan.toApply) {
+        const student = studentsById.get(item.studentId);
+        const tab = isValidPdfImportTabName(item.sourceSheet)
+          ? String(item.sourceSheet).trim()
+          : isValidPdfImportTabName(student?.sourceSheet)
+          ? String(student!.sourceSheet).trim()
+          : fallbackTab;
+        if (tab) tabs.add(tab);
+      }
+      if (tabs.size === 0) {
+        for (const c of plan.conflicts) {
+          const student = studentsById.get(c.studentId);
+          const tab = isValidPdfImportTabName(student?.sourceSheet)
+            ? String(student!.sourceSheet).trim()
+            : fallbackTab;
+          if (tab) tabs.add(tab);
+        }
+      }
+    }
+    if (tabs.size === 0 && fallbackTab) {
+      tabs.add(fallbackTab);
+    }
+    return Array.from(tabs);
+  }, [plan, studentsById, activeSheet]);
 
   const visibleRows = useMemo(() => {
     if (!report) return [];
@@ -279,16 +312,35 @@ export const PdfAttendanceImportModal: React.FC = () => {
 
     if (baseEntries.length === 0) return;
 
+    const rawEntries = baseEntries.map((item) => ({
+      studentId: item.studentId,
+      fridayDate: item.fridayDate,
+      isPresent: item.isPresent,
+      sourceSheet: item.sourceSheet
+    }));
+
+    const tabValidation = validateAndResolvePdfImportEntries(
+      rawEntries,
+      studentsById,
+      isValidPdfImportTabName(activeSheet) ? activeSheet : undefined
+    );
+    if (!tabValidation.ok) {
+      setExecutionResult({
+        appliedCount: 0,
+        skippedDuplicateCount: plan.unchangedDuplicates.length,
+        blockedCount: rawEntries.length,
+        futureBlockedCount: 0,
+        queuedCount: 0,
+        wasOffline: !isOnline,
+        error: tabValidation.error
+      });
+      return;
+    }
+
     setIsApplying(true);
     setShowOverwriteConfirm(false);
     try {
-      const entries = baseEntries.map((item) => ({
-        studentId: item.studentId,
-        fridayDate: item.fridayDate,
-        isPresent: item.isPresent
-      }));
-
-      const res = await importAttendanceBatch(entries, { operationId: stableOpId });
+      const res = await importAttendanceBatch(tabValidation.entries, { operationId: stableOpId });
       setExecutionResult({
         appliedCount: res.appliedCount,
         skippedDuplicateCount: res.skippedDuplicateCount + plan.unchangedDuplicates.length,
@@ -316,17 +368,37 @@ export const PdfAttendanceImportModal: React.FC = () => {
       const promotedConflicts = plan.conflicts.map((c) => ({
         studentId: c.studentId,
         fridayDate: c.fridayDate,
-        isPresent: c.incomingPresent
+        isPresent: c.incomingPresent,
+        sourceSheet: studentsById.get(c.studentId)?.sourceSheet
       }));
       const newEntries = plan.toApply
         .filter((item) => !item.isOverwrite)
         .map((item) => ({
           studentId: item.studentId,
           fridayDate: item.fridayDate,
-          isPresent: item.isPresent
+          isPresent: item.isPresent,
+          sourceSheet: item.sourceSheet
         }));
       const mergedEntries = [...newEntries, ...promotedConflicts];
       if (mergedEntries.length === 0) return;
+
+      const tabValidation = validateAndResolvePdfImportEntries(
+        mergedEntries,
+        studentsById,
+        isValidPdfImportTabName(activeSheet) ? activeSheet : undefined
+      );
+      if (!tabValidation.ok) {
+        setExecutionResult({
+          appliedCount: 0,
+          skippedDuplicateCount: plan.unchangedDuplicates.length,
+          blockedCount: mergedEntries.length,
+          futureBlockedCount: 0,
+          queuedCount: 0,
+          wasOffline: !isOnline,
+          error: tabValidation.error
+        });
+        return;
+      }
 
       const stableOpId = importOperationId || generateUUID();
       if (!importOperationId) setImportOperationId(stableOpId);
@@ -335,7 +407,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
       setShowOverwriteConfirm(false);
       try {
         handleBulkConflictsDecision('overwrite_with_pdf');
-        const res = await importAttendanceBatch(mergedEntries, { operationId: stableOpId });
+        const res = await importAttendanceBatch(tabValidation.entries, { operationId: stableOpId });
         setExecutionResult({
           appliedCount: res.appliedCount,
           skippedDuplicateCount: res.skippedDuplicateCount + plan.unchangedDuplicates.length,
@@ -714,6 +786,12 @@ export const PdfAttendanceImportModal: React.FC = () => {
                     {report.diagnostics?.tableDirection && report.diagnostics.tableDirection !== 'unknown'
                       ? ` · ${report.diagnostics.tableDirection.toUpperCase()}`
                       : ''}
+                    {' · '}
+                    {resolvedTargetTabs.length > 0 ? (
+                      <span className="text-[var(--text-secondary)]">التاب: {resolvedTargetTabs.join('، ')}</span>
+                    ) : (
+                      <span className="text-[var(--danger-text)]">التاب غير محدد</span>
+                    )}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
