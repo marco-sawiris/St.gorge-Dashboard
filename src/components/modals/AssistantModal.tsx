@@ -57,11 +57,12 @@ interface QuickPromptItem {
 
 const QUICK_PROMPTS: QuickPromptItem[] = [
   { id: 'unrecorded', label: 'غير المسجلين', query: 'مين اللي لم يسجل بعد؟', icon: UserX, accent: 'text-[var(--warning-text)]' },
-  { id: 'present', label: 'الحاضرون', query: 'مين اللي حضر؟', icon: UserCheck, accent: 'text-[var(--success-text)]' },
+  { id: 'present', label: 'الحاضرون اليوم', query: 'مين اللي حضر؟', icon: UserCheck, accent: 'text-[var(--success-text)]' },
   { id: 'absent', label: 'الغائبون', query: 'مين الغايب؟', icon: AlertTriangle, accent: 'text-[var(--danger-text)]' },
+  { id: 'stats', label: 'عرض الإحصائيات', query: 'إحصائيات', icon: BarChart3, accent: 'text-[var(--info-text)]' },
   { id: 'no_reply', label: 'لم يتم التواصل', query: 'مين محدش رد عليه؟', icon: PhoneOff, accent: 'text-orange-700 dark:text-orange-300' },
   { id: 'followup_missing', label: 'باقي الافتقاد', query: 'مين نسيت افتقدهم الأسبوع ده؟', icon: PhoneCall, accent: 'text-[var(--info-text)]' },
-  { id: 'summary', label: 'ملخص الخدمة', query: 'اعرض ملخص الخدمة', icon: BarChart3, accent: 'text-[var(--accent-primary)]' },
+  { id: 'summary', label: 'ملخص الخدمة', query: 'اعرض ملخص الخدمة', icon: Sparkles, accent: 'text-[var(--accent-primary)]' },
   { id: 'birthdays', label: 'أعياد الميلاد', query: 'أعياد الميلاد', icon: Cake, accent: 'text-pink-700 dark:text-pink-300' },
   { id: 'history', label: 'سجل المحادثات', query: 'سجل المحادثات', icon: History, accent: 'text-indigo-700 dark:text-indigo-300' }
 ];
@@ -134,6 +135,7 @@ export const AssistantModal: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showQuickPrompts, setShowQuickPrompts] = useState(true);
+  const [showAllPendingSelections, setShowAllPendingSelections] = useState(false);
 
   // Interactive per-message individual/multi-select draft state (zero writes until confirmed)
   const [expandedIndividualMsgs, setExpandedIndividualMsgs] = useState<Record<string, boolean>>({});
@@ -1081,7 +1083,7 @@ export const AssistantModal: React.FC = () => {
                                 </div>
 
                                 {/* Individual Student Cards */}
-                                <div className="max-h-72 sm:max-h-80 overflow-y-auto space-y-2 pr-0.5">
+                                <div className="space-y-2">
                                   {liveUnrecordedRows.map((st) => {
                                     const isChecked = Boolean(msgSelectedMap[st.id]);
                                     const draftVal = msgDraftStatusMap[st.id];
@@ -1297,10 +1299,13 @@ export const AssistantModal: React.FC = () => {
                       <span className="font-mono font-bold">{pendingDraftConfirm.targetFriday}</span>
                     </p>
                     {pendingDraftConfirm.selections.length > 0 && (
-                      <div className="text-[11px] text-[var(--text-secondary)] bg-[var(--surface-inset)] p-2 rounded-xl border border-[var(--border-color)] max-h-32 overflow-y-auto space-y-1">
-                        {pendingDraftConfirm.selections.map((item, idx) => (
+                      <div className="text-[11px] text-[var(--text-secondary)] bg-[var(--surface-inset)] p-2 rounded-xl border border-[var(--border-color)] space-y-1">
+                        {(showAllPendingSelections
+                          ? pendingDraftConfirm.selections
+                          : pendingDraftConfirm.selections.slice(0, 6)
+                        ).map((item, idx) => (
                           <div key={item.studentId} className="flex items-center justify-between gap-2">
-                            <span className="truncate">
+                            <span className="whitespace-normal break-words">
                               {idx + 1}. {item.studentName} {item.studentCode ? `(${item.studentCode})` : ''}
                             </span>
                             <span
@@ -1314,6 +1319,17 @@ export const AssistantModal: React.FC = () => {
                             </span>
                           </div>
                         ))}
+                        {pendingDraftConfirm.selections.length > 6 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPendingSelections((prev) => !prev)}
+                            className="text-[11px] font-bold text-[var(--info-text)] hover:underline pt-1 cursor-pointer"
+                          >
+                            {showAllPendingSelections
+                              ? 'عرض عدد أقل'
+                              : `عرض جميع المخدومين (${pendingDraftConfirm.selections.length})`}
+                          </button>
+                        )}
                       </div>
                     )}
                     {(pendingDraftConfirm.skippedAlreadyRecorded.length > 0 ||
@@ -1362,15 +1378,16 @@ export const AssistantModal: React.FC = () => {
           </div>
         )}
 
-        {/* Quick Prompts Balanced Grid Strip */}
-        <div className="px-3 sm:px-4 py-2 border-t border-[var(--border-color)] bg-[var(--surface-secondary)] shrink-0">
-          <div className="flex items-center justify-between gap-2 mb-1.5">
+        {/* Unified Quick Prompts Balanced Grid Strip (No Internal Scrollbar) */}
+        <div className="px-3 sm:px-4 py-2.5 border-t border-[var(--border-color)] bg-[var(--surface-secondary)] shrink-0">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <span className="text-[11px] font-extrabold text-[var(--text-muted)] flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[var(--info-text)] shrink-0" />
               <span>الأوامر السريعة</span>
             </span>
             <button
               type="button"
+              aria-expanded={showQuickPrompts}
               onClick={() => setShowQuickPrompts((prev) => !prev)}
               className="text-[11px] font-bold text-[var(--info-text)] hover:underline flex items-center gap-1 cursor-pointer"
             >
@@ -1383,9 +1400,10 @@ export const AssistantModal: React.FC = () => {
             </button>
           </div>
           {showQuickPrompts && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 max-h-[144px] sm:max-h-none overflow-y-auto">
-              {QUICK_PROMPTS.map((qp) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
+              {QUICK_PROMPTS.map((qp, idx) => {
                 const QIcon = qp.icon;
+                const isOddTrailing = idx === QUICK_PROMPTS.length - 1 && QUICK_PROMPTS.length % 2 === 1;
                 return (
                   <button
                     key={qp.id}
@@ -1394,10 +1412,12 @@ export const AssistantModal: React.FC = () => {
                       if (showHistory) setShowHistory(false);
                       submitQuery(qp.query);
                     }}
-                    className="glass-btn min-h-[38px] sm:min-h-[40px] w-full px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-[var(--text-primary)] flex items-center justify-start gap-2 cursor-pointer text-right overflow-hidden hover:border-[#20c7e8]/50 transition-colors"
+                    className={`glass-btn min-h-[40px] h-auto w-full px-2.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-[var(--text-primary)] flex items-center justify-start gap-2 cursor-pointer text-right hover:border-[#20c7e8]/50 transition-colors ${
+                      isOddTrailing ? 'col-span-2 sm:col-span-1' : ''
+                    }`}
                   >
                     <QIcon className={`w-4 h-4 shrink-0 ${qp.accent}`} />
-                    <span className="truncate">{qp.label}</span>
+                    <span className="whitespace-normal break-words leading-snug">{qp.label}</span>
                   </button>
                 );
               })}

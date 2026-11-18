@@ -773,17 +773,23 @@ async function runTests() {
 
   const freshSession = createFreshAssistantSession();
   assert.strictEqual(
-    freshSession.messages[0].actions?.length,
-    4,
-    'P6b: Fresh assistant welcome message provides symmetric 4-card starter grid'
+    freshSession.messages[0].actions,
+    undefined,
+    'P6b: Fresh assistant welcome message omits duplicate top action cards since all quick icons live in one unified bottom grid'
   );
 
   const assistantModalSrc = readProjectFile('src/components/modals/AssistantModal.tsx');
   assert(
-    assistantModalSrc.includes('grid-cols-2 sm:grid-cols-4') &&
-      assistantModalSrc.includes('min-h-[38px] sm:min-h-[40px]') &&
-      assistantModalSrc.includes('w-4 h-4 shrink-0'),
-    'P6c: Quick Prompts strip uses balanced CSS Grid (2 cols mobile, 4 cols desktop) with unified button heights & icons'
+    assistantModalSrc.includes('grid-cols-2 sm:grid-cols-3') &&
+      assistantModalSrc.includes('min-h-[40px]') &&
+      assistantModalSrc.includes('w-4 h-4 shrink-0') &&
+      assistantModalSrc.includes('الحاضرون اليوم') &&
+      assistantModalSrc.includes('عرض الإحصائيات') &&
+      assistantModalSrc.includes('showQuickPrompts') &&
+      !assistantModalSrc.includes('max-h-[144px]') &&
+      !assistantModalSrc.includes('max-h-72 sm:max-h-80 overflow-y-auto') &&
+      !assistantModalSrc.includes('max-h-32 overflow-y-auto'),
+    'P6c: Unified Quick Prompts grid merges all 9 actions in a responsive scroll-free grid with Hide/Show toggle and zero internal list scrollbars'
   );
   assert(
     assistantModalSrc.includes('grid-cols-2') &&

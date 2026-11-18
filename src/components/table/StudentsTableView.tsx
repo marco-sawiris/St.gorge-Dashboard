@@ -321,8 +321,13 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                     <span>{isPresent ? 'حاضر' : 'تسجيل حضور'}</span>
                   </button>
                   {telHref && (
-                    <a href={telHref} className="glass-btn min-w-[38px] min-h-[38px] p-2 rounded-lg flex items-center justify-center shrink-0" aria-label={`اتصال بـ ${s.name}`}>
-                      <Phone className="w-3.5 h-3.5 shrink-0" />
+                    <a
+                      href={telHref}
+                      className="glass-btn w-[38px] h-[38px] p-0 rounded-xl border border-[var(--border-color)] text-[var(--text-primary)] hover:text-[var(--accent)] hover:border-[var(--info-border)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-secondary)] flex items-center justify-center shrink-0 transition-all"
+                      title="اتصال"
+                      aria-label={`اتصال بـ ${s.name}`}
+                    >
+                      <Phone className="w-4 h-4 stroke-[2] shrink-0" />
                     </a>
                   )}
                   {waHref && (
@@ -330,23 +335,31 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                       href={waHref}
                       target="_blank"
                       rel="noreferrer"
-                      className="glass-btn min-w-[38px] min-h-[38px] p-2 rounded-lg flex items-center justify-center shrink-0"
+                      className="glass-btn w-[38px] h-[38px] p-0 rounded-xl border border-[var(--border-color)] text-[var(--text-primary)] hover:text-[var(--accent)] hover:border-[var(--info-border)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-secondary)] flex items-center justify-center shrink-0 transition-all"
+                      title="واتساب"
                       aria-label={`واتساب ${s.name}`}
                     >
-                      <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                      <MessageSquare className="w-4 h-4 stroke-[2] shrink-0" />
                     </a>
                   )}
-                  <button type="button" onClick={() => onOpenFollowup(s)} className="glass-btn min-w-[38px] min-h-[38px] p-2 rounded-lg text-[var(--accent)] flex items-center justify-center shrink-0" title="تسجيل افتقاد">
-                    <HeartHandshake className="w-3.5 h-3.5 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => onOpenFollowup(s)}
+                    className="glass-btn w-[38px] h-[38px] p-0 rounded-xl border border-[var(--border-color)] text-[var(--accent)] hover:border-[var(--info-border)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-secondary)] flex items-center justify-center shrink-0 cursor-pointer transition-all"
+                    title="تسجيل افتقاد"
+                    aria-label={`تسجيل افتقاد لـ ${s.name}`}
+                  >
+                    <HeartHandshake className="w-4 h-4 stroke-[2] shrink-0" />
                   </button>
                   <button
                     type="button"
                     disabled={isAnotherCardEditing}
                     onClick={() => onOpenEdit(s)}
-                    className="glass-btn min-w-[38px] min-h-[38px] p-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
+                    className="glass-btn w-[38px] h-[38px] p-0 rounded-xl border border-[var(--border-color)] text-[var(--text-primary)] hover:text-[var(--accent)] hover:border-[var(--info-border)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-secondary)] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center shrink-0 cursor-pointer transition-all"
                     title={isAnotherCardEditing ? 'يوجد كارت آخر قيد التعديل' : 'تعديل البيانات'}
+                    aria-label={`تعديل بيانات ${s.name}`}
                   >
-                    <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                    <Edit3 className="w-4 h-4 stroke-[2] shrink-0" />
                   </button>
                 </div>
               </article>
@@ -490,15 +503,16 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                     <td className="py-3.5 px-3.5 font-semibold text-[var(--accent)] break-words">
                       {s.followupStatus || 'بدون'}
                     </td>
-                    <td className="py-3.5 px-3.5 text-center break-words">
+                    <td className="py-3.5 px-3.5 text-center align-middle">
                       <div className="flex flex-wrap items-center justify-center gap-1.5">
                         {telHref && (
                           <a
                             href={telHref}
-                            className="glass-btn min-w-[32px] min-h-[32px] p-1.5 rounded-lg text-[var(--text)] hover:text-[var(--accent)] flex items-center justify-center shrink-0"
+                            className="glass-btn w-[34px] h-[34px] p-0 rounded-xl border border-[var(--border-color)] text-[var(--text)] hover:text-[var(--accent)] hover:border-[var(--info-border)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-secondary)] flex items-center justify-center shrink-0 transition-all"
                             title="اتصال"
+                            aria-label={`اتصال بـ ${s.name}`}
                           >
-                            <Phone className="w-3.5 h-3.5 shrink-0" />
+                            <Phone className="w-4 h-4 stroke-[2] shrink-0" />
                           </a>
                         )}
                         {waHref && (
@@ -506,32 +520,35 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
                             href={waHref}
                             target="_blank"
                             rel="noreferrer"
-                            className="glass-btn min-w-[32px] min-h-[32px] p-1.5 rounded-lg text-[var(--text)] hover:text-[var(--accent)] flex items-center justify-center shrink-0"
+                            className="glass-btn w-[34px] h-[34px] p-0 rounded-xl border border-[var(--border-color)] text-[var(--text)] hover:text-[var(--accent)] hover:border-[var(--info-border)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-secondary)] flex items-center justify-center shrink-0 transition-all"
                             title="واتساب"
+                            aria-label={`واتساب ${s.name}`}
                           >
-                            <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                            <MessageSquare className="w-4 h-4 stroke-[2] shrink-0" />
                           </a>
                         )}
                         <button
                           type="button"
                           onClick={() => onOpenFollowup(s)}
-                          className="glass-btn min-w-[32px] min-h-[32px] p-1.5 rounded-lg text-[var(--accent)] cursor-pointer flex items-center justify-center shrink-0"
+                          className="glass-btn w-[34px] h-[34px] p-0 rounded-xl border border-[var(--border-color)] text-[var(--accent)] hover:border-[var(--info-border)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-secondary)] cursor-pointer flex items-center justify-center shrink-0 transition-all"
                           title="تسجيل افتقاد"
+                          aria-label={`تسجيل افتقاد لـ ${s.name}`}
                         >
-                          <HeartHandshake className="w-3.5 h-3.5 shrink-0" />
+                          <HeartHandshake className="w-4 h-4 stroke-[2] shrink-0" />
                         </button>
                         <button
                           type="button"
                           aria-disabled={Boolean(activeEditingId && activeEditingId !== s.id)}
                           onClick={() => onOpenEdit(s)}
-                          className={`glass-btn min-w-[32px] min-h-[32px] p-1.5 rounded-lg flex items-center justify-center shrink-0 ${
+                          className={`glass-btn w-[34px] h-[34px] p-0 rounded-xl border border-[var(--border-color)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-secondary)] flex items-center justify-center shrink-0 transition-all ${
                             activeEditingId && activeEditingId !== s.id
                               ? 'opacity-40 cursor-not-allowed text-[var(--text-muted)]'
-                              : 'text-[var(--text)] hover:text-[var(--accent)] cursor-pointer'
+                              : 'text-[var(--text)] hover:text-[var(--accent)] hover:border-[var(--info-border)] active:scale-95 cursor-pointer'
                           }`}
                           title={activeEditingId && activeEditingId !== s.id ? 'يوجد كارت آخر قيد التعديل' : 'تعديل البيانات'}
+                          aria-label={`تعديل بيانات ${s.name}`}
                         >
-                          <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                          <Edit3 className="w-4 h-4 stroke-[2] shrink-0" />
                         </button>
                       </div>
                     </td>

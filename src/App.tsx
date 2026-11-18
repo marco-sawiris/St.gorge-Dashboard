@@ -209,7 +209,7 @@ export default function App() {
           </div>
 
           {/* Main Content Area with standard top padding for Fixed TopBar */}
-          <main className="flex-1 min-w-0 w-full max-w-6xl mx-auto px-3 sm:px-4 pt-[calc(5.5rem+env(safe-area-inset-top))] sm:pt-[calc(6rem+env(safe-area-inset-top))] pb-24 relative z-10 overflow-x-clip box-border">
+          <main className={`flex-1 min-w-0 w-full max-w-6xl mx-auto px-3 sm:px-4 pt-[calc(5.5rem+env(safe-area-inset-top))] sm:pt-[calc(6rem+env(safe-area-inset-top))] ${activeView === 'cards' ? 'pb-24' : 'pb-6'} relative z-10 overflow-x-clip box-border`}>
             {/* Active Area Filter Banner */}
             {filters.area && (
               <div className="mb-3.5 p-3 rounded-2xl glass border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[var(--accent-secondary)] shadow-xs word-in">
@@ -399,8 +399,10 @@ export default function App() {
           </main>
         </div>
 
-        {/* Alphabet Keyboard Dock fixed at bottom */}
-        <BottomKeyboardDock />
+        {/* Alphabet Keyboard Dock fixed at bottom strictly inside Cards view */}
+        {activeView === 'cards' && (
+          <BottomKeyboardDock isModalOverlayOpen={Boolean(followupStudent)} />
+        )}
       </div>
       </MotionConfig>
     </ErrorBoundary>

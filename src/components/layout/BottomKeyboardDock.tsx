@@ -8,8 +8,13 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
  * Derives active letters solely from real registered student names, sorted dynamically
  * in Arabic alphabetical order. Auto-hides behind modals/active edits and respects Safe Area.
  */
-export const BottomKeyboardDock: React.FC = () => {
+interface BottomKeyboardDockProps {
+  isModalOverlayOpen?: boolean;
+}
+
+export const BottomKeyboardDock: React.FC<BottomKeyboardDockProps> = ({ isModalOverlayOpen = false }) => {
   const {
+    activeView,
     availableAlphabetBuckets,
     filters,
     setFilters,
@@ -21,7 +26,9 @@ export const BottomKeyboardDock: React.FC = () => {
     isAreaModalOpen,
     isAboutModalOpen,
     isAppearanceModalOpen,
-    isNotificationsOpen
+    isNotificationsOpen,
+    isPdfImportModalOpen,
+    isQueueModalOpen
   } = useApp();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -35,7 +42,15 @@ export const BottomKeyboardDock: React.FC = () => {
     isAreaModalOpen ||
     isAboutModalOpen ||
     isAppearanceModalOpen ||
-    isNotificationsOpen;
+    isNotificationsOpen ||
+    isPdfImportModalOpen ||
+    isQueueModalOpen ||
+    isModalOverlayOpen;
+
+  // Custom Keyboard belongs exclusively inside the Cards view; remove cleanly from all other views/modals
+  if (activeView !== 'cards' || hasModalBlockingDock) {
+    return null;
+  }
 
   const activeSelectedBucket = filters.alphabetLetter
     ? availableAlphabetBuckets.find((b) => b.letter === filters.alphabetLetter) || null
@@ -56,15 +71,10 @@ export const BottomKeyboardDock: React.FC = () => {
     <div
       role="region"
       aria-label="شريط التصفية الأبجدية"
-      aria-hidden={hasModalBlockingDock}
       className={`fixed bottom-0 left-0 right-0 ${
-        isSidebarCollapsed ? 'lg:right-[84px]' : 'lg:right-[272px]'
+        isSidebarCollapsed ? 'lg:right-[76px]' : 'lg:right-[232px]'
       } z-30 glass-strong border-t border-[var(--border-color)] shadow-[var(--shadow)] px-2 sm:px-3 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-[var(--ease-spring)] select-none overflow-hidden ${
-        hasModalBlockingDock
-          ? 'translate-y-full opacity-0 pointer-events-none'
-          : isCollapsed
-          ? 'translate-y-[calc(100%-32px)]'
-          : 'translate-y-0'
+        isCollapsed ? 'translate-y-[calc(100%-32px)]' : 'translate-y-0'
       }`}
     >
       {/* Subtle Ambient Glassmorphism Glow inside Dock */}

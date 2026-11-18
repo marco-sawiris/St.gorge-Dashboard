@@ -19,12 +19,6 @@ export function createInitialBotMessage(): AssistantMessage {
     id: `welcome-${generateUUID()}`,
     role: 'bot',
     text: INITIAL_BOT_TEXT,
-    actions: [
-      { label: 'غير المسجلين', type: 'prompt', payload: 'مين اللي لم يسجل بعد؟', variant: 'primary' },
-      { label: 'الحاضرون اليوم', type: 'prompt', payload: 'مين اللي حضر؟', variant: 'present' },
-      { label: 'الغائبون', type: 'prompt', payload: 'مين الغايب؟', variant: 'absent' },
-      { label: 'عرض الإحصائيات', type: 'prompt', payload: 'إحصائيات', variant: 'neutral' }
-    ],
     timestamp: Date.now()
   };
 }

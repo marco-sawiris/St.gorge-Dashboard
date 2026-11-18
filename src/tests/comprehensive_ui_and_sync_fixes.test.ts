@@ -653,7 +653,41 @@ async function runTests() {
   );
   assert.ok(!aboutHtml || aboutHtml.includes('st_george_icon_1794405195493.jpg') || aboutSrc.includes('st_george_icon_1794405195493.jpg'));
 
-  console.log('✅ Test 5 Passed: All UI, Contrast, Layout, Header Branding, Sidebar, Compact Keyboard, and SSR Contracts Verified');
+  // Cards-only Custom Keyboard, Unified Scroll-Free Smart Assistant Icons, and Uniform Table Actions Column
+  assert.ok(
+    dockSrc.includes("if (activeView !== 'cards' || hasModalBlockingDock)") &&
+      dockSrc.includes('return null;') &&
+      dockSrc.includes('isPdfImportModalOpen') &&
+      dockSrc.includes('isQueueModalOpen') &&
+      appSrc.includes("activeView === 'cards' ? 'pb-24' : 'pb-6'") &&
+      appSrc.includes("{activeView === 'cards' && (") &&
+      appSrc.includes('<BottomKeyboardDock isModalOverlayOpen={Boolean(followupStudent)} />'),
+    'BottomKeyboardDock must unmount completely outside Cards view and leave zero empty bottom spacer in Table/Charts/Followup views'
+  );
+
+  const assistantModalSrc2 = readProjectFile('src/components/modals/AssistantModal.tsx');
+  const assistantSessionSrc = readProjectFile('src/services/assistantSessionService.ts');
+  assert.ok(
+    assistantModalSrc2.includes("id: 'stats'") &&
+      assistantModalSrc2.includes("label: 'الحاضرون اليوم'") &&
+      assistantModalSrc2.includes("label: 'عرض الإحصائيات'") &&
+      assistantModalSrc2.includes('grid-cols-2 sm:grid-cols-3') &&
+      assistantModalSrc2.includes('whitespace-normal break-words leading-snug') &&
+      assistantModalSrc2.includes("showQuickPrompts ? 'إخفاء' : 'عرض الأوامر'") &&
+      !assistantModalSrc2.includes('max-h-[144px]') &&
+      !assistantSessionSrc.includes("label: 'الحاضرون اليوم'"),
+    'AssistantModal must unify upper starter actions into the single scroll-free bottom grid while preserving the Hide/Show toggle'
+  );
+
+  assert.ok(
+    tableSrc.includes('w-[34px] h-[34px] p-0 rounded-xl') &&
+      tableSrc.includes('w-[38px] h-[38px] p-0 rounded-xl') &&
+      tableSrc.includes('w-4 h-4 stroke-[2] shrink-0') &&
+      !tableSrc.includes('min-w-[32px] min-h-[32px]'),
+    'StudentsTableView Actions Column must use uniform container sizes and equal icon size/stroke across desktop and mobile'
+  );
+
+  console.log('✅ Test 5 Passed: All UI, Contrast, Layout, Header Branding, Sidebar, Compact Keyboard, Smart Assistant & Table Actions Contracts Verified');
 }
 
 runTests().catch((err) => {
