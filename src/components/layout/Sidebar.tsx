@@ -116,9 +116,9 @@ export const Sidebar: React.FC = () => {
   };
 
   const navLinkClass = (isActive: boolean) =>
-    `sidebar-nav-item relative flex items-center w-full min-w-0 h-auto min-h-[36px] ${
-      isSidebarCollapsed ? 'lg:justify-center lg:px-0' : 'justify-start gap-2.5 ps-3 pe-2.5'
-    } py-1.5 rounded-lg text-[12.5px] leading-snug font-bold text-right cursor-pointer ${
+    `sidebar-nav-item relative flex items-center w-full min-w-0 h-auto min-h-[42px] ${
+      isSidebarCollapsed ? 'lg:justify-center lg:px-0' : 'justify-start gap-3 ps-3 pe-2.5'
+    } py-2 rounded-lg text-[14.5px] sm:text-[15px] leading-[1.35] font-bold text-right cursor-pointer ${
       isActive ? 'text-[var(--text-primary)] font-extrabold' : ''
     }`;
 
@@ -196,10 +196,10 @@ export const Sidebar: React.FC = () => {
                 />
               </div>
               <div className={`min-w-0 flex-1 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-                <h2 className="font-extrabold text-[13px] leading-tight text-[var(--text-primary)] m-0 break-words">
+                <h2 className="font-extrabold text-[14.5px] leading-tight text-[var(--text-primary)] m-0 break-words">
                   St. George Dashboard
                 </h2>
-                <p className="text-[10px] leading-tight text-[var(--accent-secondary)] m-0 mt-0.5 font-bold break-words">
+                <p className="text-[12px] leading-snug text-[var(--accent-secondary)] m-0 mt-0.5 font-bold break-words">
                   فصل الشهيد مارجرجس
                 </p>
               </div>
@@ -238,14 +238,14 @@ export const Sidebar: React.FC = () => {
             }`}
             title="وضع الخدمة المباشر — مزامنة Google Sheets ودعم الأوفلاين"
           >
-            <div className="w-7 h-7 rounded-lg bg-[var(--info-bg)] border border-[var(--info-border)] flex items-center justify-center text-[var(--accent-secondary)] shrink-0">
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+            <div className="w-8 h-8 rounded-lg bg-[var(--info-bg)] border border-[var(--info-border)] flex items-center justify-center text-[var(--accent-secondary)] shrink-0">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
             </div>
             <div className={`min-w-0 flex-1 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-              <p className="text-[11px] font-extrabold text-[var(--text-primary)] m-0 leading-tight break-words">
+              <p className="text-[13px] font-extrabold text-[var(--text-primary)] m-0 leading-snug break-words">
                 وضع الخدمة المباشر
               </p>
-              <p className="text-[9.5px] font-bold text-[var(--accent-secondary)] m-0 mt-0.5 leading-tight break-words">
+              <p className="text-[11.5px] font-bold text-[var(--accent-secondary)] m-0 mt-0.5 leading-snug break-words">
                 Google Sheets + العمل دون اتصال
               </p>
             </div>
@@ -262,8 +262,8 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(activeView === 'cards')}
             >
               {renderActiveBar(activeView === 'cards')}
-              <CreditCard className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'cards' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
-              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <CreditCard className={`relative z-10 w-[18px] h-[18px] shrink-0 transition-transform duration-200 ${activeView === 'cards' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 كروت المخدومين
               </span>
             </button>
@@ -277,8 +277,8 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(activeView === 'table')}
             >
               {renderActiveBar(activeView === 'table')}
-              <TableIcon className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'table' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
-              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <TableIcon className={`relative z-10 w-[18px] h-[18px] shrink-0 transition-transform duration-200 ${activeView === 'table' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 جدول الحضور
               </span>
             </button>
@@ -292,8 +292,8 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(activeView === 'charts')}
             >
               {renderActiveBar(activeView === 'charts')}
-              <PieChart className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'charts' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
-              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <PieChart className={`relative z-10 w-[18px] h-[18px] shrink-0 transition-transform duration-200 ${activeView === 'charts' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 الإحصائيات الذكية
               </span>
             </button>
@@ -307,8 +307,8 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(activeView === 'followup')}
             >
               {renderActiveBar(activeView === 'followup')}
-              <PhoneCall className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${activeView === 'followup' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
-              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <PhoneCall className={`relative z-10 w-[18px] h-[18px] shrink-0 transition-transform duration-200 ${activeView === 'followup' ? 'text-[var(--accent-secondary)] scale-105' : 'text-[var(--text-secondary)]'}`} />
+              <span className={`relative z-10 min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 سجل الافتقاد
               </span>
             </button>
@@ -325,8 +325,8 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 4 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <MapPin className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
-              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <MapPin className="w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 المناطق السكنية
               </span>
             </button>
@@ -342,9 +342,9 @@ export const Sidebar: React.FC = () => {
               className={navLinkClass(false)}
             >
               <RefreshCw
-                className={`w-4 h-4 shrink-0 text-[var(--accent-secondary)] ${syncState === 'syncing' ? 'animate-spin' : ''}`}
+                className={`w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)] ${syncState === 'syncing' ? 'animate-spin' : ''}`}
               />
-              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 حالة المزامنة
               </span>
             </button>
@@ -357,8 +357,8 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 6 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <ExternalLink className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
-              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <ExternalLink className="w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 فتح ملف الشيت
               </span>
             </a>
@@ -373,8 +373,8 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 7 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <Bot className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
-              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <Bot className="w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 المساعد الذكي
               </span>
             </button>
@@ -389,8 +389,8 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 8 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <FileUp className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
-              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <FileUp className="w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 استيراد كشف PDF
               </span>
             </button>
@@ -405,8 +405,8 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 9 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <Palette className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
-              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <Palette className="w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 مظهر وسمة التطبيق
               </span>
             </button>
@@ -421,18 +421,18 @@ export const Sidebar: React.FC = () => {
               style={{ '--i': 10 } as React.CSSProperties}
               className={navLinkClass(false)}
             >
-              <Info className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" />
-              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-snug text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <Info className="w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 عن التطبيق
               </span>
             </button>
           </nav>
 
           {/* Compact Servants Filter Section */}
-          <div className={`pt-2 border-t border-[var(--border-color)]/70 shrink-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-            <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
-              <p className="text-[10.5px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5 m-0 min-w-0">
-                <ShieldAlert className="w-3.5 h-3.5 text-[var(--accent-secondary)] shrink-0" />
+          <div className={`pt-2.5 border-t border-[var(--border-color)]/70 shrink-0 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+            <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
+              <p className="text-[13px] leading-snug font-bold text-[var(--text-secondary)] flex items-center gap-1.5 m-0 min-w-0">
+                <ShieldAlert className="w-4 h-4 text-[var(--accent-secondary)] shrink-0" />
                 <span>أشابين وخدام الفصل</span>
               </p>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -440,7 +440,7 @@ export const Sidebar: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowAllServants((v) => !v)}
-                    className="text-[10px] font-bold text-[var(--accent-secondary)] hover:underline cursor-pointer"
+                    className="text-[12px] leading-snug font-bold text-[var(--accent-secondary)] hover:underline cursor-pointer"
                   >
                     {showAllServants ? 'أقل' : `+${uniqueServants.length - 6}`}
                   </button>
@@ -449,9 +449,9 @@ export const Sidebar: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {uniqueServants.length === 0 ? (
-                <span className="text-[10.5px] text-[var(--text-muted)] italic">لا يوجد خدام محملون</span>
+                <span className="text-[12px] leading-snug text-[var(--text-muted)] italic">لا يوجد خدام محملون</span>
               ) : (
                 visibleServants.map((servantName) => {
                   const isActive = filters.servant === servantName;
@@ -461,7 +461,7 @@ export const Sidebar: React.FC = () => {
                       type="button"
                       aria-pressed={isActive}
                       onClick={() => handleToggleServant(servantName)}
-                      className={`min-h-[28px] px-2 py-0.5 rounded-lg text-[10.5px] font-bold leading-snug max-w-full break-words text-right cursor-pointer select-none border transition-all duration-200 active:scale-95 ${
+                      className={`min-h-[34px] px-2.5 py-1 rounded-lg text-[12.5px] font-bold leading-snug max-w-full break-words text-right cursor-pointer select-none border transition-all duration-200 active:scale-95 ${
                         isActive
                           ? 'bg-gradient-to-r from-[#123FCE] to-[#0369A1] text-white border-[#38BDF8]/65 shadow-[0_2px_10px_rgba(18,63,206,0.35)]'
                           : 'bg-[var(--surface-primary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-secondary)]'
@@ -477,7 +477,7 @@ export const Sidebar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFilters((p) => ({ ...p, servant: '' }))}
-                className="mt-1.5 w-full px-2.5 py-1.5 rounded-lg text-[10.5px] font-bold text-[var(--accent-secondary)] bg-[var(--surface-primary)]/60 border border-[var(--border-color)] hover:border-[var(--accent-secondary)]/50 transition-colors cursor-pointer"
+                className="mt-2 w-full px-2.5 py-2 rounded-lg text-[12.5px] leading-snug font-bold text-[var(--accent-secondary)] bg-[var(--surface-primary)]/60 border border-[var(--border-color)] hover:border-[var(--accent-secondary)]/50 transition-colors cursor-pointer"
                 aria-label="مسح فلتر الأشبين وعرض كل المخدومين"
               >
                 اعرض الكل

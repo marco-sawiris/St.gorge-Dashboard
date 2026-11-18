@@ -554,20 +554,21 @@ async function runTests() {
     'Dashboard tabs, KPI cards, chart panels, cards, and modals must render in side-by-side multi-column rows'
   );
 
-  // Sidebar compact non-overlapping layout, wrapping RTL items, tight vertical spacing, zero duplicate instant theme switcher, and full section preservation
+  // Sidebar compact non-overlapping layout, enlarged legible wrapping RTL items, tight vertical spacing, zero duplicate instant theme switcher, and full section preservation
   assert.ok(
     sidebarSrc.includes('overflow-y-auto overflow-x-hidden') &&
       sidebarSrc.includes('gap-1 shrink-0') &&
-      sidebarSrc.includes('min-h-[36px]') &&
+      sidebarSrc.includes('min-h-[42px]') &&
+      sidebarSrc.includes('text-[14.5px] sm:text-[15px]') &&
       sidebarSrc.includes('lg:w-[232px]') &&
       sidebarSrc.includes('max-w-[244px]') &&
-      sidebarSrc.includes('whitespace-normal break-words leading-snug text-right') &&
+      sidebarSrc.includes('whitespace-normal break-words leading-[1.35] text-right') &&
       !sidebarSrc.includes('التبديل الفوري') &&
       !sidebarSrc.includes('ThemeSwitcher') &&
       !sidebarSrc.includes('<div className="flex flex-col min-h-0">') &&
       cssSrc.includes('sidebarNavSlideIn') &&
       cssSrc.includes('flex-shrink: 0;'),
-    'Sidebar must use compact widths/spacing, min-h-[36px] wrapping items, zero instant theme toggle, and non-overlapping drawer slide animation'
+    'Sidebar must use preserved widths/spacing, min-h-[42px] enlarged wrapping items, zero instant theme toggle, and non-overlapping drawer slide animation'
   );
   for (const requiredSection of [
     'كروت المخدومين',

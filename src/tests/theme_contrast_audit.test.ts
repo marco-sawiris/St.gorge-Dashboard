@@ -430,6 +430,21 @@ async function runTests() {
     sidebarSource.includes('مظهر وسمة التطبيق') && sidebarSource.includes('setIsAppearanceModalOpen(true)'),
     'Sidebar must keep Appearance button opening AppearanceModal popup'
   );
+  assert.ok(
+    sidebarSource.includes('text-[14.5px] sm:text-[15px]') &&
+      sidebarSource.includes('min-h-[42px]') &&
+      sidebarSource.includes('w-[18px] h-[18px]') &&
+      sidebarSource.includes('text-[12px] leading-snug') &&
+      sidebarSource.includes('text-[13px] font-extrabold') &&
+      sidebarSource.includes('text-[11.5px] font-bold') &&
+      sidebarSource.includes('text-[12.5px] font-bold') &&
+      sidebarSource.includes('whitespace-normal break-words leading-[1.35] text-right') &&
+      sidebarSource.includes('overflow-y-auto overflow-x-hidden') &&
+      sidebarSource.includes('max-w-[244px]') &&
+      sidebarSource.includes('lg:w-[232px]') &&
+      sidebarSource.includes('lg:w-[76px]'),
+    'Sidebar must enlarge main & secondary typography and icon proportions cleanly while preserving width, wrapping, and scrolling'
+  );
 
   const appSource = readProjectFile('src/App.tsx');
   assert.ok(
@@ -437,7 +452,7 @@ async function runTests() {
     'App.tsx floating toasts & alerts must keep opaque glass-strong surface backdrop'
   );
 
-  console.log('✅ Test 3 Passed: Modals, Theme Selector hygiene, and semantic contrast token checks');
+  console.log('✅ Test 3 Passed: Modals, Sidebar typography scale, Theme Selector hygiene, and semantic contrast checks');
 
   // --------------------------------------------------------------------------
   // 4. Dual-Theme SSR Render Smoke Audit (Light Mode & Dark Mode)
