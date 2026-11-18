@@ -199,7 +199,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none overflow-x-clip box-border">
       <div className="box-border w-full min-w-0 max-w-[min(100%,32rem)] glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow-lg)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/40 shrink-0">
+        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-secondary)] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="w-9 h-9 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs shrink-0">
               {isEditing ? <Save className="w-4 h-4 shrink-0" /> : <UserPlus className="w-4 h-4 shrink-0" />}
@@ -220,8 +220,8 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
 
         {/* Unsaved Changes Protection Prompt */}
         {showUnsavedConfirm && (
-          <div className="px-5 py-3 bg-amber-500/15 border-b border-amber-500/30 flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
-            <span className="text-amber-500 dark:text-amber-300">
+          <div className="px-5 py-3 bg-[var(--warning-bg)] border-b border-[var(--warning-border)] flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
+            <span className="text-[var(--warning-text)]">
               توجد تغييرات غير محفوظة! هل تريد تجاهلها أم متابعة التعديل؟
             </span>
             <div className="flex items-center gap-2">
@@ -239,7 +239,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                   setHasUnsavedEditChanges(false);
                   onClose();
                 }}
-                className="glass-btn px-3 py-1 rounded-lg !bg-red-500/20 text-red-500 border-red-500/30 cursor-pointer"
+                className="glass-btn px-3 py-1 rounded-lg !bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)] cursor-pointer"
               >
                 تجاهل وإغلاق
               </button>
@@ -250,7 +250,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="box-border w-full min-w-0 p-4 sm:p-5 overflow-y-auto overflow-x-clip space-y-4 text-xs sm:text-sm">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 flex items-center gap-2 text-xs font-bold">
+            <div className="p-3 rounded-xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] flex items-center gap-2 text-xs font-bold">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -399,7 +399,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="glass-btn--primary btn--lens min-h-[40px] px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer"
+              className="glass-btn--primary btn--lens min-h-[40px] px-5 py-2 rounded-xl font-bold text-xs text-white flex items-center gap-2 cursor-pointer"
             >
               <Save className="w-4 h-4 text-white shrink-0" />
               <span>{isSubmitting ? 'جاري الحفظ...' : isEditing ? 'حفظ التعديلات' : 'تسجيل المخدوم'}</span>

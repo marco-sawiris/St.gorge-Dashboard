@@ -406,7 +406,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
     if (effective === 'present') {
       return (
         <div className="inline-flex flex-col items-center gap-1">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-500 text-[11px] font-extrabold">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success-text)] text-[11px] font-extrabold">
             <CheckCircle2 className="w-3 h-3 shrink-0" />
             حاضر
           </span>
@@ -426,7 +426,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
     if (effective === 'absent') {
       return (
         <div className="inline-flex flex-col items-center gap-1">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/35 text-rose-400 text-[11px] font-extrabold">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] text-[11px] font-extrabold">
             <XCircle className="w-3 h-3 shrink-0" />
             غائب
           </span>
@@ -454,7 +454,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
     // 'unknown' or 'ambiguous' — strictly requires explicit review!
     return (
       <div className="flex flex-col items-center gap-1">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-400/45 text-[var(--warning-text)] text-[10.5px] font-extrabold">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[var(--warning-bg)] border border-[var(--warning-border)] text-[var(--warning-text)] text-[10.5px] font-extrabold">
           <HelpCircle className="w-3 h-3 shrink-0" />
           {origCell.rawText ? `مراجعة (${origCell.rawText})` : 'مراجعة'}
         </span>
@@ -462,14 +462,14 @@ export const PdfAttendanceImportModal: React.FC = () => {
           <button
             type="button"
             onClick={() => handleSetCellOverride(row.rowKey, dateIso, 'present')}
-            className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[10px] font-bold cursor-pointer"
+            className="px-1.5 py-0.5 rounded bg-[var(--success-bg)] text-[var(--success-text)] border border-[var(--success-border)] text-[10px] font-bold cursor-pointer"
           >
             ح
           </button>
           <button
             type="button"
             onClick={() => handleSetCellOverride(row.rowKey, dateIso, 'absent')}
-            className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[10px] font-bold cursor-pointer"
+            className="px-1.5 py-0.5 rounded bg-[var(--danger-bg)] text-[var(--danger-text)] border border-[var(--danger-border)] text-[10px] font-bold cursor-pointer"
           >
             غ
           </button>
@@ -583,7 +583,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
 
           {/* Parse Error */}
           {parseError && (
-            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/35 text-rose-400 flex items-start gap-2.5">
+            <div className="p-3.5 rounded-2xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="space-y-1 flex-1">
                 <p className="font-extrabold text-xs m-0">ملاحظة أثناء قراءة الملف</p>
@@ -604,20 +604,20 @@ export const PdfAttendanceImportModal: React.FC = () => {
             <div
               className={`p-4 rounded-2xl border space-y-2.5 ${
                 executionResult.error
-                  ? 'bg-rose-500/10 border-rose-500/40'
+                  ? 'bg-[var(--danger-bg)] border-[var(--danger-border)]'
                   : executionResult.syncReport?.outcome === 'timeout_unknown'
-                  ? 'bg-amber-500/10 border-amber-500/40'
-                  : 'bg-[var(--surface-primary)] border-[var(--accent-secondary)]/50'
+                  ? 'bg-[var(--warning-bg)] border-[var(--warning-border)]'
+                  : 'bg-[var(--surface-primary)] border-[var(--info-border)]'
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   {executionResult.error ? (
-                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+                    <AlertTriangle className="w-5 h-5 text-[var(--danger-text)] shrink-0" />
                   ) : executionResult.syncReport?.outcome === 'timeout_unknown' ? (
-                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                    <AlertTriangle className="w-5 h-5 text-[var(--warning-text)] shrink-0" />
                   ) : (
-                    <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+                    <ShieldCheck className="w-5 h-5 text-[var(--success-text)] shrink-0" />
                   )}
                   <h4 className="text-sm font-extrabold text-[var(--text-primary)] m-0">
                     {executionResult.error
@@ -646,7 +646,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => void processOfflineQueue()}
-                      className="glass-btn--primary min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold cursor-pointer"
+                      className="glass-btn--primary min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold text-white cursor-pointer"
                     >
                       إرسال للشيت الآن
                     </button>
@@ -657,13 +657,13 @@ export const PdfAttendanceImportModal: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div className="p-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
                   <span className="block text-[10px] text-[var(--text-muted)]">سجلات محفوظة</span>
-                  <strong className="font-mono tabular-nums text-emerald-500 text-sm">
+                  <strong className="font-mono tabular-nums text-[var(--success-text)] text-sm">
                     {executionResult.appliedCount}
                   </strong>
                 </div>
                 <div className="p-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
                   <span className="block text-[10px] text-[var(--text-muted)]">مؤكد بالخادم</span>
-                  <strong className="font-mono tabular-nums text-emerald-500 text-sm">
+                  <strong className="font-mono tabular-nums text-[var(--success-text)] text-sm">
                     {executionResult.syncReport?.sentCount ?? 0}
                   </strong>
                 </div>
@@ -693,7 +693,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
               )}
 
               {executionResult.error && (
-                <p className="text-xs text-rose-400 m-0">{executionResult.error}</p>
+                <p className="text-xs text-[var(--danger-text)] m-0">{executionResult.error}</p>
               )}
             </div>
           )}
@@ -752,7 +752,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                   </div>
 
                   {report.diagnostics.failureReason && (
-                    <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/35 text-rose-400 font-bold">
+                    <div className="p-2.5 rounded-xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] font-bold">
                       سبب التوقف ({report.diagnostics.failureStage}): {report.diagnostics.failureReason}
                     </div>
                   )}
@@ -784,13 +784,13 @@ export const PdfAttendanceImportModal: React.FC = () => {
                     </div>
                     <div className="p-2 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)]">
                       <span className="block text-[10px] text-[var(--text-muted)]">حالات الحضور (ح)</span>
-                      <strong className="font-mono tabular-nums text-emerald-500">
+                      <strong className="font-mono tabular-nums text-[var(--success-text)]">
                         {report.diagnostics.presentCount}
                       </strong>
                     </div>
                     <div className="p-2 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)]">
                       <span className="block text-[10px] text-[var(--text-muted)]">حالات الغياب (غ)</span>
-                      <strong className="font-mono tabular-nums text-rose-400">
+                      <strong className="font-mono tabular-nums text-[var(--danger-text)]">
                         {report.diagnostics.absentCount}
                       </strong>
                     </div>
@@ -803,7 +803,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                   </div>
 
                   {report.diagnostics.issues.length > 0 && (
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-400/35 text-[var(--warning-text)] space-y-1">
+                    <div className="p-2.5 rounded-xl bg-[var(--warning-bg)] border border-[var(--warning-border)] text-[var(--warning-text)] space-y-1">
                       <strong className="block text-[11px]">ملاحظات وتعارضات إعادة البناء:</strong>
                       {report.diagnostics.issues.map((issue, idx) => (
                         <p key={idx} className="m-0 text-[11px]">
@@ -872,7 +872,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                 </div>
                 <div className="p-3 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)]">
                   <span className="block text-[11px] text-[var(--text-muted)]">مطابقة تلقائية</span>
-                  <strong className="text-base font-extrabold font-mono tabular-nums text-emerald-500">
+                  <strong className="text-base font-extrabold font-mono tabular-nums text-[var(--success-text)]">
                     {report.stats.matchedCount}
                   </strong>
                 </div>
@@ -890,7 +890,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                 </div>
                 <div className="p-3 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)]">
                   <span className="block text-[11px] text-[var(--text-muted)]">سيتم حفظه الآن</span>
-                  <strong className="text-base font-extrabold font-mono tabular-nums text-emerald-500">
+                  <strong className="text-base font-extrabold font-mono tabular-nums text-[var(--success-text)]">
                     {plan.toApply.length}
                   </strong>
                 </div>
@@ -929,16 +929,16 @@ export const PdfAttendanceImportModal: React.FC = () => {
                             <span className="font-mono text-[10px] text-[var(--text-muted)]">{dCol.date}</span>
                           </div>
                           <div className="grid grid-cols-4 gap-1 text-center text-[10.5px] font-bold">
-                            <div className="p-1 rounded-lg bg-emerald-500/10 text-emerald-500 tabular-nums">
+                            <div className="p-1 rounded-lg bg-[var(--success-bg)] text-[var(--success-text)] tabular-nums">
                               ح: {dStats.present}
                             </div>
-                            <div className="p-1 rounded-lg bg-rose-500/10 text-rose-400 tabular-nums">
+                            <div className="p-1 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] tabular-nums">
                               غ: {dStats.absent}
                             </div>
                             <div className="p-1 rounded-lg bg-[var(--surface-inset)] text-[var(--text-muted)] tabular-nums">
                               ف: {dStats.empty}
                             </div>
-                            <div className="p-1 rounded-lg bg-amber-500/10 text-[var(--warning-text)] tabular-nums">
+                            <div className="p-1 rounded-lg bg-[var(--warning-bg)] text-[var(--warning-text)] tabular-nums">
                               م: {dStats.review}
                             </div>
                           </div>
@@ -956,7 +956,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
               {plan.hasPreviouslyRecordedData && (
                 <section
                   aria-label="تنبيه: توجد بيانات مسجلة بالفعل"
-                  className="p-4 rounded-2xl bg-amber-500/12 border border-amber-500/45 space-y-3 shadow-xs"
+                  className="p-4 rounded-2xl bg-[var(--warning-bg)] border border-[var(--warning-border)] space-y-3 shadow-xs"
                 >
                   <div className="flex items-start gap-2.5">
                     <AlertTriangle className="w-5 h-5 text-[var(--warning-text)] shrink-0 mt-0.5" />
@@ -979,7 +979,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                     </div>
                     <div className="p-2.5 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)]">
                       <span className="block text-[11px] text-[var(--text-muted)]">عدد السجلات الجديدة</span>
-                      <strong className="font-mono tabular-nums text-base text-emerald-500">
+                      <strong className="font-mono tabular-nums text-base text-[var(--success-text)]">
                         {plan.newRecordsCount}
                       </strong>
                     </div>
@@ -997,7 +997,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                       type="button"
                       disabled={isApplying || plan.newRecordsCount === 0}
                       onClick={handleConfirmNewOnlyImport}
-                      className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer min-h-[40px] inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed"
+                      className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-extrabold text-white cursor-pointer min-h-[40px] inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed"
                     >
                       <CheckCircle2 className="w-4 h-4 shrink-0" />
                       <span>إضافة السجلات الجديدة فقط ({plan.newRecordsCount})</span>
@@ -1008,7 +1008,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                         type="button"
                         disabled={isApplying}
                         onClick={() => setShowOverwriteConfirm(true)}
-                        className="glass-btn px-4 py-2 rounded-xl text-xs font-extrabold text-[var(--warning-text)] border-amber-500/45 cursor-pointer min-h-[40px] inline-flex items-center gap-1.5 disabled:opacity-45"
+                        className="glass-btn px-4 py-2 rounded-xl text-xs font-extrabold text-[var(--warning-text)] border-[var(--warning-border)] cursor-pointer min-h-[40px] inline-flex items-center gap-1.5 disabled:opacity-45"
                       >
                         <RefreshCw className="w-4 h-4 shrink-0" />
                         <span>إعادة تسجيل السجلات المحددة</span>
@@ -1019,7 +1019,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                       type="button"
                       disabled={isApplying}
                       onClick={handleCancelImport}
-                      className="glass-btn px-4 py-2 rounded-xl text-xs font-bold text-rose-400 border-rose-500/35 cursor-pointer min-h-[40px] inline-flex items-center gap-1.5"
+                      className="glass-btn px-4 py-2 rounded-xl text-xs font-bold text-[var(--danger-text)] border-[var(--danger-border)] cursor-pointer min-h-[40px] inline-flex items-center gap-1.5"
                     >
                       <XCircle className="w-4 h-4 shrink-0" />
                       <span>إلغاء الاستيراد</span>
@@ -1030,7 +1030,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
 
               {/* Verification & Absence Discrepancy Warnings */}
               {report.warnings.length > 0 && (
-                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-[var(--warning-text)] space-y-1">
+                <div className="p-3 rounded-2xl bg-[var(--warning-bg)] border border-[var(--warning-border)] text-[var(--warning-text)] space-y-1">
                   {report.warnings.map((w, idx) => (
                     <p key={idx} className="text-xs font-bold m-0 flex items-start gap-2">
                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -1042,7 +1042,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
 
               {/* Explicit Conflict Resolution Panel */}
               {plan.conflicts.length > 0 && (
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-amber-400/45 space-y-2.5">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--warning-border)] space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-xs font-extrabold text-[var(--warning-text)]">
                       <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -1061,7 +1061,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleBulkConflictsDecision('overwrite_with_pdf')}
-                        className="glass-btn px-2.5 py-1 rounded-xl text-[11px] font-bold text-amber-500 cursor-pointer"
+                        className="glass-btn px-2.5 py-1 rounded-xl text-[11px] font-bold text-[var(--warning-text)] cursor-pointer"
                       >
                         اعتماد PDF للكل
                       </button>
@@ -1087,7 +1087,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                             onClick={() => handleSetConflictDecision(c.key, 'keep_existing')}
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
                               c.decision === 'keep_existing'
-                                ? 'bg-[var(--accent-primary)] text-white border-[var(--accent-primary)]'
+                                ? 'bg-[#123FCE] text-white border-[#123FCE]'
                                 : 'bg-[var(--surface-primary)] text-[var(--text-secondary)] border-[var(--border-color)]'
                             }`}
                           >
@@ -1098,7 +1098,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                             onClick={() => handleSetConflictDecision(c.key, 'overwrite_with_pdf')}
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
                               c.decision === 'overwrite_with_pdf'
-                                ? 'bg-amber-600 text-white border-amber-600'
+                                ? 'bg-amber-700 text-white border-amber-600'
                                 : 'bg-[var(--surface-primary)] text-[var(--text-secondary)] border-[var(--border-color)]'
                             }`}
                           >
@@ -1119,7 +1119,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                     onClick={() => setRowFilter('all')}
                     className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer ${
                       rowFilter === 'all'
-                        ? 'bg-[var(--accent-primary)] text-white border-[var(--accent-primary)]'
+                        ? 'bg-[#123FCE] text-white border-[#123FCE]'
                         : 'bg-[var(--surface-primary)] text-[var(--text-secondary)] border-[var(--border-color)]'
                     }`}
                   >
@@ -1130,7 +1130,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                     onClick={() => setRowFilter('review')}
                     className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer ${
                       rowFilter === 'review'
-                        ? 'bg-[var(--accent-primary)] text-white border-[var(--accent-primary)]'
+                        ? 'bg-[#123FCE] text-white border-[#123FCE]'
                         : 'bg-[var(--surface-primary)] text-[var(--text-secondary)] border-[var(--border-color)]'
                     }`}
                   >
@@ -1141,7 +1141,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                     onClick={() => setRowFilter('matched')}
                     className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer ${
                       rowFilter === 'matched'
-                        ? 'bg-[var(--accent-primary)] text-white border-[var(--accent-primary)]'
+                        ? 'bg-[#123FCE] text-white border-[#123FCE]'
                         : 'bg-[var(--surface-primary)] text-[var(--text-secondary)] border-[var(--border-color)]'
                     }`}
                   >
@@ -1260,7 +1260,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                             <span className="block font-extrabold text-[var(--text-primary)]">{row.extractedName}</span>
                             <span className="text-[10px] text-[var(--text-muted)]">
                               {row.matchStatus === 'exact' ? (
-                                <span className="inline-flex items-center gap-1 text-emerald-500 font-bold">
+                                <span className="inline-flex items-center gap-1 text-[var(--success-text)] font-bold">
                                   <UserCheck className="w-3 h-3" /> مطابقة دقيقة
                                 </span>
                               ) : row.matchStatus === 'ambiguous' ? (
@@ -1268,7 +1268,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                               ) : row.matchStatus === 'needs_review' ? (
                                 <span className="text-[var(--warning-text)] font-bold">مرشح تقريبي (يتطلب تأكيد)</span>
                               ) : (
-                                <span className="text-rose-400 font-bold">غير موجود بالقاعدة</span>
+                                <span className="text-[var(--danger-text)] font-bold">غير موجود بالقاعدة</span>
                               )}
                             </span>
                           </td>
@@ -1326,9 +1326,9 @@ export const PdfAttendanceImportModal: React.FC = () => {
             aria-labelledby="pdf-overwrite-confirm-title"
             className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn"
           >
-            <div className="w-full max-w-md glass-strong rounded-3xl p-5 border border-amber-500/45 shadow-[var(--shadow-lg)] space-y-4">
+            <div className="w-full max-w-md glass-strong rounded-3xl p-5 border border-[var(--warning-border)] shadow-[var(--shadow-lg)] space-y-4">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-[var(--warning-text)] shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--warning-bg)] border border-[var(--warning-border)] flex items-center justify-center text-[var(--warning-text)] shrink-0">
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div className="space-y-1.5">
@@ -1349,7 +1349,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                     </li>
                     <li>
                       • سجلات جديدة ستُضاف معها:{' '}
-                      <strong className="font-mono text-emerald-500">{plan.newRecordsCount}</strong>
+                      <strong className="font-mono text-[var(--success-text)]">{plan.newRecordsCount}</strong>
                     </li>
                     <li>• السجلات المطابقة تماماً بدون اختلاف ستظل محمية دون تكرار.</li>
                   </ul>
@@ -1369,7 +1369,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
                   type="button"
                   disabled={isApplying}
                   onClick={handleConfirmSelectedOverwrite}
-                  className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer min-h-[40px] inline-flex items-center gap-1.5"
+                  className="glass-btn--primary btn--lens px-4 py-2 rounded-xl text-xs font-extrabold text-white cursor-pointer min-h-[40px] inline-flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>موافق — تنفيذ التعديل والاستيراد</span>
@@ -1380,7 +1380,7 @@ export const PdfAttendanceImportModal: React.FC = () => {
         )}
 
         {/* Footer Actions */}
-        <div className="p-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-3 bg-[var(--surface-secondary)]/70 shrink-0">
+        <div className="p-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-3 bg-[var(--surface-secondary)] shrink-0">
           <div className="text-[11px] text-[var(--text-muted)] font-semibold flex items-center gap-2 min-w-0">
             <Users className="w-4 h-4 text-[var(--accent-secondary)] shrink-0" />
             {plan ? (

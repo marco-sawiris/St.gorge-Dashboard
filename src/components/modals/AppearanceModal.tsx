@@ -64,7 +64,7 @@ export const AppearanceModal: React.FC = () => {
     >
       <div className="w-full max-w-lg glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60 shrink-0">
+        <div className="flex items-center justify-between gap-2 p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)] shrink-0">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-10 h-10 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shrink-0">
               <Palette className="w-5 h-5 shrink-0" />
@@ -123,7 +123,7 @@ export const AppearanceModal: React.FC = () => {
                   className={`w-full min-h-[56px] p-3.5 rounded-2xl border text-right flex items-center justify-between gap-3 transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-[var(--surface-primary)] border-[var(--accent-secondary)] shadow-[0_0_16px_rgba(32,199,232,0.18)]'
-                      : 'bg-[var(--surface-primary)]/50 border-[var(--border-color)] hover:bg-[var(--surface-primary)]'
+                      : 'bg-[var(--surface-inset)] border-[var(--border-color)] hover:bg-[var(--surface-primary)]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -152,7 +152,7 @@ export const AppearanceModal: React.FC = () => {
                   <span
                     className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
                       isSelected
-                        ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
+                        ? 'bg-[#123FCE] border-[#123FCE] text-white'
                         : 'border-[var(--border-color)] bg-transparent text-transparent'
                     }`}
                   >
@@ -165,11 +165,11 @@ export const AppearanceModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-end bg-[var(--surface-secondary)]/60">
+        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-end bg-[var(--surface-secondary)]">
           <button
             type="button"
             onClick={() => setIsAppearanceModalOpen(false)}
-            className="glass-btn--primary btn--lens px-5 py-2 rounded-xl text-xs font-extrabold cursor-pointer min-h-[40px]"
+            className="glass-btn--primary btn--lens px-5 py-2 rounded-xl text-xs font-extrabold text-white cursor-pointer min-h-[40px]"
           >
             تم
           </button>

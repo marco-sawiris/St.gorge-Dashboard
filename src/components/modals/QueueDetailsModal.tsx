@@ -136,8 +136,8 @@ export const QueueDetailsModal: React.FC = () => {
           title: isPresent ? 'تسجيل حضور' : 'تسجيل غياب',
           icon: isPresent ? CheckCircle2 : XCircle,
           badgeColor: isPresent
-            ? 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border-emerald-500/30'
-            : 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border-rose-500/30',
+            ? 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]'
+            : 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)]',
           details: `تاريخ الجمعة: ${mutation.payload?.friday || '-'}`
         };
       }
@@ -145,7 +145,7 @@ export const QueueDetailsModal: React.FC = () => {
         return {
           title: 'تسجيل افتقاد',
           icon: PhoneCall,
-          badgeColor: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30',
+          badgeColor: 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]',
           details: `الوسيلة: ${mutation.payload?.method || 'تم تليفونياً'} ${
             mutation.payload?.friday ? `(${mutation.payload.friday})` : ''
           }`
@@ -154,21 +154,21 @@ export const QueueDetailsModal: React.FC = () => {
         return {
           title: 'تعديل بيانات مخدوم',
           icon: Edit3,
-          badgeColor: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',
+          badgeColor: 'bg-[var(--info-bg)] text-[var(--accent-primary)] border-[var(--info-border)]',
           details: 'تحديث بيانات السجل والاتصال'
         };
       case 'add':
         return {
           title: 'إضافة مخدوم جديد',
           icon: UserPlus,
-          badgeColor: 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border-emerald-500/30',
+          badgeColor: 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]',
           details: `الفصل المستهدف: ${mutation.sourceSheet || 'نشط'}`
         };
       default:
         return {
           title: mutation.action || 'عملية غير معروفة',
           icon: UserCheck,
-          badgeColor: 'bg-slate-500/15 text-[var(--text-secondary)] border-slate-500/30',
+          badgeColor: 'bg-[var(--surface-inset)] text-[var(--text-secondary)] border-[var(--border-color)]',
           details: '-'
         };
     }
@@ -178,30 +178,30 @@ export const QueueDetailsModal: React.FC = () => {
     if (mutation.status === 'conflict') {
       return {
         label: 'تعارض في الإصدار',
-        badgeClass: 'bg-rose-500/20 text-rose-500 dark:text-rose-400 border-rose-500/40'
+        badgeClass: 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)]'
       };
     }
     if (mutation.status === 'timeout_unknown') {
       return {
         label: 'نتيجة غير مؤكدة — انتهاء المهلة',
-        badgeClass: 'bg-amber-500/20 text-[var(--warning-text)] border-amber-500/45'
+        badgeClass: 'bg-[var(--warning-bg)] text-[var(--warning-text)] border-[var(--warning-border)]'
       };
     }
     if (mutation.status === 'failed') {
       return {
         label: 'تعذر الإرسال',
-        badgeClass: 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border-rose-500/35'
+        badgeClass: 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)]'
       };
     }
     if (mutation.status === 'retrying') {
       return {
         label: 'إعادة محاولة مجدولة',
-        badgeClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+        badgeClass: 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]'
       };
     }
     return {
       label: 'قيد الانتظار',
-      badgeClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+      badgeClass: 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]'
     };
   };
 
@@ -209,9 +209,9 @@ export const QueueDetailsModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none">
       <div className="w-full max-w-xl glass-strong rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/40 shrink-0">
+        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-secondary)] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-xs shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[var(--warning-bg)] border border-[var(--warning-border)] flex items-center justify-center text-[var(--warning-text)] shadow-xs shrink-0">
               <Database className="w-5 h-5 shrink-0" />
             </div>
             <div className="min-w-0">
@@ -219,7 +219,7 @@ export const QueueDetailsModal: React.FC = () => {
                 <h3 className="font-extrabold text-sm sm:text-base text-[var(--text-primary)] m-0 leading-snug truncate">
                   طابور العمليات المعلقة
                 </h3>
-                <span className="text-xs font-mono font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-[var(--warning-text)] border border-amber-500/30 shrink-0">
+                <span className="text-xs font-mono font-black px-2 py-0.5 rounded-full bg-[var(--warning-bg)] text-[var(--warning-text)] border border-[var(--warning-border)] shrink-0">
                   {mutations.length}
                 </span>
               </div>
@@ -242,7 +242,7 @@ export const QueueDetailsModal: React.FC = () => {
         {/* Body */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 text-xs sm:text-sm flex-1">
           {/* Zero Data Loss Guarantee Banner */}
-          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)]/60 border border-[var(--border-color)] flex items-start gap-2.5 text-xs text-[var(--text-secondary)] leading-relaxed">
+          <div className="p-3.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--border-color)] flex items-start gap-2.5 text-xs text-[var(--text-secondary)] leading-relaxed">
             <ShieldCheck className="w-4 h-4 text-[var(--accent-secondary)] shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-[var(--text-primary)]">ضمان عدم فقد البيانات: </span>
@@ -256,8 +256,8 @@ export const QueueDetailsModal: React.FC = () => {
               role="status"
               className={`p-3.5 rounded-2xl border flex items-start gap-2.5 text-xs font-bold leading-relaxed ${
                 clearFeedback.type === 'success'
-                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-300'
-                  : 'bg-rose-500/15 border-rose-500/40 text-rose-500 dark:text-rose-300'
+                  ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success-text)]'
+                  : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger-text)]'
               }`}
             >
               {clearFeedback.type === 'success' ? (
@@ -275,16 +275,16 @@ export const QueueDetailsModal: React.FC = () => {
               role="alertdialog"
               aria-modal="false"
               aria-labelledby="clear-queue-confirm-title"
-              className="p-4 rounded-2xl bg-rose-500/12 border border-rose-500/45 space-y-3 shadow-md"
+              className="p-4 rounded-2xl bg-[var(--danger-bg)] border border-[var(--danger-border)] space-y-3 shadow-md"
             >
               <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-[var(--danger-text)] shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <h4 id="clear-queue-confirm-title" className="font-extrabold text-sm text-[var(--text-primary)] m-0">
                     تأكيد مسح جميع العمليات المعلقة؟
                   </h4>
                   <p className="text-xs text-[var(--text-secondary)] m-0 leading-relaxed">
-                    سيتم حذف <strong className="text-rose-500 dark:text-rose-400">{mutations.length}</strong> عملية معلقة غير متزامنة من طابور الإرسال إلى Google Sheets ولن يتم إرسالها لاحقاً.
+                    سيتم حذف <strong className="text-[var(--danger-text)]">{mutations.length}</strong> عملية معلقة غير متزامنة من طابور الإرسال إلى Google Sheets ولن يتم إرسالها لاحقاً.
                   </p>
                   <p className="text-[11px] text-[var(--accent-secondary)] font-bold m-0">
                     ملاحظة أمان: لن يتم حذف أي بيانات مخدومين أو سجلات حضور وافتقاد محفوظة في قاعدة البيانات أو Google Sheets.
@@ -305,7 +305,7 @@ export const QueueDetailsModal: React.FC = () => {
                   type="button"
                   onClick={handleConfirmClearAll}
                   disabled={isClearingAll}
-                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 flex items-center gap-1.5 cursor-pointer min-h-[38px] disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-rose-700 hover:bg-rose-800 text-white border border-rose-600 flex items-center gap-1.5 cursor-pointer min-h-[38px] disabled:opacity-50"
                 >
                   <Trash2 className="w-3.5 h-3.5 shrink-0" />
                   <span>{isClearingAll ? 'جاري المسح...' : 'نعم، تأكيد مسح كل العمليات'}</span>
@@ -316,12 +316,12 @@ export const QueueDetailsModal: React.FC = () => {
 
           {isLoading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-[var(--text-muted)]">
-              <RefreshCw className="w-6 h-6 animate-spin text-[var(--primary)]" />
+              <RefreshCw className="w-6 h-6 animate-spin text-[var(--accent-primary)]" />
               <p className="text-xs font-bold m-0">جاري تحميل العمليات من قاعدة البيانات المحلية...</p>
             </div>
           ) : mutations.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2.5 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--success-bg)] border border-[var(--success-border)] flex items-center justify-center text-[var(--success-text)]">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h4 className="font-extrabold text-sm text-[var(--text-primary)] m-0">
@@ -362,7 +362,7 @@ export const QueueDetailsModal: React.FC = () => {
                     </div>
 
                     {/* Student Info Row */}
-                    <div className="flex flex-row items-center justify-between gap-2 flex-nowrap bg-[var(--app-bg)]/40 p-2.5 rounded-xl border border-[var(--border-color)]/60">
+                    <div className="flex flex-row items-center justify-between gap-2 flex-nowrap bg-[var(--surface-inset)] p-2.5 rounded-xl border border-[var(--border-color)]">
                       <div className="flex flex-row items-center gap-1.5 min-w-0 flex-1">
                         <span className="font-extrabold text-xs sm:text-sm text-[var(--text-primary)] truncate">
                           {mutation.studentName || 'مخدوم غير محدد'}
@@ -411,7 +411,7 @@ export const QueueDetailsModal: React.FC = () => {
 
                       {mutation.nextRetryAt && mutation.status !== 'conflict' && (
                         <div className="sm:col-span-2 flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] pr-5">
-                          <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <Clock className="w-3.5 h-3.5 text-[var(--warning-text)] shrink-0" />
                           <span>إعادة المحاولة التلقائية المجدولة:</span>
                           <span className="font-mono font-bold text-[var(--text-primary)]">
                             {formatTimestamp(mutation.nextRetryAt)}
@@ -436,8 +436,8 @@ export const QueueDetailsModal: React.FC = () => {
                     {mutation.lastError && (
                       <div className={`p-3 rounded-xl border space-y-1 ${
                         mutation.status === 'timeout_unknown'
-                          ? 'bg-amber-500/10 border-amber-500/30 text-[var(--warning-text)]'
-                          : 'bg-rose-500/10 border-rose-500/25 text-rose-500 dark:text-rose-400'
+                          ? 'bg-[var(--warning-bg)] border-[var(--warning-border)] text-[var(--warning-text)]'
+                          : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger-text)]'
                       }`}>
                         <div className="flex items-center gap-1.5 font-bold text-[11px]">
                           {mutation.status === 'timeout_unknown' ? (
@@ -463,7 +463,7 @@ export const QueueDetailsModal: React.FC = () => {
                         type="button"
                         onClick={() => handleRetrySingle(mutation.id)}
                         disabled={isItemRetrying || !isOnline || isClearingAll}
-                        className="glass-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--primary)] hover:border-[var(--primary)]/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                        className="glass-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--accent-primary)] hover:border-[var(--info-border)] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isItemRetrying ? 'animate-spin' : ''}`} />
                         <span>{isItemRetrying ? 'جاري الإرسال...' : 'إعادة محاولة هذه العملية'}</span>
@@ -477,14 +477,14 @@ export const QueueDetailsModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="px-3 sm:px-5 py-3 border-t border-[var(--border-color)] flex flex-row items-center justify-between gap-1.5 sm:gap-2 flex-nowrap overflow-x-auto no-scrollbar bg-[var(--surface-primary)]/40 shrink-0">
+        <div className="px-3 sm:px-5 py-3 border-t border-[var(--border-color)] flex flex-row items-center justify-between gap-1.5 sm:gap-2 flex-nowrap overflow-x-auto no-scrollbar bg-[var(--surface-secondary)] shrink-0">
           <div className="flex flex-row items-center gap-1.5 sm:gap-2 flex-nowrap shrink-0">
             {mutations.length > 0 && (
               <button
                 type="button"
                 onClick={handleRetryAll}
                 disabled={isFlushing || !isOnline || isClearingAll}
-                className="glass-btn--primary btn--lens px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px] whitespace-nowrap shrink-0"
+                className="glass-btn--primary btn--lens px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px] whitespace-nowrap shrink-0"
               >
                 <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isFlushing ? 'animate-spin' : ''}`} />
                 <span>{isFlushing ? 'جاري الإرسال...' : `إعادة إرسال الكل (${mutations.length})`}</span>
@@ -499,7 +499,7 @@ export const QueueDetailsModal: React.FC = () => {
                   setShowClearConfirm(true);
                 }}
                 disabled={isFlushing || isClearingAll}
-                className="glass-btn px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-rose-500 dark:text-rose-400 border-rose-500/35 hover:bg-rose-500/12 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px] whitespace-nowrap shrink-0"
+                className="glass-btn px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-[var(--danger-text)] border-[var(--danger-border)] hover:bg-[var(--danger-bg)] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px] whitespace-nowrap shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5 shrink-0" />
                 <span>مسح كل العمليات</span>

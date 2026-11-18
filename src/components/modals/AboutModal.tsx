@@ -12,7 +12,7 @@ export const AboutModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn select-none">
       <div className="w-full max-w-lg glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)]/60 shrink-0">
+        <div className="flex items-center justify-between gap-2 p-4 border-b border-[var(--border-color)] bg-[var(--surface-secondary)] shrink-0">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#123fce]/30 to-[#20c7e8]/30 p-0.5 border border-[#20c7e8]/40 shadow-[0_0_15px_rgba(32,199,232,0.25)] shrink-0">
               <img
@@ -25,7 +25,7 @@ export const AboutModal: React.FC = () => {
               <h3 className="font-extrabold text-base text-[var(--text-primary)] m-0 leading-snug">
                 St. George Dashboard
               </h3>
-              <span className="inline-block mt-0.5 text-[11px] font-bold text-[var(--accent-secondary)] bg-[var(--accent-secondary)]/10 px-2 py-0.5 rounded-full border border-[var(--accent-secondary)]/30">
+              <span className="inline-block mt-0.5 text-[11px] font-bold text-[var(--info-text)] bg-[var(--info-bg)] px-2 py-0.5 rounded-full border border-[var(--info-border)]">
                 الإصدار 2.0
               </span>
             </div>
@@ -104,11 +104,11 @@ export const AboutModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-end bg-[var(--surface-secondary)]/60 shrink-0">
+        <div className="p-3.5 border-t border-[var(--border-color)] flex justify-end bg-[var(--surface-secondary)] shrink-0">
           <button
             type="button"
             onClick={() => setIsAboutModalOpen(false)}
-            className="glass-btn--primary btn--lens min-h-[40px] px-5 py-2 rounded-xl text-xs font-extrabold cursor-pointer"
+            className="glass-btn--primary btn--lens min-h-[40px] px-5 py-2 rounded-xl text-xs font-extrabold text-white cursor-pointer"
           >
             إغلاق
           </button>

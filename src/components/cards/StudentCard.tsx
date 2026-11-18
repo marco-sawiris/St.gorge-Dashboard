@@ -350,9 +350,9 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
       case 'غير حاضر':
         return 'bg-[var(--violet)]/15 text-[var(--violet)] border-[var(--violet)]/30';
       case 'فصل البابا شنودة':
-        return 'bg-[var(--primary)]/15 text-[var(--primary)] border-[var(--primary)]/30';
+        return 'bg-[var(--info-bg)] text-[var(--accent-primary)] border-[var(--info-border)]';
       default:
-        return 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+        return 'bg-[var(--surface-inset)] text-[var(--text-secondary)] border-[var(--border-color)]';
     }
   };
 
@@ -362,11 +362,11 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
       <form
         onSubmit={handleInlineSave}
         aria-label={`تعديل بيانات ${student.name}`}
-        className="box-border w-full min-w-0 max-w-full overflow-x-clip p-3 sm:p-4 rounded-3xl glass-strong ring-2 ring-[#20C7E8] border-[#20C7E8] shadow-[0_0_28px_rgba(32,199,232,0.35)] flex flex-col gap-2.5 select-none animate-wordIn"
+        className="box-border w-full min-w-0 max-w-full overflow-x-clip p-3 sm:p-4 rounded-3xl glass-strong ring-2 ring-[var(--accent-secondary)] border-[var(--accent-secondary)] shadow-[0_0_28px_rgba(32,199,232,0.35)] flex flex-col gap-2.5 select-none animate-wordIn"
       >
         <div className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-full bg-[#20C7E8]/20 text-[#20C7E8] border border-[#20C7E8]/45 shrink-0">
+            <span className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-full bg-[var(--info-bg)] text-[var(--info-text)] border border-[var(--info-border)] shrink-0">
               تعديل مباشر
             </span>
             <h3 className="font-extrabold text-xs sm:text-sm text-[var(--text-primary)] m-0 truncate">
@@ -384,20 +384,20 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
         </div>
 
         {showUnsavedGuard && (
-          <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/35 flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-bold">
+          <div className="p-2 rounded-xl bg-[var(--warning-bg)] border border-[var(--warning-border)] flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-bold">
             <span className="text-[var(--warning-text)]">توجد تغييرات غير محفوظة!</span>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setShowUnsavedGuard(false)}
-                className="glass-btn--primary px-2 py-1 rounded-lg text-[10.5px] cursor-pointer"
+                className="glass-btn--primary px-2 py-1 rounded-lg text-[10.5px] text-white cursor-pointer"
               >
                 متابعة
               </button>
               <button
                 type="button"
                 onClick={() => cancelEditing()}
-                className="glass-btn px-2 py-1 rounded-lg text-[10.5px] text-rose-400 border-rose-500/40 cursor-pointer"
+                className="glass-btn px-2 py-1 rounded-lg text-[10.5px] text-[var(--danger-text)] border-[var(--danger-border)] cursor-pointer"
               >
                 تجاهل
               </button>
@@ -406,7 +406,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
         )}
 
         {editError && (
-          <div className="p-2 rounded-xl bg-rose-500/15 border border-rose-500/35 text-rose-300 flex items-center gap-1.5 text-[11px] font-bold">
+          <div className="p-2 rounded-xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] flex items-center gap-1.5 text-[11px] font-bold">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>{editError}</span>
           </div>
@@ -441,7 +441,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               type="text"
               value={editCode}
               onChange={(e) => setEditCode(e.target.value)}
-              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs font-bold text-[#20C7E8] focus:outline-none focus:border-[var(--border-focus)]"
+              className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] font-mono text-xs font-bold text-[var(--accent-secondary)] focus:outline-none focus:border-[var(--border-focus)]"
             />
           </div>
 
@@ -595,21 +595,21 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
 
                   {/* Sync Status Badge displayed directly below the date */}
                   {isStudentInFlight ? (
-                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--accent)] bg-[var(--accent)]/15 px-2 py-0.5 rounded-full border border-[var(--accent)]/30 animate-pulse">
+                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--info-text)] bg-[var(--info-bg)] px-2 py-0.5 rounded-full border border-[var(--info-border)] animate-pulse">
                       <Loader2 className="w-3 h-3 animate-spin shrink-0" />
                       <span>جاري المزامنة...</span>
                     </span>
                   ) : isStudentPending ? (
                     <span
-                      className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40"
+                      className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--warning-text)] bg-[var(--warning-bg)] px-2 py-0.5 rounded-full border border-[var(--warning-border)]"
                       title="العملية محفوظة محلياً وسيتم إرسالها تلقائياً للشيت فور توفر الإنترنت"
                     >
-                      <CloudOff className="w-3 h-3 text-amber-400 shrink-0" />
+                      <CloudOff className="w-3 h-3 text-[var(--warning-text)] shrink-0" />
                       <span>محفوظ محلياً (معلق)</span>
                     </span>
                   ) : isStudentSynced ? (
-                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/40">
-                      <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--success-text)] bg-[var(--success-bg)] px-2 py-0.5 rounded-full border border-[var(--success-border)]">
+                      <Check className="w-3 h-3 text-[var(--success-text)] shrink-0" />
                       <span>تمت المزامنة</span>
                     </span>
                   ) : null}
@@ -629,15 +629,15 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                     aria-pressed={isPresentToday}
                     className={`min-h-[38px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
                       isPresentToday
-                        ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.35)] font-black'
-                        : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-emerald-300 hover:border-emerald-500/40'
+                        ? 'bg-emerald-500/25 border border-emerald-400 text-[var(--success-text)] shadow-[0_0_12px_rgba(16,185,129,0.28)] font-black'
+                        : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-[var(--success-text)] hover:border-[var(--success-border)]'
                     }`}
                     title={isPresentToday ? 'حاضر مسجل' : 'تسجيل حضور المخدوم'}
                   >
                     {isStudentInFlight && isPresentToday ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-300 shrink-0" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--success-text)] shrink-0" />
                     ) : (
-                      <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isPresentToday ? 'text-emerald-300' : 'opacity-60'}`} />
+                      <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isPresentToday ? 'text-[var(--success-text)]' : 'opacity-70'}`} />
                     )}
                     <span>حاضر</span>
                   </button>
@@ -655,15 +655,15 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                     aria-pressed={isAbsentToday}
                     className={`min-h-[38px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-60 ${
                       isAbsentToday
-                        ? 'bg-rose-500/25 border border-rose-400 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.35)] font-black'
-                        : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-rose-300 hover:border-rose-500/40'
+                        ? 'bg-rose-500/25 border border-rose-400 text-[var(--danger-text)] shadow-[0_0_12px_rgba(244,63,94,0.28)] font-black'
+                        : 'bg-[var(--surface-primary)] border border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-[var(--danger-text)] hover:border-[var(--danger-border)]'
                     }`}
                     title={isAbsentToday ? 'غائب مسجل' : 'تسجيل غياب المخدوم'}
                   >
                     {isStudentInFlight && isAbsentToday ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-300 shrink-0" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--danger-text)] shrink-0" />
                     ) : (
-                      <XCircle className={`w-3.5 h-3.5 shrink-0 ${isAbsentToday ? 'text-rose-300' : 'opacity-60'}`} />
+                      <XCircle className={`w-3.5 h-3.5 shrink-0 ${isAbsentToday ? 'text-[var(--danger-text)]' : 'opacity-70'}`} />
                     )}
                     <span>غائب</span>
                   </button>
@@ -679,7 +679,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               </div>
               <div className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--glass-border)] flex flex-wrap items-center justify-between gap-1 min-w-0">
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold">حضور الشهر</span>
-                <strong className="text-sm font-mono text-[var(--primary)] tabular-nums">
+                <strong className="text-sm font-mono text-[var(--accent-primary)] tabular-nums">
                   {`${monthlySummary.presentCount}/${monthlySummary.heldCount}`}
                 </strong>
               </div>
@@ -745,10 +745,10 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                     {monthlySummary.fridays.map((friday) => {
                       const stateStyle =
                         friday.status === 'present'
-                          ? 'bg-emerald-500/20 border-emerald-400/75 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.28)]'
+                          ? 'bg-emerald-500/20 border-emerald-400/75 text-[var(--success-text)] shadow-[0_0_8px_rgba(16,185,129,0.22)]'
                           : friday.status === 'absent'
-                            ? 'bg-rose-500/20 border-rose-400/75 text-rose-300 shadow-[0_0_8px_rgba(244,63,94,0.24)]'
-                            : 'bg-slate-500/12 border-slate-500/30 text-[var(--text-muted)]';
+                            ? 'bg-rose-500/20 border-rose-400/75 text-[var(--danger-text)] shadow-[0_0_8px_rgba(244,63,94,0.20)]'
+                            : 'bg-slate-500/12 border-slate-500/30 text-[var(--text-secondary)]';
 
                       const stateSymbol =
                         friday.status === 'present'
@@ -810,7 +810,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                 <div className="flex flex-col gap-1.5 pt-1.5 border-t border-[var(--glass-border)]/45">
                   <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
                     <span className="font-bold text-[var(--text-secondary)] flex items-center gap-1 shrink-0">
-                      <HeartHandshake className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
+                      <HeartHandshake className="w-3.5 h-3.5 text-[var(--accent-primary)] shrink-0" />
                       <span>{`الافتقاد (${studentFollowupCount})`}</span>
                     </span>
                     <button
@@ -821,8 +821,8 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                       }}
                       className={`text-[10.5px] font-extrabold px-2 py-0.5 rounded-md transition-colors cursor-pointer max-w-full break-words ${
                         hasFollowup
-                          ? 'text-[var(--accent)] bg-[var(--accent)]/12 hover:bg-[var(--accent)]/22'
-                          : 'text-rose-400 bg-rose-500/12 hover:bg-rose-500/22'
+                          ? 'text-[var(--info-text)] bg-[var(--info-bg)] hover:brightness-110'
+                          : 'text-[var(--danger-text)] bg-[var(--danger-bg)] hover:brightness-110'
                       }`}
                       title="انقر لتسجيل أو تحديث الافتقاد"
                     >
@@ -898,10 +898,10 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                         نتيجة الاتصال:{' '}
                         <strong
                           className={
-                            latestPhoneCallOutcome === 'تم التواصل'
-                              ? 'text-[var(--accent)]'
+                              latestPhoneCallOutcome === 'تم التواصل'
+                              ? 'text-[var(--info-text)]'
                               : latestPhoneCallOutcome === 'لم يتم التواصل'
-                                ? 'text-rose-400'
+                                ? 'text-[var(--danger-text)]'
                                 : 'text-[var(--text-muted)]'
                           }
                         >
@@ -1143,9 +1143,9 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                   <strong
                     className={
                       latestPhoneCallOutcome === 'تم التواصل'
-                        ? 'text-[var(--accent)]'
+                        ? 'text-[var(--info-text)]'
                         : latestPhoneCallOutcome === 'لم يتم التواصل'
-                          ? 'text-rose-400'
+                          ? 'text-[var(--danger-text)]'
                           : 'text-[var(--text-muted)]'
                     }
                   >

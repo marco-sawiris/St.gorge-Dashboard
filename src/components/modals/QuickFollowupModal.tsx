@@ -94,9 +94,9 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-fadeIn select-none">
       <div className="w-full max-w-md glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Header */}
-        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-secondary)]/60 shrink-0">
+        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-secondary)] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="w-9 h-9 rounded-xl bg-[#20c7e8]/10 border border-[#20c7e8]/30 flex items-center justify-center text-[#20c7e8] shadow-[0_0_12px_rgba(32,199,232,0.25)] shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[var(--info-bg)] border border-[var(--info-border)] flex items-center justify-center text-[var(--info-text)] shadow-xs shrink-0">
               <HeartHandshake className="w-5 h-5" />
             </div>
             <div className="min-w-0">

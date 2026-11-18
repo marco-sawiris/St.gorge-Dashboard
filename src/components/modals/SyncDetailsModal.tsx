@@ -52,19 +52,19 @@ export const SyncDetailsModal: React.FC = () => {
       title: 'جاري تنفيذ المزامنة...',
       desc: 'يتم حالياً إرسال العمليات المعلقة وسحب البيانات المحدثة من Google Sheets.',
       icon: RefreshCw,
-      colorClass: 'text-[var(--primary)]'
+      colorClass: 'text-[var(--accent-primary)]'
     },
     synced: {
       title: 'تمت المزامنة بنجاح',
       desc: 'تم تحديث البيانات المحلية والتأكد من مطابقتها مع Google Sheets دون تعارض.',
       icon: CheckCircle2,
-      colorClass: 'text-[var(--accent-secondary)]'
+      colorClass: 'text-[var(--success-text)]'
     },
     failed: {
       title: 'فشلت المزامنة الأخيرة',
       desc: 'تعذر إتمام المزامنة الحالية. تم الاحتفاظ بجميع بياناتك وعملياتك محلياً في IndexedDB بأمان.',
       icon: AlertTriangle,
-      colorClass: 'text-[var(--danger)]'
+      colorClass: 'text-[var(--danger-text)]'
     },
     offline: {
       title: 'لا يوجد اتصال بالإنترنت',
@@ -76,7 +76,7 @@ export const SyncDetailsModal: React.FC = () => {
       title: 'توجد عمليات معلقة بانتظار المزامنة',
       desc: `لديك ${pendingMutationsCount} عملية محفوظة محلياً في طابور العمليات، وستُرسل إلى Google Sheets عند المزامنة.`,
       icon: CloudUpload,
-      colorClass: 'text-amber-500'
+      colorClass: 'text-[var(--warning-text)]'
     }
   }[syncState];
 
@@ -99,7 +99,7 @@ export const SyncDetailsModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn select-none">
       <div className="w-full max-w-lg glass-strong rounded-3xl border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
         {/* Modal Header */}
-        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-primary)]/40 shrink-0">
+        <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-secondary)] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="w-9 h-9 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-secondary)] shadow-xs shrink-0">
               <StatusIcon className={`w-5 h-5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -141,7 +141,7 @@ export const SyncDetailsModal: React.FC = () => {
 
           {/* Sync Error Notice if any */}
           {lastSyncError && (
-            <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 space-y-1">
+            <div className="p-3.5 rounded-2xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] space-y-1">
               <div className="flex items-center gap-2 font-bold text-xs">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>سبب تعذر المزامنة الأخيرة:</span>
@@ -161,12 +161,12 @@ export const SyncDetailsModal: React.FC = () => {
                 </span>
                 <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full border ${
                   lastSyncReport.outcome === 'success'
-                    ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/35'
+                    ? 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]'
                     : lastSyncReport.outcome === 'timeout_unknown'
-                    ? 'bg-amber-500/15 text-[var(--warning-text)] border-amber-500/35'
+                    ? 'bg-[var(--warning-bg)] text-[var(--warning-text)] border-[var(--warning-border)]'
                     : lastSyncReport.outcome === 'conflict' || lastSyncReport.outcome === 'failed'
-                    ? 'bg-rose-500/15 text-rose-500 border-rose-500/35'
-                    : 'bg-blue-500/15 text-blue-500 border-blue-500/35'
+                    ? 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)]'
+                    : 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]'
                 }`}>
                   {lastSyncReport.outcome === 'success'
                     ? 'تم التأكيد (Success)'
@@ -183,7 +183,7 @@ export const SyncDetailsModal: React.FC = () => {
                 <span>مؤكد: {lastSyncReport.sentCount}</span>
                 <span>متبقي: {lastSyncReport.remainingCount}</span>
                 {lastSyncReport.verifiedPostTimeoutCount > 0 && (
-                  <span className="text-emerald-500">تحقق بعد Timeout: {lastSyncReport.verifiedPostTimeoutCount}</span>
+                  <span className="text-[var(--success-text)] font-bold">تحقق بعد Timeout: {lastSyncReport.verifiedPostTimeoutCount}</span>
                 )}
                 <span>الوضع: {lastSyncReport.mode === 'batch' ? 'دفعة مجمعة' : lastSyncReport.mode === 'mixed' ? 'مختلط' : 'فردي'}</span>
                 <span>الزمن الكلي: {lastSyncReport.totalDurationMs}ms</span>
@@ -210,8 +210,10 @@ export const SyncDetailsModal: React.FC = () => {
                 )}
                 <span className="font-bold text-xs text-[var(--text-secondary)]">اتصال الشبكة</span>
               </div>
-              <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
-                isOnline ? 'bg-[var(--accent-secondary)]/15 text-[var(--accent-secondary)]' : 'bg-slate-500/15 text-[var(--text-muted)]'
+              <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full border shrink-0 ${
+                isOnline
+                  ? 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]'
+                  : 'bg-[var(--surface-inset)] text-[var(--text-muted)] border-[var(--border-color)]'
               }`}>
                 {isOnline ? 'متصل' : 'غير متصل'}
               </span>
@@ -223,22 +225,24 @@ export const SyncDetailsModal: React.FC = () => {
               onClick={() => {
                 setIsQueueModalOpen(true);
               }}
-              className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] hover:border-amber-500/40 flex flex-wrap items-center justify-between gap-2 text-right cursor-pointer transition-all duration-200 group active:scale-[0.99]"
+              className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] hover:border-[var(--warning-border)] flex flex-wrap items-center justify-between gap-2 text-right cursor-pointer transition-all duration-200 group active:scale-[0.99]"
               title="اضغط لعرض تفاصيل العمليات المعلقة"
               aria-label="عرض تفاصيل طابور العمليات المعلقة"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <Database className="w-4 h-4 text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
+                <Database className="w-4 h-4 text-[var(--warning-text)] shrink-0 group-hover:scale-110 transition-transform" />
                 <div className="flex flex-col text-right min-w-0">
                   <span className="font-bold text-xs text-[var(--text-secondary)]">طابور العمليات</span>
-                  <span className="text-[10px] text-[var(--text-muted)] group-hover:text-amber-400/90 transition-colors">
+                  <span className="text-[10px] text-[var(--text-muted)] group-hover:text-[var(--warning-text)] transition-colors">
                     اضغط لعرض التفاصيل
                   </span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full font-mono ${
-                  pendingMutationsCount > 0 ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'bg-[var(--accent-secondary)]/10 text-[var(--accent-secondary)]'
+                <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full font-mono border ${
+                  pendingMutationsCount > 0
+                    ? 'bg-[var(--warning-bg)] text-[var(--warning-text)] border-[var(--warning-border)]'
+                    : 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]'
                 }`}>
                   {pendingMutationsCount} معلق
                 </span>
@@ -260,7 +264,7 @@ export const SyncDetailsModal: React.FC = () => {
             {/* Last Successful Push */}
             <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] space-y-1">
               <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)]">
-                <Clock className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
+                <Clock className="w-3.5 h-3.5 text-[var(--accent-primary)] shrink-0" />
                 <span>آخر إرسال للشيت (Push)</span>
               </div>
               <p className="font-mono text-xs font-bold text-[var(--text-primary)] m-0 break-words">
@@ -270,7 +274,7 @@ export const SyncDetailsModal: React.FC = () => {
           </div>
 
           {/* Sync & Security Guarantee Notice */}
-          <div className="p-3.5 rounded-2xl bg-[var(--surface-primary)]/50 border border-[var(--border-color)] text-xs text-[var(--text-secondary)] leading-relaxed flex items-start gap-2.5">
+          <div className="p-3.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-xs text-[var(--text-secondary)] leading-relaxed flex items-start gap-2.5">
             <ShieldCheck className="w-4 h-4 text-[var(--accent-secondary)] shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-[var(--text-primary)]">حماية الاتصال وعدم فقد البيانات: </span>
@@ -280,14 +284,14 @@ export const SyncDetailsModal: React.FC = () => {
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="px-4 sm:px-5 py-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 bg-[var(--surface-primary)]/40 shrink-0">
+        <div className="px-4 sm:px-5 py-3.5 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2.5 bg-[var(--surface-secondary)] shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             {pendingMutationsCount > 0 && (
               <button
                 type="button"
                 onClick={handleFlushQueue}
                 disabled={isSyncing || !isOnline}
-                className="glass-btn min-h-[40px] px-3.5 py-2 rounded-xl border-amber-500/35 text-amber-400 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                className="glass-btn min-h-[40px] px-3.5 py-2 rounded-xl border-[var(--warning-border)] text-[var(--warning-text)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <CloudUpload className="w-3.5 h-3.5 shrink-0" />
                 <span>إرسال المعلق ({pendingMutationsCount})</span>
@@ -298,7 +302,7 @@ export const SyncDetailsModal: React.FC = () => {
               type="button"
               onClick={handleSyncNow}
               disabled={isSyncing}
-              className="glass-btn--primary btn--lens min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
+              className="glass-btn--primary btn--lens min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-2 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'جاري المزامنة...' : 'مزامنة فورية الآن'}</span>
