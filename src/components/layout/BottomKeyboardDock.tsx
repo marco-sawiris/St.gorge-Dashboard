@@ -28,7 +28,8 @@ export const BottomKeyboardDock: React.FC<BottomKeyboardDockProps> = ({ isModalO
     isAppearanceModalOpen,
     isNotificationsOpen,
     isPdfImportModalOpen,
-    isQueueModalOpen
+    isQueueModalOpen,
+    isBackupModalOpen
   } = useApp();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -45,6 +46,7 @@ export const BottomKeyboardDock: React.FC<BottomKeyboardDockProps> = ({ isModalO
     isNotificationsOpen ||
     isPdfImportModalOpen ||
     isQueueModalOpen ||
+    Boolean(isBackupModalOpen) ||
     isModalOverlayOpen;
 
   // Custom Keyboard belongs exclusively inside the Cards view; remove cleanly from all other views/modals

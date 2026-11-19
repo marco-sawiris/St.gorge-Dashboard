@@ -10,8 +10,24 @@ import {
   getNearestFridayString,
   getLatestHeldFridayString,
   getCairoDateParts,
+  resolveFollowupCairoDates,
   computeMonthlyAttendanceSummary
 } from '../utils/arabicUtils';
+import {
+  validateRemotePersistenceProof,
+  validateTimeoutIdempotencyEntry,
+  buildUnverifiedRemoteErrorMessage,
+  buildTimeoutOutcomeErrorMessage,
+  RemotePersistenceProof,
+  TimeoutVerificationItemResult
+} from '../services/remotePersistenceVerification';
+import {
+  executeSafeClearMutations,
+  buildLocalSavedNotification,
+  buildRemoteVerifiedNotification,
+  QueueBackupDownloader,
+  SafeClearQueueResult
+} from '../services/queueRecoveryService';
 import { generateUUID } from '../utils/uuid';
 import {
   buildApiUrl,
@@ -45,8 +61,11 @@ import {
   idbUpdateMutationError,
   idbUpdateMutationsBatchState,
   idbResetMutationRetry,
-  idbClearMutations,
-  AttendanceHistoryRecord
+  consumePendingManualRetryTarget,
+  idbMigrateLegacyStudentIds,
+  AttendanceHistoryRecord,
+  PullVerificationProof,
+  FollowupPullVerificationProof
 } from '../services/indexedDbService';
 import { computeDeterministicImportKey } from '../services/pdfAttendanceImportService';
 import { syncWeeklyNotificationSchedules } from '../services/weeklyNotificationService';
@@ -55,11 +74,15 @@ import {
   clearReadNotificationsFromList,
   computeNotificationDedupKey,
   CURRENT_NOTIFICATIONS_VERSION,
+  deduplicateNotifications,
   loadAndMigrateNotifications,
   saveNotificationsToStorage,
   upsertDeduplicatedNotification
 } from '../services/notificationStorageService';
-import { fetchSheetStudentsViaGviz, fetchFollowupLogViaGviz } from '../services/googleSheetParser';
+import {
+  fetchSheetStudentsViaGviz,
+  fetchFollowupLogViaGvizDetailed
+} from '../services/googleSheetParser';
 import { useAuth } from './AuthContext';
 
 export const SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
@@ -163,6 +186,23 @@ export interface SyncQueueExecutionReport {
   lastError?: string;
 }
 
+export type AppSyncState =
+  | 'connected'
+  | 'syncing'
+  | 'synced'
+  | 'partial'
+  | 'failed'
+  | 'offline'
+  | 'pending';
+
+export type SyncExecutionOutcome = boolean | 'partial';
+
+export interface PartialSyncInfo {
+  skippedSheets: string[];
+  appliedSheets: string[];
+  timestamp: string;
+}
+
 export interface AppContextType {
   students: Student[];
   filteredStudents: Student[];
@@ -175,7 +215,8 @@ export interface AppContextType {
   isOnline: boolean;
   lastSyncError: string | null;
   lastSyncReport: SyncQueueExecutionReport | null;
-  syncState: 'connected' | 'syncing' | 'synced' | 'failed' | 'offline' | 'pending';
+  partialSyncInfo?: PartialSyncInfo | null;
+  syncState: AppSyncState;
   lastSyncAttemptTime: string | null; // Full ISO timestamp
   lastSuccessfulPushTime: string | null; // Full ISO timestamp
   lastSuccessfulPullTime: string | null; // Full ISO timestamp
@@ -196,6 +237,8 @@ export interface AppContextType {
   isPdfImportModalOpen: boolean;
   isAddModalOpen: boolean;
   isSyncModalOpen: boolean;
+  isQueueModalOpen: boolean;
+  isBackupModalOpen?: boolean;
   setFilters: React.Dispatch<React.SetStateAction<AppFilterState>>;
   setActiveView: (view: 'cards' | 'table' | 'charts' | 'followup') => void;
   setActiveEditingId: (id: string | null) => void;
@@ -213,8 +256,9 @@ export interface AppContextType {
   setIsPdfImportModalOpen: (open: boolean) => void;
   setIsAddModalOpen: (open: boolean) => void;
   setIsSyncModalOpen: (open: boolean) => void;
-  isQueueModalOpen: boolean;
   setIsQueueModalOpen: (open: boolean) => void;
+  setIsBackupModalOpen?: (open: boolean) => void;
+  reloadLocalDatabaseState?: () => Promise<void>;
   syncData: (overrideSheet?: SheetName) => Promise<boolean>;
   markAttendance: (studentId: string, isPresent: boolean, targetFridayDate?: string) => Promise<boolean>;
   importAttendanceBatch: (
@@ -249,7 +293,22 @@ export interface AppContextType {
     options?: { id?: string; dedupKey?: string }
   ) => void;
   processOfflineQueue: () => Promise<SyncQueueExecutionReport>;
-  clearOfflineQueue: () => Promise<{ clearedCount: number; verifiedEmpty: boolean }>;
+  clearOfflineQueue: (options?: {
+    targetMutationIds?: string[];
+    confirmed?: boolean;
+    downloader?: QueueBackupDownloader;
+  }) => Promise<{
+    clearedCount: number;
+    verifiedEmpty: boolean;
+    ok?: boolean;
+    cancelled?: boolean;
+    remainingCount?: number;
+    backupFileName?: string;
+    backupCreatedAt?: string;
+    clearedStudentIds?: string[];
+    protectedStudentIds?: string[];
+    error?: string;
+  }>;
   inFlightStudentIds: string[];
   syncedStudentIds: string[];
   pendingStudentIds: string[];
@@ -313,6 +372,11 @@ export function normalizeStudentRecord(raw: Partial<Student>): Student {
     lastFollowup: raw.lastFollowup || undefined,
     sourceSheet: resolveValidSheetName(raw.sourceSheet, 'نشط'),
     version: Number.isFinite(parsedVersion) && parsedVersion >= 1 ? parsedVersion : 1,
+    ...(typeof raw.hasRemoteVersion === 'boolean' ? { hasRemoteVersion: raw.hasRemoteVersion } : {}),
+    ...(typeof raw.hasUnsyncedLocalChanges === 'boolean'
+      ? { hasUnsyncedLocalChanges: raw.hasUnsyncedLocalChanges }
+      : {}),
+    ...(raw.identityQuality ? { identityQuality: raw.identityQuality } : {}),
     att: safeAtt,
     fu: safeFu,
     ...(safeFuOutcomes ? { fuOutcomes: safeFuOutcomes } : {}),
@@ -505,7 +569,8 @@ export function prepareBatchAttendanceMutations(
       attendanceTotal: Math.max(0, (student.attendanceTotal || 0) + totalDelta),
       attendanceMonth: monthlySummary.presentCount,
       lastAttendance: computedLastAttendance,
-      version: baseVersion + studentEntries.length
+      version: baseVersion + studentEntries.length,
+      hasUnsyncedLocalChanges: true
     });
   }
 
@@ -589,6 +654,9 @@ export function filterStudentsByAppFilters(students: Student[], filters: AppFilt
 let queueExecutionTail: Promise<void> = Promise.resolve();
 const batchUnsupportedEndpoints = new Set<string>();
 
+export const MAX_AUTO_MUTATION_RETRIES = 10;
+export const OFFLINE_QUEUE_LOCK_NAME = 'stgorge_offline_queue_lock';
+
 export function clearBatchUnsupportedCache(): void {
   batchUnsupportedEndpoints.clear();
 }
@@ -598,6 +666,236 @@ export function computeExponentialBackoffDelayMs(retryCount: number): number {
   return Math.min(60_000, 2000 * Math.pow(2, safeCount - 1));
 }
 
+/**
+ * Distinguishes permanent (non-retryable automatically) errors from transient failures
+ * (network errors, timeouts, 5xx, 429, or recoverable auth expiry).
+ */
+export function isPermanentMutationFailure(
+  httpStatus?: number,
+  errorMessage?: string,
+  action?: string
+): boolean {
+  if (action === 'delete') return true;
+  if (httpStatus === 400 || httpStatus === 403 || httpStatus === 404 || httpStatus === 422) {
+    return true;
+  }
+  const msg = String(errorMessage || '');
+  if (!msg) return false;
+  return (
+    /حذف المخدومين محظور/i.test(msg) ||
+    /اسم التاب غير محدد أو غير صالح/i.test(msg) ||
+    /اسم الفصل غير معتمد/i.test(msg) ||
+    /التاب مش موجود/i.test(msg) ||
+    /غير مصرح|لا يملك صلاحية/i.test(msg) ||
+    /تاريخ غير صحيح|تاريخ غير صالح/i.test(msg) ||
+    /الاسم غير موجود|الطالب غير موجود|المخدوم غير موجود/i.test(msg)
+  );
+}
+
+export interface QueueEligibilityResult {
+  eligible: OfflineMutation[];
+  deferred: OfflineMutation[];
+  conflicts: OfflineMutation[];
+  permanentFailures: OfflineMutation[];
+  exhaustedRetries: OfflineMutation[];
+  blockedBySameStudent: OfflineMutation[];
+  blockedStudentIds: Set<string>;
+  nextEarliestRetryAt: number | null;
+  targetBlockedReason?: string;
+}
+
+/**
+ * Pure, deterministic queue eligibility evaluator shared across the processor and ALL automatic triggers:
+ * - Respects nextRetryAt strictly (never sends early)
+ * - Never auto-retries conflicts, permanent errors, or mutations exceeding maxAutoRetries
+ * - Enforces strict chronological per-student ordering while allowing independent students to proceed
+ * - Supports targeted single-item manual retry without bypassing earlier same-student operations
+ */
+export function evaluateQueueMutationEligibility(
+  pending: OfflineMutation[],
+  options?: {
+    nowMs?: number;
+    targetMutationId?: string;
+    maxAutoRetries?: number;
+  }
+): QueueEligibilityResult {
+  const nowMs = typeof options?.nowMs === 'number' ? options.nowMs : Date.now();
+  const maxAutoRetries = options?.maxAutoRetries ?? MAX_AUTO_MUTATION_RETRIES;
+  const targetMutationId = options?.targetMutationId;
+
+  const eligible: OfflineMutation[] = [];
+  const deferred: OfflineMutation[] = [];
+  const conflicts: OfflineMutation[] = [];
+  const permanentFailures: OfflineMutation[] = [];
+  const exhaustedRetries: OfflineMutation[] = [];
+  const blockedBySameStudent: OfflineMutation[] = [];
+  const blockedStudentIds = new Set<string>();
+  let nextEarliestRetryAt: number | null = null;
+
+  const trackBlockedStudent = (studentId?: string) => {
+    if (studentId) blockedStudentIds.add(studentId);
+  };
+
+  if (targetMutationId) {
+    const targetIdx = pending.findIndex((m) => m.id === targetMutationId);
+    if (targetIdx === -1) {
+      return {
+        eligible: [],
+        deferred: [],
+        conflicts: [],
+        permanentFailures: [],
+        exhaustedRetries: [],
+        blockedBySameStudent: [],
+        blockedStudentIds,
+        nextEarliestRetryAt: null,
+        targetBlockedReason: 'العملية المحددة غير موجودة في طابور الانتظار.'
+      };
+    }
+
+    const target = pending[targetIdx];
+    const earlierSameStudent = pending
+      .slice(0, targetIdx)
+      .find((m) => m.studentId && target.studentId && m.studentId === target.studentId);
+
+    if (earlierSameStudent) {
+      trackBlockedStudent(target.studentId);
+      blockedBySameStudent.push(target);
+      return {
+        eligible: [],
+        deferred: [],
+        conflicts: earlierSameStudent.status === 'conflict' ? [earlierSameStudent] : [],
+        permanentFailures:
+          earlierSameStudent.isPermanentError || earlierSameStudent.errorCategory === 'permanent'
+            ? [earlierSameStudent]
+            : [],
+        exhaustedRetries: [],
+        blockedBySameStudent,
+        blockedStudentIds,
+        nextEarliestRetryAt: null,
+        targetBlockedReason: `لا يمكن تجاوز عملية أقدم غير مكتملة لنفس المخدوم (${target.studentName || target.studentId}). يرجى معالجة العملية الأقدم أولاً.`
+      };
+    }
+
+    return {
+      eligible: [target],
+      deferred: [],
+      conflicts: [],
+      permanentFailures: [],
+      exhaustedRetries: [],
+      blockedBySameStudent: [],
+      blockedStudentIds,
+      nextEarliestRetryAt: null
+    };
+  }
+
+  for (const mut of pending) {
+    const sid = mut.studentId || '';
+
+    // Per-student chronological isolation: a later op for a blocked/deferred/conflicting student MUST wait
+    if (sid && blockedStudentIds.has(sid)) {
+      blockedBySameStudent.push(mut);
+      continue;
+    }
+
+    if (mut.status === 'conflict') {
+      conflicts.push(mut);
+      trackBlockedStudent(sid);
+      continue;
+    }
+
+    if (mut.isPermanentError === true || mut.errorCategory === 'permanent') {
+      permanentFailures.push(mut);
+      trackBlockedStudent(sid);
+      continue;
+    }
+
+    if ((mut.retryCount || 0) >= maxAutoRetries) {
+      exhaustedRetries.push(mut);
+      trackBlockedStudent(sid);
+      continue;
+    }
+
+    if (typeof mut.nextRetryAt === 'number' && Number.isFinite(mut.nextRetryAt) && mut.nextRetryAt > nowMs) {
+      deferred.push(mut);
+      trackBlockedStudent(sid);
+      if (nextEarliestRetryAt === null || mut.nextRetryAt < nextEarliestRetryAt) {
+        nextEarliestRetryAt = mut.nextRetryAt;
+      }
+      continue;
+    }
+
+    eligible.push(mut);
+  }
+
+  return {
+    eligible,
+    deferred,
+    conflicts,
+    permanentFailures,
+    exhaustedRetries,
+    blockedBySameStudent,
+    blockedStudentIds,
+    nextEarliestRetryAt
+  };
+}
+
+export function hasDueQueueMutations(
+  pending: OfflineMutation[],
+  nowMs: number = Date.now(),
+  maxAutoRetries: number = MAX_AUTO_MUTATION_RETRIES
+): boolean {
+  return evaluateQueueMutationEligibility(pending, { nowMs, maxAutoRetries }).eligible.length > 0;
+}
+
+/**
+ * Unified serialization lock for ALL offline queue execution entry points:
+ * - Chains an in-tab FIFO promise mutex (works in all runtimes including Node/tests/WebViews)
+ * - Coordinates across browser tabs via Web Locks API (navigator.locks) when supported
+ * - Always releases cleanly on BOTH success and thrown failure without deadlocks
+ */
+export async function withOfflineQueueLock<T>(fn: () => Promise<T>): Promise<T> {
+  let releaseLock!: () => void;
+  const nextLock = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  const prevLock = queueExecutionTail;
+  queueExecutionTail = prevLock.then(() => nextLock, () => nextLock);
+  await prevLock;
+
+  try {
+    const lockManager =
+      typeof navigator !== 'undefined' &&
+      navigator.locks &&
+      typeof navigator.locks.request === 'function'
+        ? navigator.locks
+        : null;
+
+    if (lockManager) {
+      let callbackInvoked = false;
+      try {
+        return await lockManager.request(
+          OFFLINE_QUEUE_LOCK_NAME,
+          { mode: 'exclusive' },
+          async () => {
+            callbackInvoked = true;
+            return await fn();
+          }
+        );
+      } catch (lockErr: any) {
+        if (callbackInvoked) {
+          throw lockErr;
+        }
+        // Fallback cleanly to the in-tab mutex if the environment denied Web Locks before invoking fn()
+        return await fn();
+      }
+    }
+
+    return await fn();
+  } finally {
+    releaseLock();
+  }
+}
+
 function isAbortOrTimeoutError(err: any): boolean {
   if (!err) return false;
   if (err.name === 'AbortError') return true;
@@ -605,10 +903,16 @@ function isAbortOrTimeoutError(err: any): boolean {
   return /abort|timeout|timed out|مهلة/i.test(msg);
 }
 
-function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: string): Record<string, any> {
-  const payloadDate = String(mutation.payload?.friday || mutation.payload?.date || '').trim();
+export function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: string): Record<string, any> {
+  const payloadFriday = String(mutation.payload?.friday || '').trim();
+  const payloadDate = String(mutation.payload?.date || payloadFriday).trim();
+  const effectiveFriday = payloadFriday || payloadDate;
   const payloadPresent = mutation.payload?.isPresent ?? mutation.payload?.present ?? false;
   const followupStatus = mutation.payload?.status || mutation.payload?.method || mutation.payload?.type;
+  const payloadRecordId =
+    typeof mutation.payload?.recordId === 'string' && mutation.payload.recordId.trim()
+      ? mutation.payload.recordId.trim()
+      : undefined;
   const fields = mutation.payload?.fields || {
     name: mutation.studentName || '',
     servant: mutation.payload?.servant || '',
@@ -635,8 +939,10 @@ function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: strin
     studentId: mutation.studentId || '',
     studentCode: mutation.studentCode || '',
     action: mutation.action,
+    // Strictly preserve original mutation friday and Cairo calendar date across all retries & timeout checks
     date: payloadDate,
-    friday: payloadDate,
+    friday: effectiveFriday,
+    ...(payloadRecordId ? { recordId: payloadRecordId } : {}),
     present: payloadPresent,
     isPresent: payloadPresent,
     token: relayKey,
@@ -644,7 +950,12 @@ function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: strin
     idempotencyKey: mutation.id,
     id: mutation.id,
     expectedVersion: mutation.expectedVersion || 1,
-    payload: mutation.payload || {},
+    payload: {
+      ...(mutation.payload || {}),
+      ...(effectiveFriday ? { friday: effectiveFriday } : {}),
+      ...(payloadDate ? { date: payloadDate } : {}),
+      ...(payloadRecordId ? { recordId: payloadRecordId } : {})
+    },
     type: followupStatus,
     status: followupStatus,
     followupStatus: followupStatus,
@@ -658,6 +969,9 @@ function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: strin
       studentName: mutation.studentName || '',
       payload: {
         ...(mutation.payload || {}),
+        ...(effectiveFriday ? { friday: effectiveFriday } : {}),
+        ...(payloadDate ? { date: payloadDate } : {}),
+        ...(payloadRecordId ? { recordId: payloadRecordId } : {}),
         status: followupStatus,
         method: followupStatus,
         ...(mutation.payload?.callOutcome ? { callOutcome: mutation.payload.callOutcome } : {}),
@@ -668,35 +982,67 @@ function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey: strin
 }
 
 /**
- * Verifies post-timeout (Unknown Result) whether timed-out operations were actually committed on the server
- * BEFORE allowing any retry, preventing duplicate writes when HTTP response was lost or aborted late.
+ * Verifies post-timeout (Unknown Result) whether timed-out operations were actually persisted
+ * on the remote server BEFORE allowing deletion or retry.
+ *
+ * Phase 4.3.3 fail-closed contract:
+ * - Supports BOTH attendance and followup (as well as update/add/delete) via exact mutation identity.
+ * - Confirms persistence ONLY when remote idempotency lookup returns a valid RemotePersistenceProof
+ *   matching mutationId, persisted: true, operation, studentId, sheetName, and friday/recordId.
+ * - Distinguishes strictly between: verified_persisted, not_found_retryable, unknown,
+ *   verification_unavailable, and conflict.
+ * - NEVER falls back to unverified student-row existence or approximate name matching.
  */
-async function verifyMutationsAfterTimeout(
+export async function verifyMutationsAfterTimeout(
   timedOutMutations: OfflineMutation[],
   appsScriptUrl: string,
   user: AuthUser | null,
   verifyTimeoutMs: number
 ): Promise<{
   verifiedIds: string[];
+  verifiedProofs: Record<string, RemotePersistenceProof>;
+  outcomes: Record<string, TimeoutVerificationItemResult>;
   unconfirmedMutations: OfflineMutation[];
+  conflictMutations: Array<{ mutation: OfflineMutation; error: string }>;
   verifyDurationMs: number;
 }> {
   const verifyStart = Date.now();
   const keys = timedOutMutations.map((m) => m.id).filter(Boolean);
+  const outcomes: Record<string, TimeoutVerificationItemResult> = {};
+  const verifiedProofs: Record<string, RemotePersistenceProof> = {};
+
   if (keys.length === 0) {
-    return { verifiedIds: [], unconfirmedMutations: timedOutMutations, verifyDurationMs: 0 };
+    return {
+      verifiedIds: [],
+      verifiedProofs,
+      outcomes,
+      unconfirmedMutations: timedOutMutations,
+      conflictMutations: [],
+      verifyDurationMs: 0
+    };
   }
 
-  const verifiedSet = new Set<string>();
+  const markAllUnavailable = (reason: string) => {
+    for (const m of timedOutMutations) {
+      outcomes[m.id] = {
+        mutationId: m.id,
+        outcome: 'verification_unavailable',
+        reason
+      };
+    }
+  };
 
   try {
+    let checkResp: Response;
+    let checkJson: any = null;
+
     if (appsScriptUrl) {
       const relayKey = getEffectiveRelayKey();
       const firstValidSheet = resolveValidSheetName(timedOutMutations[0]?.sourceSheet, 'نشط');
       const controller = new AbortController();
       const tId = setTimeout(() => controller.abort(), verifyTimeoutMs);
       try {
-        const checkResp = await fetch(appsScriptUrl, {
+        checkResp = await fetch(appsScriptUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
@@ -706,69 +1052,20 @@ async function verifyMutationsAfterTimeout(
             tab: firstValidSheet,
             relayKey,
             token: relayKey,
-            keys
+            keys,
+            mutations: timedOutMutations.map((m) => ({
+              mutationId: m.id,
+              operation: m.action,
+              studentId: m.studentId,
+              sheetName: resolveValidSheetName(m.sourceSheet, firstValidSheet),
+              friday: String(m.payload?.friday || m.payload?.date || '').trim() || undefined,
+              date: String(m.payload?.date || '').trim() || undefined,
+              recordId: m.payload?.recordId || undefined
+            }))
           }),
           signal: controller.signal
         });
-        const checkJson = await checkResp.json().catch(() => null);
-
-        if (checkResp.ok && checkJson?.ok && checkJson?.results) {
-          for (const k of keys) {
-            if (checkJson.results[k]?.found) {
-              verifiedSet.add(k);
-            }
-          }
-        } else if (
-          String(checkJson?.error || '').includes('action غير معروف') ||
-          String(checkJson?.error || '').includes('التاب مش موجود') ||
-          checkResp.status === 404
-        ) {
-          // Graceful fallback against un-upgraded live Apps Script: verify via getStudents OR Gviz row state
-          const sheetsNeeded = Array.from(
-            new Set(
-              timedOutMutations
-                .filter((m) => m.action === 'attendance')
-                .map((m) => resolveValidSheetName(m.sourceSheet, 'نشط'))
-            )
-          );
-          for (const sh of sheetsNeeded) {
-            let serverStudents: Student[] = [];
-            try {
-              const gsUrl = `${appsScriptUrl}?action=getStudents&sheet=${encodeURIComponent(sh)}&relayKey=${encodeURIComponent(relayKey)}&token=${encodeURIComponent(relayKey)}`;
-              const gsResp = await fetch(gsUrl, { signal: controller.signal });
-              if (gsResp.ok) {
-                const gsJson = await gsResp.json().catch(() => null);
-                if (Array.isArray(gsJson?.students)) {
-                  serverStudents = gsJson.students;
-                }
-              }
-            } catch {}
-
-            if (serverStudents.length === 0 && APPROVED_SHEETS.includes(sh as any)) {
-              try {
-                const gvizRes = await fetchSheetStudentsViaGviz(SPREADSHEET_ID, sh);
-                serverStudents = gvizRes.students;
-              } catch {}
-            }
-
-            if (serverStudents.length === 0) continue;
-            const byId = new Map(serverStudents.map((s) => [s.id, s]));
-            const byCode = new Map(serverStudents.map((s) => [s.code, s]));
-
-            for (const mut of timedOutMutations) {
-              if (mut.action !== 'attendance' || resolveValidSheetName(mut.sourceSheet, 'نشط') !== sh) continue;
-              const friday = String(mut.payload?.friday || mut.payload?.date || '').trim();
-              const isPresent = Boolean(mut.payload?.isPresent ?? mut.payload?.present);
-              const sRec = byId.get(mut.studentId) || (mut.studentCode ? byCode.get(mut.studentCode) : undefined);
-              if (!sRec) continue;
-              const serverDateVal = Boolean(sRec.att?.[friday]);
-              const expectedAfterWrite = (mut.expectedVersion || 1) + 1;
-              if (sRec.att && Object.prototype.hasOwnProperty.call(sRec.att, friday) && serverDateVal === isPresent && (sRec.version || 1) >= expectedAfterWrite) {
-                verifiedSet.add(mut.id);
-              }
-            }
-          }
-        }
+        checkJson = await checkResp.json().catch(() => null);
       } finally {
         clearTimeout(tId);
       }
@@ -778,30 +1075,70 @@ async function verifyMutationsAfterTimeout(
       const controller = new AbortController();
       const tId = setTimeout(() => controller.abort(), verifyTimeoutMs);
       try {
-        const resp = await fetch(checkUrl, {
+        checkResp = await fetch(checkUrl, {
           method: 'GET',
           headers: getAuthHeaders(user?.token),
           signal: controller.signal
         });
-        const json = await resp.json().catch(() => null);
-        if (resp.ok && json?.ok && json?.results) {
-          for (const k of keys) {
-            if (json.results[k]?.found) {
-              verifiedSet.add(k);
-            }
-          }
-        }
+        checkJson = await checkResp.json().catch(() => null);
       } finally {
         clearTimeout(tId);
       }
     }
-  } catch (verifyErr) {
-    console.warn('[StGeorge Sync] Post-timeout verification check could not confirm state:', verifyErr);
+
+    const endpointUnsupported =
+      checkResp.status === 404 ||
+      String(checkJson?.error || '').includes('action غير معروف') ||
+      String(checkJson?.error || '').includes('التاب مش موجود');
+
+    if (endpointUnsupported) {
+      markAllUnavailable('verification_endpoint_unsupported');
+    } else if (!checkResp.ok) {
+      markAllUnavailable(`verification_http_${checkResp.status}`);
+    } else if (!checkJson || checkJson.ok !== true || !checkJson.results || typeof checkJson.results !== 'object') {
+      markAllUnavailable('invalid_verification_payload');
+    } else {
+      for (const mut of timedOutMutations) {
+        const itemResult = validateTimeoutIdempotencyEntry(mut, checkJson.results[mut.id]);
+        outcomes[mut.id] = itemResult;
+        if (itemResult.outcome === 'verified_persisted' && itemResult.proof) {
+          verifiedProofs[mut.id] = itemResult.proof;
+        }
+      }
+    }
+  } catch (verifyErr: any) {
+    console.warn('[StGeorge Sync] Post-timeout verification check unavailable:', verifyErr);
+    markAllUnavailable(isAbortOrTimeoutError(verifyErr) ? 'verification_timeout' : 'verification_network_error');
+  }
+
+  const verifiedIds: string[] = [];
+  const conflictMutations: Array<{ mutation: OfflineMutation; error: string }> = [];
+  const unconfirmedMutations: OfflineMutation[] = [];
+
+  for (const mut of timedOutMutations) {
+    const res = outcomes[mut.id] || {
+      mutationId: mut.id,
+      outcome: 'unknown' as const,
+      reason: 'missing_verification_result'
+    };
+    if (res.outcome === 'verified_persisted' && verifiedProofs[mut.id]) {
+      verifiedIds.push(mut.id);
+    } else if (res.outcome === 'conflict') {
+      conflictMutations.push({
+        mutation: mut,
+        error: res.conflictError || 'تعارض في التعديل المتزامن (HTTP 409)'
+      });
+    } else {
+      unconfirmedMutations.push(mut);
+    }
   }
 
   return {
-    verifiedIds: timedOutMutations.filter((m) => verifiedSet.has(m.id)).map((m) => m.id),
-    unconfirmedMutations: timedOutMutations.filter((m) => !verifiedSet.has(m.id)),
+    verifiedIds,
+    verifiedProofs,
+    outcomes,
+    unconfirmedMutations,
+    conflictMutations,
     verifyDurationMs: Date.now() - verifyStart
   };
 }
@@ -816,6 +1153,10 @@ export interface ProcessOfflineQueueCallbacks {
   singleTimeoutMs?: number;
   batchTimeoutMs?: number;
   verifyTimeoutMs?: number;
+  targetMutationId?: string;
+  nowMs?: number;
+  maxAutoRetries?: number;
+  isAutoTrigger?: boolean;
 }
 
 export async function executeProcessOfflineQueue(
@@ -825,25 +1166,15 @@ export async function executeProcessOfflineQueue(
   onRecordPushTime?: (pushIso: string) => void,
   callbacks?: ProcessOfflineQueueCallbacks
 ): Promise<SyncQueueExecutionReport> {
-  let releaseLock!: () => void;
-  const nextLock = new Promise<void>((resolve) => {
-    releaseLock = resolve;
-  });
-  const prevLock = queueExecutionTail;
-  queueExecutionTail = prevLock.then(() => nextLock, () => nextLock);
-  await prevLock;
-
-  try {
-    return await runProcessOfflineQueueSerial(
+  return withOfflineQueueLock(() =>
+    runProcessOfflineQueueSerial(
       user,
       _isPreviewMode,
       onNotify,
       onRecordPushTime,
       callbacks
-    );
-  } finally {
-    releaseLock();
-  }
+    )
+  );
 }
 
 async function runProcessOfflineQueueSerial(
@@ -854,7 +1185,14 @@ async function runProcessOfflineQueueSerial(
   callbacks?: ProcessOfflineQueueCallbacks
 ): Promise<SyncQueueExecutionReport> {
   const runStartMs = Date.now();
+  const nowMs = typeof callbacks?.nowMs === 'number' ? callbacks.nowMs : runStartMs;
+  const maxAutoRetries = callbacks?.maxAutoRetries ?? MAX_AUTO_MUTATION_RETRIES;
   const stageTotals = { prepMs: 0, networkMs: 0, verifyMs: 0, serverMs: 0 };
+
+  // Capture targeted single-mutation manual retry ONLY for manual invocations (never stolen by background triggers)
+  const effectiveTargetMutationId =
+    callbacks?.targetMutationId ||
+    (!callbacks?.isAutoTrigger ? consumePendingManualRetryTarget() || undefined : undefined);
 
   if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
     onNotify?.('وضع عدم الاتصال', 'لا يوجد اتصال بالإنترنت لإرسال العمليات المعلقة', 'warn');
@@ -919,6 +1257,59 @@ async function runProcessOfflineQueueSerial(
     };
   }
 
+  const eligibility = evaluateQueueMutationEligibility(pending, {
+    nowMs,
+    targetMutationId: effectiveTargetMutationId,
+    maxAutoRetries
+  });
+
+  if (effectiveTargetMutationId && eligibility.targetBlockedReason) {
+    if (!callbacks?.silent) {
+      onNotify?.('تعذر إعادة المحاولة', eligibility.targetBlockedReason, 'warn');
+    }
+    const unknownResultCount = pending.filter((m) => m.status === 'timeout_unknown').length;
+    const failedCount = pending.filter((m) => m.status === 'failed').length;
+    const conflictCount = pending.filter((m) => m.status === 'conflict').length;
+    return {
+      success: false,
+      outcome: conflictCount > 0 ? 'conflict' : unknownResultCount > 0 ? 'timeout_unknown' : failedCount > 0 ? 'failed' : 'pending',
+      sentCount: 0,
+      deduplicatedCount: 0,
+      verifiedPostTimeoutCount: 0,
+      remainingCount: pending.length,
+      unknownResultCount,
+      failedCount,
+      conflictCount,
+      mode: 'single',
+      totalDurationMs: Date.now() - runStartMs,
+      stageSummary: { ...stageTotals },
+      lastError: eligibility.targetBlockedReason
+    };
+  }
+
+  const workQueue = eligibility.eligible;
+  if (workQueue.length === 0) {
+    const unknownResultCount = pending.filter((m) => m.status === 'timeout_unknown').length;
+    const failedCount = pending.filter((m) => m.status === 'failed').length;
+    const conflictCount = pending.filter((m) => m.status === 'conflict').length;
+    const firstErr = pending.find((m) => m.lastError)?.lastError;
+    return {
+      success: false,
+      outcome: conflictCount > 0 ? 'conflict' : unknownResultCount > 0 ? 'timeout_unknown' : failedCount > 0 ? 'failed' : 'pending',
+      sentCount: 0,
+      deduplicatedCount: 0,
+      verifiedPostTimeoutCount: 0,
+      remainingCount: pending.length,
+      unknownResultCount,
+      failedCount,
+      conflictCount,
+      mode: 'single',
+      totalDurationMs: Date.now() - runStartMs,
+      stageSummary: { ...stageTotals },
+      lastError: firstErr
+    };
+  }
+
   const endpointKey = appsScriptUrl || buildApiUrl('/api/sheets');
   const maxChunkSize = Math.max(3, Math.min(30, callbacks?.batchSize ?? 15));
   const singleTimeoutMs = callbacks?.singleTimeoutMs ?? (appsScriptUrl ? 35000 : 25000);
@@ -932,6 +1323,11 @@ async function runProcessOfflineQueueSerial(
   let usedSingle = false;
   let lastErrorMsg: string | undefined;
 
+  // Dynamic per-student isolation barrier during this pass:
+  // Any student whose op fails/conflicts/times-out is added here so later ops for THAT student
+  // cannot overtake it, while independent students proceed without Head-of-Line Blocking.
+  const runtimeBlockedStudents = new Set<string>(eligibility.blockedStudentIds);
+
   const recordPushSuccessNow = () => {
     const nowIso = new Date().toISOString();
     try {
@@ -941,19 +1337,33 @@ async function runProcessOfflineQueueSerial(
   };
 
   let cursor = 0;
-  while (cursor < pending.length) {
-    const head = pending[cursor];
+  while (cursor < workQueue.length) {
+    const head = workQueue[cursor];
+
+    if (head.studentId && runtimeBlockedStudents.has(head.studentId)) {
+      cursor++;
+      continue;
+    }
+
     const headResolvedSheet = resolveValidSheetName(head.sourceSheet, '');
     if (!headResolvedSheet) {
       const invalidErr = `اسم التاب غير محدد أو غير صالح (${String(head.sourceSheet)}) — تم إيقاف الإرسال قبل الوصول للخادم`;
       lastErrorMsg = invalidErr;
-      await idbUpdateMutationError(head.id, invalidErr, 'failed');
+      if (head.studentId) runtimeBlockedStudents.add(head.studentId);
+      await idbUpdateMutationError(head.id, invalidErr, 'failed', {
+        nextRetryAt: null,
+        isPermanentError: true,
+        errorCategory: 'permanent'
+      });
       callbacks?.onMutationError?.(head, invalidErr);
-      break;
+      cursor++;
+      continue;
     }
 
-    // Check if we can process a contiguous attendance chunk in batch mode (>= 3 consecutive same-sheet attendance ops)
+    // Check if we can process a contiguous eligible attendance chunk in batch mode
+    // (>= 3 consecutive same-sheet attendance ops; never batch in targeted single-retry mode)
     const canTryBatch =
+      !effectiveTargetMutationId &&
       !callbacks?.disableBatch &&
       !batchUnsupportedEndpoints.has(endpointKey) &&
       head.action === 'attendance';
@@ -961,10 +1371,15 @@ async function runProcessOfflineQueueSerial(
     let batchSlice: OfflineMutation[] = [];
     if (canTryBatch) {
       const targetSheet = headResolvedSheet;
-      for (let j = cursor; j < pending.length && batchSlice.length < maxChunkSize; j++) {
-        const candidate = pending[j];
+      for (let j = cursor; j < workQueue.length && batchSlice.length < maxChunkSize; j++) {
+        const candidate = workQueue[j];
         const candidateSheet = resolveValidSheetName(candidate.sourceSheet, '');
-        if (candidate.action !== 'attendance' || !candidateSheet || candidateSheet !== targetSheet) {
+        if (
+          candidate.action !== 'attendance' ||
+          !candidateSheet ||
+          candidateSheet !== targetSheet ||
+          (candidate.studentId && runtimeBlockedStudents.has(candidate.studentId))
+        ) {
           break;
         }
         batchSlice.push(candidate);
@@ -1049,14 +1464,19 @@ async function runProcessOfflineQueueSerial(
           }
           lastErrorMsg = errDetail;
           const totalChunkMs = Date.now() - chunkStartMs;
+          const isPermanentChunkErr = isPermanentMutationFailure(response.status, errDetail);
           const updates = batchSlice.map((m) => {
+            if (m.studentId) runtimeBlockedStudents.add(m.studentId);
             const nextRetry = (m.retryCount || 0) + 1;
+            const permanent = isPermanentChunkErr || isPermanentMutationFailure(response.status, errDetail, m.action);
             return {
               id: m.id,
               errorMessage: errDetail,
               status: 'failed' as const,
               meta: {
-                nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+                nextRetryAt: permanent ? null : nowMs + computeExponentialBackoffDelayMs(nextRetry),
+                isPermanentError: permanent,
+                errorCategory: (permanent ? 'permanent' : 'transient') as 'permanent' | 'transient',
                 lastDurationMs: totalChunkMs,
                 stageTimingsMs: {
                   networkMs: netMs,
@@ -1069,67 +1489,154 @@ async function runProcessOfflineQueueSerial(
           });
           await idbUpdateMutationsBatchState(updates);
           for (const m of batchSlice) callbacks?.onMutationError?.(m, errDetail);
-          break;
+          if (response.status === 401 || response.status >= 500) {
+            break;
+          }
+          cursor += batchSlice.length;
+          continue;
         } else {
           usedBatch = true;
           if (typeof resultJson.serverDurationMs === 'number') {
             stageTotals.serverMs += resultJson.serverDurationMs;
           }
 
-          const confirmedMuts: OfflineMutation[] = [];
-          let conflictHit: { mut: OfflineMutation; msg: string } | null = null;
-          let failedHit: { mut: OfflineMutation; msg: string } | null = null;
+          // Inspect ALL batch results independently with strict per-item Remote Persistence Proof
+          const confirmedEntries: Array<{ mut: OfflineMutation; proof: RemotePersistenceProof }> = [];
+          const conflictHits: Array<{ mut: OfflineMutation; msg: string }> = [];
+          const unverifiedHits: Array<{ mut: OfflineMutation; msg: string; outcome: TimeoutVerificationItemResult['outcome'] }> = [];
+          const failedHits: Array<{ mut: OfflineMutation; msg: string; permanent: boolean }> = [];
 
           for (let k = 0; k < batchSlice.length; k++) {
             const itemMut = batchSlice[k];
             const itemRes = resultJson.results[k];
-            if (itemRes?.ok) {
-              confirmedMuts.push(itemMut);
-              if (itemRes.deduplicated) deduplicatedCount++;
-            } else if (itemRes?.status === 409) {
-              conflictHit = {
+            if (itemRes?.status === 409 || itemRes?.outcome === 'conflict') {
+              conflictHits.push({
                 mut: itemMut,
                 msg: itemRes?.error || 'تعارض في التعديل المتزامن (HTTP 409)'
-              };
-              break;
-            } else {
-              failedHit = {
+              });
+            } else if (
+              itemRes?.outcome === 'timeout_unknown' ||
+              itemRes?.status === 408 ||
+              itemRes?.status === 504
+            ) {
+              unverifiedHits.push({
                 mut: itemMut,
-                msg: itemRes?.error || 'رفض الخادم حفظ أحد سجلات الدفعة'
-              };
-              break;
+                msg:
+                  itemRes?.error ||
+                  buildTimeoutOutcomeErrorMessage('unknown', 'batch_item_timeout_unknown'),
+                outcome: 'unknown'
+              });
+            } else if (itemRes?.ok) {
+              const proofValidation = validateRemotePersistenceProof(itemMut, itemRes);
+              if (proofValidation.valid && proofValidation.outcome === 'verified_persisted' && proofValidation.proof) {
+                confirmedEntries.push({ mut: itemMut, proof: proofValidation.proof });
+                if (itemRes.deduplicated || proofValidation.proof?.deduplicated) deduplicatedCount++;
+              } else if (proofValidation.outcome === 'conflict') {
+                conflictHits.push({
+                  mut: itemMut,
+                  msg: itemRes?.error || 'تعارض في التعديل المتزامن (HTTP 409)'
+                });
+              } else {
+                unverifiedHits.push({
+                  mut: itemMut,
+                  msg: buildUnverifiedRemoteErrorMessage(proofValidation.reason),
+                  outcome: proofValidation.outcome
+                });
+              }
+            } else {
+              const msg = itemRes?.error || 'رفض الخادم حفظ أحد سجلات الدفعة';
+              const permanent = isPermanentMutationFailure(itemRes?.status, msg, itemMut.action);
+              failedHits.push({ mut: itemMut, msg, permanent });
             }
           }
 
-          if (confirmedMuts.length > 0) {
-            await idbRemoveMutationsBatch(confirmedMuts.map((m) => m.id));
-            sentCount += confirmedMuts.length;
+          if (confirmedEntries.length > 0) {
+            await idbRemoveMutationsBatch(confirmedEntries.map((entry) => entry.mut.id));
+            sentCount += confirmedEntries.length;
             recordPushSuccessNow();
-            for (const m of confirmedMuts) callbacks?.onMutationSuccess?.(m);
+            for (const entry of confirmedEntries) {
+              callbacks?.onMutationSuccess?.({
+                ...entry.mut,
+                syncOutcome: 'success',
+                verificationOutcome: 'verified_persisted',
+                verifiedAt: entry.proof.verifiedAt || new Date().toISOString(),
+                remoteRecordId: entry.proof.recordId
+              });
+            }
           }
 
           console.info(
-            `[StGeorge Sync Telemetry] Batch chunk (${confirmedMuts.length}/${batchSlice.length}) committed | network=${netMs}ms | server=${resultJson.serverDurationMs ?? '-'}ms`
+            `[StGeorge Sync Telemetry] Batch chunk (${confirmedEntries.length}/${batchSlice.length} verified) | unverified=${unverifiedHits.length} | network=${netMs}ms | server=${resultJson.serverDurationMs ?? '-'}ms`
           );
 
-          if (conflictHit) {
-            lastErrorMsg = conflictHit.msg;
-            await idbMarkMutationConflict(conflictHit.mut.id, conflictHit.msg);
-            onNotify?.('تعارض في التعديل', `العملية (${conflictHit.mut.action}) تحتاج مراجعة أمين الخدمة: ${conflictHit.msg}`, 'danger');
-            callbacks?.onMutationError?.(conflictHit.mut, conflictHit.msg);
-            break;
+          for (const hit of conflictHits) {
+            lastErrorMsg = hit.msg;
+            if (hit.mut.studentId) runtimeBlockedStudents.add(hit.mut.studentId);
+            await idbMarkMutationConflict(hit.mut.id, hit.msg);
+            onNotify?.('تعارض في التعديل', `العملية (${hit.mut.action}) تحتاج مراجعة أمين الخدمة: ${hit.msg}`, 'danger');
+            callbacks?.onMutationError?.(hit.mut, hit.msg);
           }
 
-          if (failedHit) {
-            lastErrorMsg = failedHit.msg;
-            const nextRetry = (failedHit.mut.retryCount || 0) + 1;
-            await idbUpdateMutationError(failedHit.mut.id, failedHit.msg, 'failed', {
-              nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
-              lastDurationMs: Date.now() - chunkStartMs,
-              stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - chunkStartMs, mode: 'batch', batchSize: batchSlice.length }
+          if (unverifiedHits.length > 0) {
+            const totalChunkMs = Date.now() - chunkStartMs;
+            const unverifiedUpdates = unverifiedHits.map((hit) => {
+              lastErrorMsg = hit.msg;
+              if (hit.mut.studentId) runtimeBlockedStudents.add(hit.mut.studentId);
+              const nextRetry = (hit.mut.retryCount || 0) + 1;
+              return {
+                id: hit.mut.id,
+                errorMessage: hit.msg,
+                status: 'timeout_unknown' as const,
+                meta: {
+                  syncOutcome: 'timeout_unknown' as const,
+                  verificationOutcome: hit.outcome,
+                  nextRetryAt: nowMs + computeExponentialBackoffDelayMs(nextRetry),
+                  isPermanentError: false,
+                  errorCategory: 'timeout' as const,
+                  lastDurationMs: totalChunkMs,
+                  stageTimingsMs: {
+                    networkMs: netMs,
+                    totalMs: totalChunkMs,
+                    mode: 'batch' as const,
+                    batchSize: batchSlice.length
+                  }
+                }
+              };
             });
-            callbacks?.onMutationError?.(failedHit.mut, failedHit.msg);
-            break;
+            await idbUpdateMutationsBatchState(unverifiedUpdates);
+            for (const hit of unverifiedHits) {
+              callbacks?.onMutationError?.(hit.mut, hit.msg);
+            }
+          }
+
+          if (failedHits.length > 0) {
+            const totalChunkMs = Date.now() - chunkStartMs;
+            const failedUpdates = failedHits.map((hit) => {
+              lastErrorMsg = hit.msg;
+              if (hit.mut.studentId) runtimeBlockedStudents.add(hit.mut.studentId);
+              const nextRetry = (hit.mut.retryCount || 0) + 1;
+              return {
+                id: hit.mut.id,
+                errorMessage: hit.msg,
+                status: 'failed' as const,
+                meta: {
+                  nextRetryAt: hit.permanent ? null : nowMs + computeExponentialBackoffDelayMs(nextRetry),
+                  isPermanentError: hit.permanent,
+                  errorCategory: (hit.permanent ? 'permanent' : 'transient') as 'permanent' | 'transient',
+                  lastDurationMs: totalChunkMs,
+                  stageTimingsMs: {
+                    networkMs: netMs,
+                    totalMs: totalChunkMs,
+                    mode: 'batch' as const,
+                    batchSize: batchSlice.length
+                  }
+                }
+              };
+            });
+            await idbUpdateMutationsBatchState(failedUpdates);
+            for (const hit of failedHits) {
+              callbacks?.onMutationError?.(hit.mut, hit.msg);
+            }
           }
 
           cursor += batchSlice.length;
@@ -1140,13 +1647,15 @@ async function runProcessOfflineQueueSerial(
         stageTotals.networkMs += netMs;
 
         if (isAbortOrTimeoutError(batchNetErr)) {
-          // Critical: Server may have executed before response returned. Verify idempotency keys FIRST!
+          // Critical: Server may have executed before response returned. Verify strict persistence proof FIRST!
           const initialTimeoutUpdates = batchSlice.map((m) => ({
             id: m.id,
-            errorMessage: 'انتهت مهلة الاتصال بالخادم (Timeout) — جاري التحقق من تنفيذ الدفعة على الخادم قبل أي إعادة إرسال',
+            errorMessage: 'انتهت مهلة الاتصال بالخادم (Timeout) — جاري التحقق من إثبات حفظ الدفعة على الخادم قبل أي إعادة إرسال',
             status: 'timeout_unknown' as const,
             meta: {
               incrementRetry: true,
+              errorCategory: 'timeout' as const,
+              verificationOutcome: 'unknown' as const,
               lastDurationMs: netMs,
               stageTimingsMs: { networkMs: netMs, totalMs: netMs, mode: 'batch' as const, batchSize: batchSlice.length }
             }
@@ -1163,27 +1672,49 @@ async function runProcessOfflineQueueSerial(
             verifiedPostTimeoutCount += verification.verifiedIds.length;
             recordPushSuccessNow();
             for (const m of batchSlice) {
-              if (verifiedIdSet.has(m.id)) callbacks?.onMutationSuccess?.(m);
+              if (verifiedIdSet.has(m.id)) {
+                const verifiedProof = verification.verifiedProofs[m.id];
+                callbacks?.onMutationSuccess?.({
+                  ...m,
+                  syncOutcome: 'success',
+                  verificationOutcome: 'verified_persisted',
+                  verifiedAt: verifiedProof?.verifiedAt || new Date().toISOString(),
+                  remoteRecordId: verifiedProof?.recordId
+                });
+              }
             }
             console.info(
-              `[StGeorge Sync Telemetry] Post-timeout verification confirmed ${verification.verifiedIds.length}/${batchSlice.length} batch mutations already persisted (verify=${verification.verifyDurationMs}ms)`
+              `[StGeorge Sync Telemetry] Post-timeout verification confirmed ${verification.verifiedIds.length}/${batchSlice.length} batch mutations with valid persistence proof (verify=${verification.verifyDurationMs}ms)`
             );
           }
 
+          for (const conflictHit of verification.conflictMutations) {
+            lastErrorMsg = conflictHit.error;
+            if (conflictHit.mutation.studentId) runtimeBlockedStudents.add(conflictHit.mutation.studentId);
+            await idbMarkMutationConflict(conflictHit.mutation.id, conflictHit.error);
+            onNotify?.('تعارض في التعديل', `العملية (${conflictHit.mutation.action}) تحتاج مراجعة أمين الخدمة: ${conflictHit.error}`, 'danger');
+            callbacks?.onMutationError?.(conflictHit.mutation, conflictHit.error);
+          }
+
           if (verification.unconfirmedMutations.length > 0) {
-            const unknownMsg =
-              'انتهت مهلة الاتصال بالخادم (Timeout): تم حفظ العمليات محلياً بنفس معرفاتها الثابتة وستُعاد المحاولة تلقائياً بعد التحقق لتجنب التكرار.';
-            lastErrorMsg = unknownMsg;
             await idbUpdateMutationsBatchState(
               verification.unconfirmedMutations.map((m) => {
+                if (m.studentId) runtimeBlockedStudents.add(m.studentId);
                 const retryNum = (m.retryCount || 0) + 1;
+                const itemOutcome = verification.outcomes[m.id];
+                const resolvedOutcome = itemOutcome?.outcome || 'unknown';
+                const errMsg = buildTimeoutOutcomeErrorMessage(resolvedOutcome, itemOutcome?.reason || 'unconfirmed');
+                lastErrorMsg = errMsg;
                 return {
                   id: m.id,
-                  errorMessage: unknownMsg,
+                  errorMessage: errMsg,
                   status: 'timeout_unknown' as const,
                   meta: {
                     incrementRetry: false,
-                    nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(retryNum),
+                    syncOutcome: 'timeout_unknown' as const,
+                    verificationOutcome: resolvedOutcome,
+                    errorCategory: 'timeout' as const,
+                    nextRetryAt: nowMs + computeExponentialBackoffDelayMs(retryNum),
                     lastDurationMs: Date.now() - chunkStartMs,
                     stageTimingsMs: {
                       networkMs: netMs,
@@ -1197,12 +1728,17 @@ async function runProcessOfflineQueueSerial(
               })
             );
             for (const um of verification.unconfirmedMutations) {
-              callbacks?.onMutationError?.(um, unknownMsg);
+              const itemOutcome = verification.outcomes[um.id];
+              const errMsg = buildTimeoutOutcomeErrorMessage(
+                itemOutcome?.outcome || 'unknown',
+                itemOutcome?.reason || 'unconfirmed'
+              );
+              callbacks?.onMutationError?.(um, errMsg);
             }
             break;
           }
 
-          // All items in chunk were verified as committed! Advance cursor without re-executing!
+          // All items in chunk were resolved (verified or conflict)! Advance cursor without re-executing!
           usedBatch = true;
           cursor += batchSlice.length;
           continue;
@@ -1212,13 +1748,16 @@ async function runProcessOfflineQueueSerial(
         lastErrorMsg = errMsg;
         await idbUpdateMutationsBatchState(
           batchSlice.map((m) => {
+            if (m.studentId) runtimeBlockedStudents.add(m.studentId);
             const nextRetry = (m.retryCount || 0) + 1;
             return {
               id: m.id,
               errorMessage: errMsg,
               status: 'failed' as const,
               meta: {
-                nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+                nextRetryAt: nowMs + computeExponentialBackoffDelayMs(nextRetry),
+                isPermanentError: false,
+                errorCategory: 'transient' as const,
                 lastDurationMs: Date.now() - chunkStartMs,
                 stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - chunkStartMs, mode: 'batch', batchSize: batchSlice.length }
               }
@@ -1234,15 +1773,21 @@ async function runProcessOfflineQueueSerial(
       }
     }
 
-    // Single-mutation path (for single items, non-attendance ops, or automatic fallback from older Apps Script)
-    const mutation = pending[cursor];
+    // Single-mutation path (for single items, non-attendance ops, targeted manual retry, or fallback)
+    const mutation = workQueue[cursor];
     const resolvedSingleSheet = resolveValidSheetName(mutation.sourceSheet, '');
     if (!resolvedSingleSheet) {
       const invalidErr = `اسم التاب غير محدد أو غير صالح (${String(mutation.sourceSheet)}) — تم إيقاف الإرسال`;
       lastErrorMsg = invalidErr;
-      await idbUpdateMutationError(mutation.id, invalidErr, 'failed');
+      if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
+      await idbUpdateMutationError(mutation.id, invalidErr, 'failed', {
+        nextRetryAt: null,
+        isPermanentError: true,
+        errorCategory: 'permanent'
+      });
       callbacks?.onMutationError?.(mutation, invalidErr);
-      break;
+      cursor++;
+      continue;
     }
 
     const singleStartMs = Date.now();
@@ -1298,10 +1843,12 @@ async function runProcessOfflineQueueSerial(
         const result = await response.json().catch(() => null);
         const conflictMsg = result?.error || 'تعارض في التعديل المتزامن (HTTP 409)';
         lastErrorMsg = conflictMsg;
+        if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
         await idbMarkMutationConflict(mutation.id, conflictMsg);
         onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة أمين الخدمة: ${conflictMsg}`, 'danger');
         callbacks?.onMutationError?.(mutation, conflictMsg);
-        break;
+        cursor++;
+        continue;
       }
 
       if (response.ok) {
@@ -1309,34 +1856,80 @@ async function runProcessOfflineQueueSerial(
         if (result && result.status === 409) {
           const conflictMsg = result?.error || 'تعارض في التعديل المتزامن (409)';
           lastErrorMsg = conflictMsg;
+          if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
           await idbMarkMutationConflict(mutation.id, conflictMsg);
           onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة: ${conflictMsg}`, 'danger');
           callbacks?.onMutationError?.(mutation, conflictMsg);
-          break;
+          cursor++;
+          continue;
         }
         if (result && result.ok) {
-          await idbRemoveMutation(mutation.id);
-          sentCount++;
-          if (result.deduplicated) deduplicatedCount++;
-          if (typeof result.serverDurationMs === 'number') {
-            stageTotals.serverMs += result.serverDurationMs;
-          }
+          const proofValidation = validateRemotePersistenceProof(mutation, result);
+          if (proofValidation.valid && proofValidation.outcome === 'verified_persisted' && proofValidation.proof) {
+            await idbRemoveMutation(mutation.id);
+            sentCount++;
+            if (result.deduplicated || proofValidation.proof?.deduplicated) deduplicatedCount++;
+            if (typeof result.serverDurationMs === 'number') {
+              stageTotals.serverMs += result.serverDurationMs;
+            }
 
-          recordPushSuccessNow();
-          callbacks?.onMutationSuccess?.(mutation);
-          cursor++;
+            recordPushSuccessNow();
+            callbacks?.onMutationSuccess?.({
+              ...mutation,
+              syncOutcome: 'success',
+              verificationOutcome: 'verified_persisted',
+              verifiedAt: proofValidation.proof.verifiedAt || new Date().toISOString(),
+              remoteRecordId: proofValidation.proof.recordId
+            });
+            cursor++;
+          } else if (proofValidation.outcome === 'conflict') {
+            const conflictMsg = result?.error || 'تعارض في التعديل المتزامن (409)';
+            lastErrorMsg = conflictMsg;
+            if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
+            await idbMarkMutationConflict(mutation.id, conflictMsg);
+            onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة: ${conflictMsg}`, 'danger');
+            callbacks?.onMutationError?.(mutation, conflictMsg);
+            cursor++;
+            continue;
+          } else {
+            // Fail closed: generic `{ ok: true }` without valid persistence proof MUST NOT delete the mutation!
+            const unverifiedMsg = buildUnverifiedRemoteErrorMessage(proofValidation.reason);
+            lastErrorMsg = unverifiedMsg;
+            console.warn(
+              `[StGeorge Sync] Retaining unverified mutation ${mutation.id} (${proofValidation.reason})`
+            );
+            if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
+            const nextRetry = (mutation.retryCount || 0) + 1;
+            await idbUpdateMutationError(mutation.id, unverifiedMsg, 'timeout_unknown', {
+              syncOutcome: 'timeout_unknown',
+              verificationOutcome: proofValidation.outcome,
+              nextRetryAt: nowMs + computeExponentialBackoffDelayMs(nextRetry),
+              isPermanentError: false,
+              errorCategory: 'timeout',
+              lastDurationMs: Date.now() - singleStartMs,
+              stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - singleStartMs, mode: 'single' }
+            });
+            callbacks?.onMutationError?.(mutation, unverifiedMsg);
+            cursor++;
+            continue;
+          }
         } else {
           const errMsg = result?.error || 'رفض Google Sheets العملية';
           lastErrorMsg = errMsg;
           console.warn(`Server rejected mutation ${mutation.id}:`, errMsg);
+          if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
           const nextRetry = (mutation.retryCount || 0) + 1;
+          const permanent = isPermanentMutationFailure(result?.status, errMsg, mutation.action);
           await idbUpdateMutationError(mutation.id, errMsg, 'failed', {
-            nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+            nextRetryAt: permanent ? null : nowMs + computeExponentialBackoffDelayMs(nextRetry),
+            isPermanentError: permanent,
+            errorCategory: permanent ? 'permanent' : 'transient',
             lastDurationMs: Date.now() - singleStartMs,
             stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - singleStartMs, mode: 'single' }
           });
           callbacks?.onMutationError?.(mutation, errMsg);
-          break;
+          cursor++;
+          continue;
         }
       } else {
         let errDetail = `استجاب الخادم برمز خطأ (HTTP ${response.status})`;
@@ -1349,14 +1942,22 @@ async function runProcessOfflineQueueSerial(
         }
         lastErrorMsg = errDetail;
         console.warn(`Failed to sync mutation ${mutation.id}, HTTP status: ${response.status}`);
+        if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
         const nextRetry = (mutation.retryCount || 0) + 1;
+        const permanent = isPermanentMutationFailure(response.status, errDetail, mutation.action);
         await idbUpdateMutationError(mutation.id, errDetail, 'failed', {
-          nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+          nextRetryAt: permanent ? null : nowMs + computeExponentialBackoffDelayMs(nextRetry),
+          isPermanentError: permanent,
+          errorCategory: permanent ? 'permanent' : 'transient',
           lastDurationMs: Date.now() - singleStartMs,
           stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - singleStartMs, mode: 'single' }
         });
         callbacks?.onMutationError?.(mutation, errDetail);
-        break;
+        if (response.status === 401) {
+          break;
+        }
+        cursor++;
+        continue;
       }
     } catch (networkError: any) {
       const netMs = Date.now() - singleStartMs;
@@ -1366,10 +1967,12 @@ async function runProcessOfflineQueueSerial(
         // Post-timeout check BEFORE leaving as unconfirmed/retryable
         await idbUpdateMutationError(
           mutation.id,
-          'انتهت مهلة الاتصال بالخادم (Timeout) — جاري التحقق من نتيجة العملية على الخادم لتجنب التكرار',
+          'انتهت مهلة الاتصال بالخادم (Timeout) — جاري التحقق من إثبات حفظ العملية على الخادم لتجنب التكرار',
           'timeout_unknown',
           {
             incrementRetry: true,
+            verificationOutcome: 'unknown',
+            errorCategory: 'timeout',
             lastDurationMs: netMs,
             stageTimingsMs: { networkMs: netMs, totalMs: netMs, mode: 'single' }
           }
@@ -1383,18 +1986,44 @@ async function runProcessOfflineQueueSerial(
           sentCount++;
           verifiedPostTimeoutCount++;
           recordPushSuccessNow();
-          callbacks?.onMutationSuccess?.(mutation);
+          const verifiedProof = verification.verifiedProofs[mutation.id];
+          callbacks?.onMutationSuccess?.({
+            ...mutation,
+            syncOutcome: 'success',
+            verificationOutcome: 'verified_persisted',
+            verifiedAt: verifiedProof?.verifiedAt || new Date().toISOString(),
+            remoteRecordId: verifiedProof?.recordId
+          });
           cursor++;
           continue;
         }
 
-        const unknownErrMsg =
-          'انتهت مهلة الاتصال بالخادم (Timeout): النتيجة غير مؤكدة بعد، تم حفظ العملية محلياً بنفس معرفها الثابت وستتم إعادة المحاولة تلقائياً بأمان.';
+        if (verification.conflictMutations.length > 0) {
+          const conflictErr = verification.conflictMutations[0].error;
+          lastErrorMsg = conflictErr;
+          if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
+          await idbMarkMutationConflict(mutation.id, conflictErr);
+          onNotify?.('تعارض في التعديل', `العملية (${mutation.action}) تحتاج مراجعة أمين الخدمة: ${conflictErr}`, 'danger');
+          callbacks?.onMutationError?.(mutation, conflictErr);
+          cursor++;
+          continue;
+        }
+
+        const itemOutcome = verification.outcomes[mutation.id];
+        const resolvedOutcome = itemOutcome?.outcome || 'unknown';
+        const unknownErrMsg = buildTimeoutOutcomeErrorMessage(
+          resolvedOutcome,
+          itemOutcome?.reason || 'unconfirmed'
+        );
         lastErrorMsg = unknownErrMsg;
+        if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
         const retryNum = (mutation.retryCount || 0) + 1;
         await idbUpdateMutationError(mutation.id, unknownErrMsg, 'timeout_unknown', {
           incrementRetry: false,
-          nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(retryNum),
+          syncOutcome: 'timeout_unknown',
+          verificationOutcome: resolvedOutcome,
+          errorCategory: 'timeout',
+          nextRetryAt: nowMs + computeExponentialBackoffDelayMs(retryNum),
           lastDurationMs: Date.now() - singleStartMs,
           stageTimingsMs: {
             networkMs: netMs,
@@ -1410,9 +2039,12 @@ async function runProcessOfflineQueueSerial(
       const errMsg = `تعذر الاتصال بالشبكة لإرسال العملية: ${networkError?.message || 'انقطع الاتصال'}`;
       lastErrorMsg = errMsg;
       console.warn(`Network failure syncing mutation ${mutation.id}:`, networkError);
+      if (mutation.studentId) runtimeBlockedStudents.add(mutation.studentId);
       const nextRetry = (mutation.retryCount || 0) + 1;
       await idbUpdateMutationError(mutation.id, errMsg, 'failed', {
-        nextRetryAt: Date.now() + computeExponentialBackoffDelayMs(nextRetry),
+        nextRetryAt: nowMs + computeExponentialBackoffDelayMs(nextRetry),
+        isPermanentError: false,
+        errorCategory: 'transient',
         lastDurationMs: Date.now() - singleStartMs,
         stageTimingsMs: { networkMs: netMs, totalMs: Date.now() - singleStartMs, mode: 'single' }
       });
@@ -1459,6 +2091,26 @@ async function runProcessOfflineQueueSerial(
     };
   }
 
+  if (effectiveTargetMutationId && sentCount > 0) {
+    if (!callbacks?.silent) {
+      onNotify?.('تمت إعادة المحاولة بنجاح', 'تم تأكيد إرسال العملية المحددة بنجاح إلى Google Sheets', 'success');
+    }
+    return {
+      success: true,
+      outcome: 'success',
+      sentCount,
+      deduplicatedCount,
+      verifiedPostTimeoutCount,
+      remainingCount: remaining.length,
+      unknownResultCount,
+      failedCount,
+      conflictCount,
+      mode,
+      totalDurationMs,
+      stageSummary: { ...stageTotals }
+    };
+  }
+
   if (sentCount > 0 && !callbacks?.silent) {
     onNotify?.('مزامنة جزئية', `تم إرسال ${sentCount} عملية بنجاح، ومتبقي ${remaining.length} عملية بالطابور`, 'warn');
   }
@@ -1490,8 +2142,9 @@ export async function executeSyncData(
   onRecordTimes?: (pullIso: string) => void,
   onRecordPushTime?: (pushIso: string) => void,
   onRecordError?: (errorMsg: string | null) => void,
-  onUpdateFollowups?: (records: FollowupRecord[]) => void
-): Promise<boolean> {
+  onUpdateFollowups?: (records: FollowupRecord[]) => void,
+  onRecordPartialSync?: (info: PartialSyncInfo | null) => void
+): Promise<SyncExecutionOutcome> {
   // Prevent concurrent sync executions
   if (syncInProgressRef.current) {
     console.warn('Sync is already in progress, skipping concurrent call.');
@@ -1499,6 +2152,108 @@ export async function executeSyncData(
   }
 
   syncInProgressRef.current = true;
+
+  // Ensure critical/partial sync notifications always surface even during startup sync when onNotify is omitted
+  const emitNotificationWithFallback = (
+    title: string,
+    desc: string,
+    type: 'info' | 'warn' | 'success' | 'danger'
+  ) => {
+    if (typeof onNotify === 'function') {
+      onNotify(title, desc, type);
+      return;
+    }
+    try {
+      const { notifications: existingNotifs } = loadAndMigrateNotifications();
+      const dedupKey = computeNotificationDedupKey(title, desc, type);
+      const nextNotif: AppNotification = {
+        id: generateUUID(),
+        dedupKey,
+        title,
+        desc,
+        type,
+        timestamp: Date.now(),
+        unread: true,
+        appVersion: CURRENT_NOTIFICATIONS_VERSION
+      };
+      saveNotificationsToStorage(upsertDeduplicatedNotification(existingNotifs, nextNotif));
+    } catch {}
+  };
+
+  // Tag Relay / Express incoming student records with explicit version provenance:
+  // A default version: 1 without an authoritative version column must NEVER be treated as newer proof.
+  const tagNonGvizStudentsProvenance = (rawList: any[], explicitHasVersionColumn?: boolean): Student[] => {
+    return rawList.map((raw) => {
+      if (!raw || typeof raw !== 'object') return raw;
+      if (typeof raw.hasRemoteVersion === 'boolean') return raw as Student;
+      const parsedVer = Number(raw.version);
+      const safeVer = Number.isFinite(parsedVer) && parsedVer >= 1 ? Math.floor(parsedVer) : 1;
+      const hasAuthoritativeVersion =
+        explicitHasVersionColumn === true
+          ? Number.isFinite(parsedVer) && parsedVer >= 1
+          : Number.isFinite(parsedVer) && parsedVer > 1;
+      return {
+        ...raw,
+        version: safeVer,
+        hasRemoteVersion: hasAuthoritativeVersion
+      } as Student;
+    });
+  };
+
+  const applyVerifiedGvizFollowups = async (
+    roster: Student[],
+    fallbackProbe?: any
+  ): Promise<FollowupRecord[]> => {
+    const fuRes = await fetchFollowupLogViaGvizDetailed(SPREADSHEET_ID, roster, fallbackProbe).catch((error) => {
+      console.warn('Gviz follow-up log read failed:', error);
+      return null;
+    });
+    if (!fuRes) return [];
+    if (!fuRes.verified || !fuRes.isComplete || fuRes.isPartialParse) {
+      console.warn(
+        `[SafePull] Skipping unverified/partial Gviz follow-up log (${fuRes.reason || 'unverified'}); preserving local follow-up records.`
+      );
+      return [];
+    }
+    if (fuRes.records.length > 0) {
+      const fuProof: FollowupPullVerificationProof = {
+        verified: true,
+        isComplete: true,
+        isPartialParse: false,
+        source: 'gviz',
+        reason: fuRes.reason
+      };
+      const reconciledFu = await idbSaveRemoteFollowupRecords(fuRes.records, fuProof).catch(() => null);
+      if (reconciledFu) {
+        onUpdateFollowups?.(reconciledFu);
+        return reconciledFu;
+      }
+    }
+    return fuRes.records;
+  };
+
+  const applyVerifiedRelayFollowups = async (payloadData: any, source: 'relay' | 'express'): Promise<void> => {
+    if (!Array.isArray(payloadData?.followupRecords) || payloadData.followupRecords.length === 0) return;
+    const isVerified = payloadData.followupVerified !== false;
+    const isComplete = payloadData.followupComplete !== false && payloadData.isComplete !== false;
+    const isPartialParse = payloadData.followupPartialParse === true;
+    if (!isVerified || !isComplete || isPartialParse) {
+      console.warn(
+        `[SafePull] Skipping unverified/partial ${source} follow-up log; preserving local follow-up records.`
+      );
+      return;
+    }
+    const fuProof: FollowupPullVerificationProof = {
+      verified: true,
+      isComplete: true,
+      isPartialParse: false,
+      source
+    };
+    const reconciledFu = await idbSaveRemoteFollowupRecords(payloadData.followupRecords, fuProof).catch(() => null);
+    if (reconciledFu) {
+      onUpdateFollowups?.(reconciledFu);
+    }
+  };
 
   try {
     if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
@@ -1514,7 +2269,9 @@ export async function executeSyncData(
 
     if (appsScriptUrl) {
       // Path A: Direct Private Google Apps Script Relay (Reads + Writes + Private Sheet)
-      const queueResult = await executeProcessOfflineQueue(user, false, onNotify, onRecordPushTime);
+      const queueResult = await executeProcessOfflineQueue(user, false, onNotify, onRecordPushTime, {
+        isAutoTrigger: true
+      });
       if (!queueResult.success && queueResult.remainingCount > 0) {
         onNotify?.(
           'مزامنة مع حفظ المعلق',
@@ -1536,7 +2293,11 @@ export async function executeSyncData(
           if (!relayData || relayData.ok === false || !Array.isArray(relayData.students)) {
             throw new Error(relayData?.error || 'استجابة Apps Script لا تحتوي على students');
           }
-          data = relayData;
+          data = {
+            ...relayData,
+            source: relayData.source || 'relay',
+            students: tagNonGvizStudentsProvenance(relayData.students, relayData.hasVersionColumn)
+          };
           relayReadSucceeded = true;
         } catch (relayReadError: any) {
           console.warn('Apps Script read unavailable; falling back to Google Sheets Gviz:', relayReadError);
@@ -1560,29 +2321,31 @@ export async function executeSyncData(
         const existingMap = new Map(existingList.map((student) => [student.id, student]));
         const gvizResult = await fetchSheetStudentsViaGviz(SPREADSHEET_ID, targetSheet, existingMap);
         const linkRoster = mergeForFollowupLinking(gvizResult.students);
-        const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, linkRoster).catch((error) => {
-          console.warn('Gviz follow-up log read failed:', error);
-          return [];
-        });
-        if (remoteFollowups.length > 0) {
-          const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
-          onUpdateFollowups?.(reconciledFu);
-        }
+        const remoteFollowups = await applyVerifiedGvizFollowups(linkRoster, gvizResult.fallbackProbe);
+        const allRequestedVerified =
+          gvizResult.unverifiedSheets.length === 0 &&
+          gvizResult.failedSheets.length === 0 &&
+          gvizResult.confirmedSheets.length > 0;
         data = {
-          ok: true, targetSheet, sheet: targetSheet, isComplete: true, confirmedComplete: true,
-          confirmedSheets: gvizResult.confirmedSheets, confirmedEmptySheets: gvizResult.confirmedEmptySheets,
-          sheetsMeta: gvizResult.sheetsMeta, students: gvizResult.students, followupRecords: remoteFollowups
+          ok: allRequestedVerified,
+          source: 'gviz',
+          targetSheet,
+          sheet: targetSheet,
+          isComplete: allRequestedVerified,
+          confirmedComplete: allRequestedVerified,
+          confirmedSheets: gvizResult.confirmedSheets,
+          confirmedEmptySheets: gvizResult.confirmedEmptySheets,
+          unverifiedSheets: gvizResult.unverifiedSheets,
+          failedSheets: gvizResult.failedSheets,
+          sheetsMeta: gvizResult.sheetsMeta,
+          students: gvizResult.students,
+          followupRecords: remoteFollowups
         };
       } else if (Array.isArray(data.followupRecords) && data.followupRecords.length > 0) {
-        const reconciledFu = await idbSaveRemoteFollowupRecords(data.followupRecords).catch(() => data.followupRecords);
-        onUpdateFollowups?.(reconciledFu);
+        await applyVerifiedRelayFollowups(data, 'relay');
       } else if (typeof onUpdateFollowups === 'function') {
         const linkRoster = mergeForFollowupLinking(Array.isArray(data.students) ? data.students : []);
-        const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, linkRoster).catch(() => []);
-        if (remoteFollowups.length > 0) {
-          const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
-          onUpdateFollowups(reconciledFu);
-        }
+        await applyVerifiedGvizFollowups(linkRoster);
       }
     } else if (!hasExpressCredentials && (isNativeCapacitorRuntime() || typeof window !== 'undefined')) {
       // Path B: Direct Real Google Sheets Visualization Reader (gviz/tq) when Relay/Express Auth not configured
@@ -1591,19 +2354,22 @@ export async function executeSyncData(
       const gvizResult = await fetchSheetStudentsViaGviz(SPREADSHEET_ID, targetSheet, existingMap);
       const mergedMap = new Map(existingList.map((s) => [s.id, s]));
       gvizResult.students.forEach((s) => mergedMap.set(s.id, s));
-      const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, Array.from(mergedMap.values())).catch(() => []);
-      if (remoteFollowups.length > 0) {
-        const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
-        onUpdateFollowups?.(reconciledFu);
-      }
+      await applyVerifiedGvizFollowups(Array.from(mergedMap.values()), gvizResult.fallbackProbe);
+      const allRequestedVerified =
+        gvizResult.unverifiedSheets.length === 0 &&
+        gvizResult.failedSheets.length === 0 &&
+        gvizResult.confirmedSheets.length > 0;
       data = {
-        ok: true,
+        ok: allRequestedVerified,
+        source: 'gviz',
         targetSheet,
         sheet: targetSheet,
-        isComplete: true,
-        confirmedComplete: true,
+        isComplete: allRequestedVerified,
+        confirmedComplete: allRequestedVerified,
         confirmedSheets: gvizResult.confirmedSheets,
         confirmedEmptySheets: gvizResult.confirmedEmptySheets,
+        unverifiedSheets: gvizResult.unverifiedSheets,
+        failedSheets: gvizResult.failedSheets,
         sheetsMeta: gvizResult.sheetsMeta,
         students: gvizResult.students
       };
@@ -1635,7 +2401,9 @@ export async function executeSyncData(
         return false;
       }
 
-      const queueResult = await executeProcessOfflineQueue(user, false, onNotify, onRecordPushTime);
+      const queueResult = await executeProcessOfflineQueue(user, false, onNotify, onRecordPushTime, {
+        isAutoTrigger: true
+      });
 
       if (!queueResult.success && queueResult.remainingCount > 0) {
         onNotify?.(
@@ -1654,20 +2422,21 @@ export async function executeSyncData(
         throw new Error(`استجاب السيرفر بخطأ (HTTP ${res.status})`);
       }
 
-      data = await res.json();
-      if (!data || !Array.isArray(data.students)) {
+      const rawData = await res.json();
+      if (!rawData || !Array.isArray(rawData.students)) {
         throw new Error('بيانات الاستجابة من الشيت غير صالحة');
       }
 
+      data = {
+        ...rawData,
+        source: rawData.source || 'express',
+        students: tagNonGvizStudentsProvenance(rawData.students, rawData.hasVersionColumn)
+      };
+
       if (Array.isArray(data.followupRecords) && data.followupRecords.length > 0) {
-        const reconciledFu = await idbSaveRemoteFollowupRecords(data.followupRecords).catch(() => data.followupRecords);
-        onUpdateFollowups?.(reconciledFu);
+        await applyVerifiedRelayFollowups(data, 'express');
       } else {
-        const remoteFollowups = await fetchFollowupLogViaGviz(SPREADSHEET_ID, data.students).catch(() => []);
-        if (remoteFollowups.length > 0) {
-          const reconciledFu = await idbSaveRemoteFollowupRecords(remoteFollowups).catch(() => remoteFollowups);
-          onUpdateFollowups?.(reconciledFu);
-        }
+        await applyVerifiedGvizFollowups(data.students);
       }
     }
 
@@ -1692,45 +2461,135 @@ export async function executeSyncData(
         sheetsToProcess.add(sheetName);
       }
 
-      // Process each sheet safely:
-      // DO NOT replace local sheet data with an empty list unless confirmed complete for that specific sheet!
-      // In __ALL__ mode, completeness MUST be verified per sheetName independently.
-      // Generic top-level isComplete or confirmedComplete must NEVER be used to wipe multiple sheets.
+      // Uniform completeness criteria for BOTH Gviz and Relay/Express:
+      // Every requested sheet MUST be independently verified before modifying its local records,
+      // and ANY skipped/unverified/unconfirmed-empty sheet MUST be recorded in skippedUnverifiedSheets.
+      const isGvizSource = data?.source === 'gviz';
+      const appliedSheets: string[] = [];
+      const skippedUnverifiedSheets: string[] = [];
+
       for (const sheetName of sheetsToProcess) {
         const sheetStudents = bySheet.get(sheetName) || [];
         const isSheetEmpty = sheetStudents.length === 0;
+        const sheetMeta = data?.sheetsMeta?.[sheetName];
+
+        const isExplicitlyUnverifiedOrFailed = Boolean(
+          sheetMeta?.verified === false ||
+          sheetMeta?.isComplete === false ||
+          sheetMeta?.status === 'unverified' ||
+          sheetMeta?.status === 'failed' ||
+          (Array.isArray(data?.unverifiedSheets) && data.unverifiedSheets.includes(sheetName)) ||
+          (Array.isArray(data?.failedSheets) && data.failedSheets.includes(sheetName))
+        );
+
+        if (isExplicitlyUnverifiedOrFailed) {
+          console.warn(
+            `[SafePull] Skipping unverified/incomplete sheet "${sheetName}" (${sheetMeta?.reason || 'unverified'}); preserving local IndexedDB data.`
+          );
+          skippedUnverifiedSheets.push(sheetName);
+          continue;
+        }
+
+        if (isGvizSource && !(sheetMeta?.verified === true && sheetMeta?.isComplete === true && sheetMeta?.status === 'verified')) {
+          console.warn(
+            `[SafePull] Gviz pull for sheet "${sheetName}" lacks strict verification; preserving local IndexedDB data.`
+          );
+          skippedUnverifiedSheets.push(sheetName);
+          continue;
+        }
+
+        if (
+          !isGvizSource &&
+          (data?.isComplete === false || data?.confirmedComplete === false) &&
+          !(sheetMeta?.verified === true && sheetMeta?.isComplete === true)
+        ) {
+          console.warn(
+            `[SafePull] Non-Gviz pull marked incomplete for sheet "${sheetName}"; preserving local IndexedDB data.`
+          );
+          skippedUnverifiedSheets.push(sheetName);
+          continue;
+        }
 
         // Specific independent confirmation for this sheetName:
         const isSheetConfirmedComplete = Boolean(
           data && (
             (Array.isArray(data.confirmedEmptySheets) && data.confirmedEmptySheets.includes(sheetName)) ||
             (Array.isArray(data.confirmedSheets) && data.confirmedSheets.includes(sheetName)) ||
-            data.sheetsMeta?.[sheetName]?.isComplete === true ||
-            data.sheetsMeta?.[sheetName]?.confirmedComplete === true
+            sheetMeta?.isComplete === true ||
+            sheetMeta?.confirmedComplete === true
           )
         );
 
         if (isSheetEmpty && isSheetConfirmedComplete !== true) {
-          // Unconfirmed empty response: PRESERVE local sheet data without modification or deletion
+          // Unconfirmed empty response: PRESERVE local sheet data AND record in skippedUnverifiedSheets!
           console.warn(`Unconfirmed empty server response for sheet ${sheetName}; preserving local data.`);
+          skippedUnverifiedSheets.push(sheetName);
           continue;
         }
+
+        const effectiveComplete = isSheetEmpty ? isSheetConfirmedComplete : true;
+        const pullProof: PullVerificationProof = {
+          verified: true,
+          isComplete: effectiveComplete,
+          sheetName,
+          source: isGvizSource ? 'gviz' : 'relay',
+          reason: sheetMeta?.reason
+        };
 
         const sheetHasPending = remainingMutations.some(
           (m) => !m.sourceSheet || m.sourceSheet === sheetName
         );
 
         if (sheetHasPending || remainingMutations.length > 0) {
-          await idbReconcileStudents(sheetStudents, remainingMutations, sheetName, isSheetConfirmedComplete);
+          await idbReconcileStudents(sheetStudents, remainingMutations, sheetName, effectiveComplete, pullProof);
         } else {
-          await idbSaveStudents(sheetStudents, sheetName, isSheetConfirmedComplete);
+          await idbSaveStudents(sheetStudents, sheetName, effectiveComplete, pullProof);
         }
+        appliedSheets.push(sheetName);
+      }
+
+      if (appliedSheets.length === 0) {
+        const msg = 'فشل التحقق من هوية أو أعمدة أي فصل من Google Sheets؛ تم الاحتفاظ بكافة البيانات المحلية دون تعديل.';
+        onRecordPartialSync?.(null);
+        onRecordError?.(msg);
+        emitNotificationWithFallback('تعذر التحقق من بيانات الشيت', msg, 'warn');
+        return false;
       }
 
       finalStudents = await idbGetStudents();
       onUpdateStudents?.(finalStudents);
 
       const nowIso = new Date().toISOString();
+
+      // PARTIAL SYNC: One or more requested sheets were skipped/unverified.
+      // CRITICAL: Do NOT update Last Successful Sync Time (onRecordTimes) and do NOT return true!
+      if (skippedUnverifiedSheets.length > 0) {
+        onRecordPartialSync?.({
+          skippedSheets: skippedUnverifiedSheets,
+          appliedSheets,
+          timestamp: nowIso
+        });
+        emitNotificationWithFallback(
+          'مزامنة جزئية — تم حماية الفصول غير المؤكدة',
+          `تم تحديث الفصول المؤكدة فقط (${appliedSheets.join('، ')}) مع الإبقاء على البيانات المحلية للفصول غير المؤكدة (${skippedUnverifiedSheets.join('، ')}). لم يتم تحديث وقت آخر مزامنة مكتملة.`,
+          'warn'
+        );
+
+        if (remainingMutations.length > 0) {
+          const queueError = remainingMutations.find((mutation) => mutation.lastError)?.lastError;
+          const partialError =
+            queueError ||
+            `تم سحب بيانات جزئية، وما زالت هناك ${remainingMutations.length} عملية معلقة لم يتم تأكيد إرسالها إلى Google Sheets.`;
+          onRecordError?.(partialError);
+          return false;
+        }
+
+        onRecordError?.(null);
+        return 'partial';
+      }
+
+      // FULL SYNC: All requested sheets were verified and applied.
+      onRecordPartialSync?.(null);
       onRecordTimes?.(nowIso);
 
       if (remainingMutations.length === 0) {
@@ -1750,7 +2609,28 @@ export async function executeSyncData(
       }
     } else {
       // Single sheet handling
+      const isGvizSource = data?.source === 'gviz';
       const isSheetEmpty = data.students.length === 0;
+      const targetMeta = data?.sheetsMeta?.[targetSheet];
+
+      const isTargetExplicitlyUnverifiedOrFailed = Boolean(
+        targetMeta?.verified === false ||
+        targetMeta?.isComplete === false ||
+        targetMeta?.status === 'unverified' ||
+        targetMeta?.status === 'failed' ||
+        (Array.isArray(data?.unverifiedSheets) && data.unverifiedSheets.includes(targetSheet)) ||
+        (Array.isArray(data?.failedSheets) && data.failedSheets.includes(targetSheet)) ||
+        (isGvizSource && !(targetMeta?.verified === true && targetMeta?.isComplete === true && targetMeta?.status === 'verified')) ||
+        (!isGvizSource && (data?.isComplete === false || data?.confirmedComplete === false))
+      );
+
+      if (isTargetExplicitlyUnverifiedOrFailed) {
+        const reasonDetail = targetMeta?.reason ? ` (${targetMeta.reason})` : '';
+        const msg = `تم رفض استبدال بيانات فصل (${targetSheet}) لأن استجابة السحب غير مُتحقَّق منها أو غير مكتملة${reasonDetail}. تم الاحتفاظ بكافة البيانات المحلية.`;
+        onRecordError?.(msg);
+        emitNotificationWithFallback('تم حماية البيانات المحلية', msg, 'warn');
+        return false;
+      }
 
       // Completeness confirmation MUST be explicitly linked to targetSheet:
       // A generic data.isComplete or data.confirmedComplete without explicit sheet association is strictly rejected!
@@ -1760,14 +2640,14 @@ export async function executeSyncData(
             (data.isComplete === true || data.confirmedComplete === true)) ||
           (Array.isArray(data.confirmedEmptySheets) && data.confirmedEmptySheets.includes(targetSheet)) ||
           (Array.isArray(data.confirmedSheets) && data.confirmedSheets.includes(targetSheet)) ||
-          data.sheetsMeta?.[targetSheet]?.isComplete === true ||
-          data.sheetsMeta?.[targetSheet]?.confirmedComplete === true
+          targetMeta?.isComplete === true ||
+          targetMeta?.confirmedComplete === true
         )
       );
 
       if (isSheetEmpty && isTargetSheetConfirmedComplete !== true) {
         onRecordError?.(`استجابة فارغة غير مؤكدة لفصل (${targetSheet})`);
-        onNotify?.(
+        emitNotificationWithFallback(
           'استجابة فارغة غير مؤكدة',
           `استجابة السيرفر لفصل (${targetSheet}) فارغة دون دليل اكتمال الجلب لفصل (${targetSheet}) تحديداً. تم الاحتفاظ بالبيانات المحلية كاملة منعاً لأي مسح غير مقصود.`,
           'warn'
@@ -1775,8 +2655,23 @@ export async function executeSyncData(
         return false;
       }
 
+      const effectiveComplete = isSheetEmpty ? isTargetSheetConfirmedComplete : true;
+      const pullProof: PullVerificationProof = {
+        verified: true,
+        isComplete: effectiveComplete,
+        sheetName: targetSheet,
+        source: isGvizSource ? 'gviz' : 'relay',
+        reason: targetMeta?.reason
+      };
+
       if (remainingMutations.length > 0) {
-        finalStudents = await idbReconcileStudents(data.students, remainingMutations, targetSheet, isTargetSheetConfirmedComplete);
+        finalStudents = await idbReconcileStudents(
+          data.students,
+          remainingMutations,
+          targetSheet,
+          effectiveComplete,
+          pullProof
+        );
         onUpdateStudents?.(finalStudents);
         const nowIso = new Date().toISOString();
         onRecordTimes?.(nowIso);
@@ -1790,7 +2685,7 @@ export async function executeSyncData(
         );
         return false;
       } else {
-        await idbSaveStudents(data.students, targetSheet, isTargetSheetConfirmedComplete);
+        await idbSaveStudents(data.students, targetSheet, effectiveComplete, pullProof);
         finalStudents = await idbGetStudents();
         onUpdateStudents?.(finalStudents);
 
@@ -1804,7 +2699,7 @@ export async function executeSyncData(
     }
   } catch (err: any) {
     onRecordError?.(err?.message || 'تعذر الاتصال بالخادم، المعروض هو آخر كاش محلي');
-    onNotify?.('فشل التحديث', err?.message || 'تعذر الاتصال بالخادم، المعروض هو آخر كاش محلي', 'danger');
+    emitNotificationWithFallback('فشل التحديث', err?.message || 'تعذر الاتصال بالخادم، المعروض هو آخر كاش محلي', 'danger');
     return false;
   } finally {
     syncInProgressRef.current = false;
@@ -1916,6 +2811,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
+  const [partialSyncInfo, setPartialSyncInfo] = useState<PartialSyncInfo | null>(null);
+  const addNotificationRef = useRef<
+    ((title: string, desc?: string, type?: 'info' | 'warn' | 'success' | 'danger') => void) | null
+  >(null);
 
   // Modals & Drawers state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -1933,6 +2832,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAddModalOpen, setIsAddModalOpenState] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -1942,22 +2842,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, [isSidebarCollapsed]);
 
-  // Computed Sync Status reflecting 6 real states
-  const syncState = useMemo<'connected' | 'syncing' | 'synced' | 'failed' | 'offline' | 'pending'>(() => {
+  // Computed Sync Status reflecting 7 real states (including persistent 'partial' state)
+  const syncState = useMemo<AppSyncState>(() => {
     if (!isOnline) return 'offline';
     if (isSyncing || isQueueProcessing) return 'syncing';
     if (lastSyncError) return 'failed';
     if (pendingMutationsCount > 0) return 'pending';
+    if (partialSyncInfo && partialSyncInfo.skippedSheets.length > 0) return 'partial';
     if (lastSuccessfulSyncTime) return 'synced';
     return 'connected';
-  }, [isOnline, isSyncing, isQueueProcessing, lastSyncError, pendingMutationsCount, lastSuccessfulSyncTime]);
+  }, [isOnline, isSyncing, isQueueProcessing, lastSyncError, pendingMutationsCount, partialSyncInfo, lastSuccessfulSyncTime]);
 
-  // Online / Offline window listeners & auto-drain
+  // Online / Offline window listeners & backoff-aware auto-drain
   useEffect(() => {
+    const triggerIfDue = () => {
+      if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
+        return;
+      }
+      idbGetPendingMutations()
+        .then((pending) => {
+          if (hasDueQueueMutations(pending)) {
+            void triggerAutoProcessQueueRef.current?.(false);
+          }
+        })
+        .catch(() => {});
+    };
+
     const handleOnline = () => {
       setIsOnline(true);
       setLastSyncError(null);
-      void triggerAutoProcessQueueRef.current?.(false);
+      triggerIfDue();
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -1968,19 +2882,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const handleVisibility = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        void triggerAutoProcessQueueRef.current?.(false);
+        triggerIfDue();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
     const interval = setInterval(() => {
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        idbGetPendingMutations().then((pending) => {
-          if (pending.length > 0) {
-            void triggerAutoProcessQueueRef.current?.(false);
-          }
-        }).catch(() => {});
-      }
+      triggerIfDue();
     }, 20000);
 
     return () => {
@@ -2019,6 +2927,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Remove any leftover legacy mock records (`mock-*`) cleanly
         await idbPurgeMockRecords().catch(() => 0);
 
+        // Atomically migrate any legacy row-indexed student IDs (`gs_<sheet>_<code>_<row>`)
+        // to stable code-based IDs across all 4 IndexedDB stores before reading state.
+        await idbMigrateLegacyStudentIds().catch(() => null);
+
         const [cachedStudents, historyRecords] = await Promise.all([
           idbGetStudents(),
           idbGetAttendanceHistory().catch(() => [])
@@ -2051,23 +2963,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (mounted && cachedFollowup.length > 0) {
           setFollowupRecords(cachedFollowup);
         }
-        const pending = await refreshPendingState();
+        await refreshPendingState();
 
-        // Pull authoritative real data from Google Sheets when online (never invent mock data on failure)
+        // Pull authoritative real data from Google Sheets when online (never invent mock data on failure).
+        // NOTE: executeSyncData already runs a single unified offline-queue flush before pulling;
+        // do NOT call triggerAutoProcessQueueRef separately here to prevent duplicate startup processing.
         const onlineNow = typeof navigator === 'undefined' || navigator.onLine !== false;
-        if (mounted && onlineNow && pending.length > 0) {
-          void triggerAutoProcessQueueRef.current?.(false);
-        }
         if (mounted && onlineNow) {
           setIsSyncing(true);
           setLastSyncAttemptTime(new Date().toISOString());
           const targetOnBoot: SheetName = '__ALL__';
+          const startupNotify = (
+            title: string,
+            desc?: string,
+            type: 'info' | 'warn' | 'success' | 'danger' = 'info'
+          ) => {
+            if (!mounted) return;
+            if (type === 'warn' || type === 'danger') {
+              addNotificationRef.current?.(title, desc, type);
+            }
+          };
           const ok = await executeSyncData(
             targetOnBoot,
             user,
             false,
             syncInProgressLock,
-            undefined,
+            startupNotify,
             (fresh) => {
               if (mounted) setStudents(fresh.map((s) => normalizeStudentRecord(s)));
             },
@@ -2088,13 +3009,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             },
             (freshFollowups) => {
               if (mounted) setFollowupRecords(freshFollowups);
+            },
+            (partialInfo) => {
+              if (mounted) setPartialSyncInfo(partialInfo);
             }
           );
           if (mounted) {
-            if (ok) setLastSyncError(null);
+            if (ok === true || ok === 'partial') setLastSyncError(null);
             setIsSyncing(false);
             const postPending = await idbGetPendingMutations().catch(() => []);
-            if (mounted) setPendingMutationsCount(postPending.length);
+            if (mounted) {
+              setPendingMutationsCount(postPending.length);
+              const postEval = evaluateQueueMutationEligibility(postPending);
+              if (postEval.nextEarliestRetryAt !== null && !backoffRetryTimerRef.current) {
+                const delayMs = Math.max(1000, Math.min(60000, postEval.nextEarliestRetryAt - Date.now()));
+                backoffRetryTimerRef.current = setTimeout(() => {
+                  backoffRetryTimerRef.current = null;
+                  void triggerAutoProcessQueueRef.current?.(false);
+                }, delayMs);
+              }
+            }
           }
         } else if (mounted && cachedStudents.length === 0) {
           setLastSyncError('تعذر تحميل البيانات: لا يوجد اتصال بالإنترنت ولا توجد بيانات محفوظة محلياً.');
@@ -2116,6 +3050,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       mounted = false;
     };
   }, []);
+
+  const reloadLocalDatabaseState = useCallback(async () => {
+    const [cachedStudents, historyRecords, cachedFollowup] = await Promise.all([
+      idbGetStudents(),
+      idbGetAttendanceHistory().catch(() => []),
+      idbGetFollowupRecords()
+    ]);
+
+    if (historyRecords.length > 0) {
+      const histByStudent = new Map<string, Record<string, boolean>>();
+      for (const h of historyRecords) {
+        if (!histByStudent.has(h.studentId)) histByStudent.set(h.studentId, {});
+        histByStudent.get(h.studentId)![h.fridayDate] = h.status;
+      }
+      setStudents(
+        cachedStudents.map((st) => {
+          const localHist = histByStudent.get(st.id);
+          if (!localHist) return normalizeStudentRecord(st);
+          const nextAtt = { ...localHist, ...(st.att || {}) };
+          return normalizeStudentRecord({
+            ...st,
+            att: nextAtt,
+            attendanceMonth: computeMonthlyAttendanceSummary(nextAtt).presentCount
+          });
+        })
+      );
+    } else {
+      setStudents(cachedStudents.map((st) => normalizeStudentRecord(st)));
+    }
+
+    setFollowupRecords(cachedFollowup);
+    await refreshPendingState();
+    const migrated = loadAndMigrateNotifications();
+    if (Array.isArray(migrated.notifications) && migrated.notifications.length > 0) {
+      setNotifications((prev) => deduplicateNotifications([...prev, ...migrated.notifications]));
+    }
+  }, [refreshPendingState]);
 
   // Sync notifications to localStorage (deduplicated)
   useEffect(() => {
@@ -2157,6 +3128,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     []
   );
+  addNotificationRef.current = addNotification;
 
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)));
@@ -2255,14 +3227,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return filterStudentsByAppFilters(students, filters);
   }, [students, filters]);
 
-  // 1. Automatic Real-Time Queue Processor with Mutex, Batch Chunking & Exponential Backoff Scheduler
+  // 1. Automatic Real-Time Queue Processor with Unified Lock, Eligibility Guard & Backoff Scheduler
   const triggerAutoProcessQueue = useCallback(
     async (isImmediateUserAction: boolean = false): Promise<SyncQueueExecutionReport | void> => {
-      if (backoffRetryTimerRef.current) {
-        clearTimeout(backoffRetryTimerRef.current);
-        backoffRetryTimerRef.current = null;
-      }
-
       if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && !navigator.onLine) {
         setIsOnline(false);
         await refreshPendingState();
@@ -2274,6 +3241,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           );
         }
         return;
+      }
+
+      // Check eligibility BEFORE clearing any active backoff timer so background triggers never cancel backoff
+      const initialPending = await refreshPendingState();
+      const initialEligibility = evaluateQueueMutationEligibility(initialPending);
+      if (initialEligibility.eligible.length === 0) {
+        if (initialEligibility.nextEarliestRetryAt !== null && !backoffRetryTimerRef.current) {
+          const delayMs = Math.max(1000, Math.min(60000, initialEligibility.nextEarliestRetryAt - Date.now()));
+          backoffRetryTimerRef.current = setTimeout(() => {
+            backoffRetryTimerRef.current = null;
+            void triggerAutoProcessQueueRef.current?.(false);
+          }, delayMs);
+        }
+        return;
+      }
+
+      if (backoffRetryTimerRef.current) {
+        clearTimeout(backoffRetryTimerRef.current);
+        backoffRetryTimerRef.current = null;
       }
 
       if (queueLockRef.current) {
@@ -2289,7 +3275,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         do {
           queueNeedsRerunRef.current = false;
           const pending = await refreshPendingState();
-          if (pending.length === 0) break;
+          if (!hasDueQueueMutations(pending)) break;
 
           latestReport = await executeProcessOfflineQueue(
             user,
@@ -2299,6 +3285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setLastSuccessfulPushTime(pushIso);
             },
             {
+              isAutoTrigger: true,
               silent: isImmediateUserAction && pending.length === 1,
               onMutationStart: (mut) => {
                 if (mut.studentId) {
@@ -2316,6 +3303,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setSyncedStudentIds((prev) => prev.filter((id) => id !== mut.studentId));
                   }, 3500);
                   syncedTimersRef.current.set(mut.studentId, timer);
+                }
+                if (
+                  isImmediateUserAction &&
+                  pending.length === 1 &&
+                  (mut.action === 'followup' || mut.action === 'update' || mut.action === 'add')
+                ) {
+                  const actionLabel =
+                    mut.action === 'followup'
+                      ? 'الافتقاد'
+                      : mut.action === 'update'
+                      ? 'تعديل البيانات'
+                      : 'إضافة المخدوم';
+                  const verifiedNotif = buildRemoteVerifiedNotification(
+                    1,
+                    `تم تأكيد حفظ ${actionLabel} للمخدوم ${mut.studentName || mut.studentId} على Google Sheets بنجاح.`
+                  );
+                  addNotification(verifiedNotif.title, verifiedNotif.desc, verifiedNotif.type);
                 }
               },
               onMutationError: (mut, err) => {
@@ -2343,15 +3347,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await refreshPendingState();
         } while (queueNeedsRerunRef.current);
 
-        // Schedule Exponential Backoff auto-retry when retryable items remain
+        // Schedule Exponential Backoff auto-retry ONLY for deferred transient retryable items
+        // (strictly excludes conflicts, permanent failures, and exhausted retries)
         const remainingAfterRun = await idbGetPendingMutations().catch(() => []);
-        const retryable = remainingAfterRun.filter((m) => m.status !== 'conflict');
-        if (retryable.length > 0 && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
-          const earliestRetryAt = retryable.reduce((minTs, m) => {
-            const candidate = m.nextRetryAt || Date.now() + 4000;
-            return candidate < minTs ? candidate : minTs;
-          }, Number.MAX_SAFE_INTEGER);
-          const delayMs = Math.max(2000, Math.min(60000, earliestRetryAt - Date.now()));
+        const postEval = evaluateQueueMutationEligibility(remainingAfterRun);
+        if (
+          postEval.nextEarliestRetryAt !== null &&
+          (typeof navigator === 'undefined' || navigator.onLine !== false)
+        ) {
+          if (backoffRetryTimerRef.current) {
+            clearTimeout(backoffRetryTimerRef.current);
+          }
+          const delayMs = Math.max(1000, Math.min(60000, postEval.nextEarliestRetryAt - Date.now()));
           backoffRetryTimerRef.current = setTimeout(() => {
             backoffRetryTimerRef.current = null;
             void triggerAutoProcessQueueRef.current?.(false);
@@ -2371,8 +3378,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
   triggerAutoProcessQueueRef.current = triggerAutoProcessQueue;
 
-  // Manual trigger from Modals / UI
+  // Manual trigger from Modals / UI (routes through the exact same unified lock & respects targeted single retry)
   const processOfflineQueue = useCallback(async (): Promise<SyncQueueExecutionReport> => {
+    const manualTargetId = consumePendingManualRetryTarget() || undefined;
     setIsQueueProcessing(true);
     try {
       const res = await executeProcessOfflineQueue(
@@ -2381,7 +3389,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addNotification,
         (pushIso) => {
           setLastSuccessfulPushTime(pushIso);
-        }
+        },
+        manualTargetId ? { targetMutationId: manualTargetId } : undefined
       );
       setLastSyncReport(res);
       if (res.success) {
@@ -2389,25 +3398,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else if (res.lastError) {
         setLastSyncError(res.lastError);
       }
-      await refreshPendingState();
+      const postRemaining = await refreshPendingState();
+      const postEval = evaluateQueueMutationEligibility(postRemaining);
+      if (
+        postEval.nextEarliestRetryAt !== null &&
+        !backoffRetryTimerRef.current &&
+        (typeof navigator === 'undefined' || navigator.onLine !== false)
+      ) {
+        const delayMs = Math.max(1000, Math.min(60000, postEval.nextEarliestRetryAt - Date.now()));
+        backoffRetryTimerRef.current = setTimeout(() => {
+          backoffRetryTimerRef.current = null;
+          void triggerAutoProcessQueueRef.current?.(false);
+        }, delayMs);
+      }
       return res;
     } finally {
       setIsQueueProcessing(false);
     }
   }, [user, isPreviewMode, addNotification, refreshPendingState]);
 
-  // Clear ONLY pending unsynced queue mutations from IndexedDB; NEVER touch students/attendance_history/followup/Sheets
-  const clearOfflineQueue = useCallback(async (): Promise<{ clearedCount: number; verifiedEmpty: boolean }> => {
-    if (backoffRetryTimerRef.current) {
-      clearTimeout(backoffRetryTimerRef.current);
-      backoffRetryTimerRef.current = null;
-    }
-    const clearedCount = await idbClearMutations();
-    setInFlightStudentIds([]);
-    const remaining = await refreshPendingState();
-    const verifiedEmpty = remaining.length === 0;
-    return { clearedCount, verifiedEmpty };
-  }, [refreshPendingState]);
+  // Safe queue clear: requires explicit confirmation + fresh validated backup export before removing
+  // targeted (or all) mutations, atomically recalculates student hasUnsyncedLocalChanges flags, and
+  // NEVER marks discarded operations as remotely synchronized.
+  const clearOfflineQueue = useCallback(
+    async (options?: {
+      targetMutationIds?: string[];
+      confirmed?: boolean;
+      downloader?: QueueBackupDownloader;
+    }): Promise<SafeClearQueueResult> => {
+      const result = await executeSafeClearMutations({
+        targetMutationIds: options?.targetMutationIds,
+        confirmed: options?.confirmed === true,
+        downloader: options?.downloader
+      });
+
+      if (!result.ok) {
+        await refreshPendingState();
+        return result;
+      }
+
+      if (backoffRetryTimerRef.current) {
+        clearTimeout(backoffRetryTimerRef.current);
+        backoffRetryTimerRef.current = null;
+      }
+
+      setInFlightStudentIds([]);
+      const remaining = await refreshPendingState();
+
+      // Reload students from IndexedDB so React state immediately reflects recalculated hasUnsyncedLocalChanges
+      try {
+        const freshStudents = await idbGetStudents();
+        if (!hasUnsavedEditChangesRef.current) {
+          setStudents(freshStudents.map((s) => normalizeStudentRecord(s)));
+        }
+      } catch (reloadErr) {
+        console.warn('Failed to reload student flags after safe queue clear:', reloadErr);
+      }
+
+      return {
+        ...result,
+        remainingCount: remaining.length,
+        verifiedEmpty: remaining.length === 0
+      };
+    },
+    [refreshPendingState]
+  );
 
   // 2. Sync Data: Delegates to production engine + protects open edit session
   const syncData = useCallback(async (overrideSheet?: SheetName): Promise<boolean> => {
@@ -2424,8 +3479,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const attemptIso = new Date().toISOString();
     setLastSyncAttemptTime(attemptIso);
 
+    const requestedTarget = overrideSheet || filters.sheet;
     const res = await executeSyncData(
-      overrideSheet || filters.sheet,
+      requestedTarget,
       user,
       isPreviewMode,
       syncInProgressLock,
@@ -2448,11 +3504,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (errorMsg) => {
         setLastSyncError(errorMsg);
       },
-      setFollowupRecords
+      setFollowupRecords,
+      (partialInfo) => {
+        setPartialSyncInfo(partialInfo);
+      }
     );
 
-    if (res) {
+    if (res === true || res === 'partial') {
       setLastSyncError(null);
+    }
+    if (requestedTarget !== '__ALL__' && res === true) {
+      setPartialSyncInfo((prev) => {
+        if (!prev) return null;
+        const remainingSkipped = prev.skippedSheets.filter((s) => s !== requestedTarget);
+        if (remainingSkipped.length === 0) return null;
+        return {
+          ...prev,
+          skippedSheets: remainingSkipped,
+          appliedSheets: Array.from(new Set([...prev.appliedSheets, requestedTarget]))
+        };
+      });
     }
 
     setIsSyncing(false);
@@ -2460,7 +3531,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pending = await idbGetPendingMutations();
       setPendingMutationsCount(pending.length);
     } catch {}
-    return res;
+    return res === true;
   }, [filters.sheet, user, isPreviewMode, addNotification]);
 
   // 3. Mark Attendance: Unique UUID per intentional action, Africa/Cairo Friday dates, atomic history + deduplicated queue
@@ -2517,7 +3588,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         attendanceTotal: Math.max(0, student.attendanceTotal + totalDelta),
         attendanceMonth: monthlySummary.presentCount,
         lastAttendance: computedLastAttendance,
-        version: (student.version || 1) + 1
+        version: (student.version || 1) + 1,
+        hasUnsyncedLocalChanges: true
       };
 
       const mutation: OfflineMutation = {
@@ -2546,8 +3618,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const priorStudents = students;
       try {
-        await idbAtomicRecordAttendanceWithMutation(updatedStudent, historyRecord, mutation);
-        setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
+        const persisted = await idbAtomicRecordAttendanceWithMutation(updatedStudent, historyRecord, mutation);
+        setStudents((prev) => prev.map((s) => (s.id === studentId ? persisted.student : s)));
 
         await refreshPendingState();
         void triggerAutoProcessQueue(true);
@@ -2740,7 +3812,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
 
-      const friday = getNearestFridayString();
+      const { date: cairoDate, friday } = resolveFollowupCairoDates();
       const opId = generateUUID();
       const recordId = generateUUID();
       const safeStudentId = toSafeHeaderAscii(studentId);
@@ -2763,12 +3835,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           : {}),
         ...(cleanNotes ? { notes: cleanNotes } : {}),
-        version: (student.version || 1) + 1
+        version: (student.version || 1) + 1,
+        hasUnsyncedLocalChanges: true
       };
 
       const newRecord: FollowupRecord = {
         id: recordId,
-        date: new Date().toISOString().split('T')[0],
+        date: cairoDate,
         fridayDate: friday,
         studentId,
         studentCode: student.code,
@@ -2788,6 +3861,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sourceSheet: student.sourceSheet,
         payload: {
           friday,
+          date: cairoDate,
           method,
           recordId,
           ...(validOutcome ? { callOutcome: validOutcome } : {}),
@@ -2808,11 +3882,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
         setFollowupRecords((prev) => [newRecord, ...prev]);
         await refreshPendingState();
-        addNotification(
-          'تم تسجيل الافتقاد',
-          validOutcome ? `${student.name}: ${method} (${validOutcome})` : `${student.name}: ${method}`,
-          'success'
+        const localFollowupNotif = buildLocalSavedNotification(
+          'followup',
+          student.name,
+          validOutcome ? `${method} (${validOutcome})` : method
         );
+        addNotification(localFollowupNotif.title, localFollowupNotif.desc, localFollowupNotif.type);
         void triggerAutoProcessQueue(true);
         return true;
       } catch (err: any) {
@@ -2841,7 +3916,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updatedStudent: Student = {
         ...student,
         ...updatedFields,
-        version: (student.version || 1) + 1
+        version: (student.version || 1) + 1,
+        hasUnsyncedLocalChanges: true
       };
 
       const opId = generateUUID();
@@ -2864,7 +3940,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await idbAtomicUpdateStudentWithMutation(updatedStudent, mutation);
         setStudents((prev) => prev.map((s) => (s.id === studentId ? updatedStudent : s)));
         await refreshPendingState();
-        addNotification('تم تحديث البيانات', `تم تعديل بيانات ${student.name}`, 'success');
+        const localUpdateNotif = buildLocalSavedNotification('update', student.name);
+        addNotification(localUpdateNotif.title, localUpdateNotif.desc, localUpdateNotif.type);
         void triggerAutoProcessQueue(true);
         return true;
       } catch (err: any) {
@@ -2907,6 +3984,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         attendanceStatus: 'غائب',
         sourceSheet: studentData.sourceSheet || (filters.sheet === '__ALL__' ? 'نشط' : filters.sheet),
         version: 1,
+        hasUnsyncedLocalChanges: true,
         att: {},
         fu: {}
       };
@@ -2929,7 +4007,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await idbAtomicAddStudentWithMutation(newStudent, mutation);
         setStudents((prev) => [newStudent, ...prev]);
         await refreshPendingState();
-        addNotification('تمت إضافة المخدوم', `تم تسجيل ${newStudent.name} بنجاح`, 'success');
+        const localAddNotif = buildLocalSavedNotification('add', newStudent.name);
+        addNotification(localAddNotif.title, localAddNotif.desc, localAddNotif.type);
         void triggerAutoProcessQueue(true);
         return true;
       } catch (err: any) {
@@ -3004,6 +4083,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isOnline,
         lastSyncError,
         lastSyncReport,
+        partialSyncInfo,
         syncState,
         lastSyncAttemptTime,
         lastSuccessfulPushTime,
@@ -3030,6 +4110,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAddModalOpen,
         isSyncModalOpen,
         isQueueModalOpen,
+        isBackupModalOpen,
         setFilters,
         setActiveView,
         setActiveEditingId,
@@ -3048,6 +4129,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAddModalOpen,
         setIsSyncModalOpen,
         setIsQueueModalOpen,
+        setIsBackupModalOpen,
+        reloadLocalDatabaseState,
         syncData,
         markAttendance,
         importAttendanceBatch,

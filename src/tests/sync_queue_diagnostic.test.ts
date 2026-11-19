@@ -251,8 +251,9 @@ async function runDiagnosticTests() {
     // TEST 5: Verified Removal ONLY Upon Google Apps Script Confirmation
     // --------------------------------------------------------------------------
     // Simulate real successful confirmation from Google Apps Script
-    (globalThis as any).fetch = async (url: string) => {
+    (globalThis as any).fetch = async (url: string, opts?: any) => {
       if (url.includes('script.google.com')) {
+        const b = JSON.parse(String(opts?.body || '{}'));
         return {
           ok: true,
           status: 200,
@@ -262,7 +263,17 @@ async function runDiagnosticTests() {
             mutationId: idempKey,
             studentId: sampleStudent.id,
             newVersion: 3,
-            action: 'attendance'
+            action: 'attendance',
+            proof: {
+              mutationId: idempKey,
+              persisted: true,
+              operation: 'attendance',
+              studentId: sampleStudent.id,
+              friday: b.friday || b.date || '2026-11-13',
+              sheetName: b.sheet || sampleStudent.sourceSheet,
+              row: 4,
+              newVersion: 3
+            }
           })
         };
       }
@@ -274,7 +285,8 @@ async function runDiagnosticTests() {
       null,
       false,
       undefined,
-      (pushIso) => { pushTimeSaved = pushIso; }
+      (pushIso) => { pushTimeSaved = pushIso; },
+      { nowMs: Date.now() + 10_000 }
     );
 
     assert(successfulFlush.success === true, 'Test 5a: Queue flush succeeds on server confirmation');
@@ -455,7 +467,17 @@ async function runDiagnosticTests() {
           mutationId: arabicMutationKey,
           studentId: arabicStudentId,
           newVersion: 2,
-          action: 'attendance'
+          action: 'attendance',
+          proof: {
+            mutationId: arabicMutationKey,
+            persisted: true,
+            operation: 'attendance',
+            studentId: arabicStudentId,
+            friday: interceptedBody?.friday || interceptedBody?.date || '2026-11-20',
+            sheetName: interceptedBody?.sheet || 'نشط',
+            row: 9,
+            newVersion: 2
+          }
         })
       };
     };

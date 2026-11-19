@@ -22,6 +22,12 @@ export interface AppNotification {
 
 export type MutationQueueStatus = 'pending' | 'retrying' | 'timeout_unknown' | 'conflict' | 'failed';
 export type SyncOutcomeStatus = 'success' | 'pending' | 'timeout_unknown' | 'failed' | 'conflict';
+export type RemoteVerificationOutcome =
+  | 'verified_persisted'
+  | 'not_found_retryable'
+  | 'unknown'
+  | 'verification_unavailable'
+  | 'conflict';
 
 export interface MutationStageTimings {
   prepMs?: number;
@@ -46,9 +52,14 @@ export interface OfflineMutation {
   retryCount?: number;
   status?: MutationQueueStatus;
   syncOutcome?: SyncOutcomeStatus;
+  verificationOutcome?: RemoteVerificationOutcome;
+  remoteRecordId?: string;
+  verifiedAt?: string;
   lastError?: string;
   lastAttemptAt?: number;
   nextRetryAt?: number;
   lastDurationMs?: number;
   stageTimingsMs?: MutationStageTimings;
+  isPermanentError?: boolean;
+  errorCategory?: 'transient' | 'permanent' | 'conflict' | 'timeout';
 }

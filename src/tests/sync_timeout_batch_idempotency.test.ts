@@ -127,7 +127,26 @@ async function runTests() {
       const b = JSON.parse(String(init?.body || '{}'));
       assert.equal(b.action, 'attendance');
       assert.equal(b.idempotencyKey, singleKey);
-      return new Response(JSON.stringify({ ok: true, status: 200, mutationId: singleKey, newVersion: 2, serverDurationMs: 18 }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          status: 200,
+          mutationId: singleKey,
+          newVersion: 2,
+          serverDurationMs: 18,
+          proof: {
+            mutationId: singleKey,
+            persisted: true,
+            operation: 'attendance',
+            studentId: b.studentId,
+            friday: b.friday || b.date,
+            sheetName: b.sheet || 'نشط',
+            row: 2,
+            newVersion: 2
+          }
+        }),
+        { status: 200 }
+      );
     };
 
     const singleReport = await executeProcessOfflineQueue(null, false);
@@ -166,7 +185,22 @@ async function runTests() {
       assert.ok(body.mutations.length <= 15, 'Batch chunks must respect max chunk size (15)');
       const results = body.mutations.map((item: any) => {
         if (processedKeys.has(item.idempotencyKey)) {
-          return { ok: true, status: 200, deduplicated: true, mutationId: item.idempotencyKey };
+          return {
+            ok: true,
+            status: 200,
+            deduplicated: true,
+            mutationId: item.idempotencyKey,
+            proof: {
+              mutationId: item.idempotencyKey,
+              persisted: true,
+              operation: 'attendance',
+              studentId: item.studentId,
+              friday: item.friday || item.date,
+              sheetName: item.sheet || body.sheet || 'نشط',
+              row: 5,
+              deduplicated: true
+            }
+          };
         }
         const rec = serverState.get(item.studentId)!;
         if (rec.version !== item.expectedVersion) {
@@ -175,7 +209,22 @@ async function runTests() {
         rec.version += 1;
         rec.att[item.date] = item.isPresent;
         processedKeys.add(item.idempotencyKey);
-        return { ok: true, status: 200, mutationId: item.idempotencyKey, newVersion: rec.version };
+        return {
+          ok: true,
+          status: 200,
+          mutationId: item.idempotencyKey,
+          newVersion: rec.version,
+          proof: {
+            mutationId: item.idempotencyKey,
+            persisted: true,
+            operation: 'attendance',
+            studentId: item.studentId,
+            friday: item.friday || item.date,
+            sheetName: item.sheet || body.sheet || 'نشط',
+            row: 5,
+            newVersion: rec.version
+          }
+        };
       });
       return new Response(JSON.stringify({ ok: true, action: 'batch', results, serverDurationMs: 55 }), { status: 200 });
     };
@@ -254,7 +303,22 @@ async function runTests() {
         batchExecCount++;
         // Server EXECUTES the write immediately, BEFORE taking longer than client timeout to respond!
         for (const item of body.mutations) {
-          serverLedger.set(item.idempotencyKey, { ok: true, status: 200, mutationId: item.idempotencyKey, newVersion: 2 });
+          serverLedger.set(item.idempotencyKey, {
+            ok: true,
+            status: 200,
+            mutationId: item.idempotencyKey,
+            newVersion: 2,
+            proof: {
+              mutationId: item.idempotencyKey,
+              persisted: true,
+              operation: 'attendance',
+              studentId: item.studentId,
+              friday: item.friday || item.date,
+              sheetName: item.sheet || body.sheet || 'نشط',
+              row: 6,
+              newVersion: 2
+            }
+          });
         }
         return new Promise((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => {
@@ -349,9 +413,29 @@ async function runTests() {
     (globalThis as any).fetch = async (_u: string, init?: RequestInit) => {
       const b = JSON.parse(String(init?.body || '{}'));
       seenResendKeys.push(b.idempotencyKey);
-      return new Response(JSON.stringify({ ok: true, status: 200, mutationId: b.idempotencyKey, newVersion: 2 }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          status: 200,
+          mutationId: b.idempotencyKey,
+          newVersion: 2,
+          proof: {
+            mutationId: b.idempotencyKey,
+            persisted: true,
+            operation: 'attendance',
+            studentId: b.studentId,
+            friday: b.friday || b.date,
+            sheetName: b.sheet || 'نشط',
+            row: 7,
+            newVersion: 2
+          }
+        }),
+        { status: 200 }
+      );
     };
-    const recovered = await executeProcessOfflineQueue(null, false);
+    const recovered = await executeProcessOfflineQueue(null, false, undefined, undefined, {
+      nowMs: Date.now() + 10_000
+    });
     assert.equal(recovered.success, true);
     assert.deepEqual(seenResendKeys, [fixedRetryKey], 'Resend used identical immutable idempotencyKey');
     assert.equal((await idbGetPendingMutations()).length, 0);

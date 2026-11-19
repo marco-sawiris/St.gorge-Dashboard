@@ -131,13 +131,31 @@ async function runTests() {
 
   let fetchCallCount = 0;
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => {
+  globalThis.fetch = (async (_url: any, init?: any) => {
     fetchCallCount++;
+    const b = JSON.parse(String(init?.body || '{}'));
     await new Promise((r) => setTimeout(r, 40));
-    return new Response(JSON.stringify({ ok: true, status: 200, newVersion: 2 }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        status: 200,
+        newVersion: 2,
+        proof: {
+          mutationId: b.idempotencyKey || 'AUDIT_MUT_CONCURRENT_1',
+          persisted: true,
+          operation: 'attendance',
+          studentId: b.studentId || 'st_audit_1',
+          friday: b.friday || b.date || getLatestHeldFridayString(),
+          sheetName: b.sheet || 'نشط',
+          row: 4,
+          newVersion: 2
+        }
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   }) as any;
 
   try {

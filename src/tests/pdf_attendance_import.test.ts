@@ -723,7 +723,22 @@ async function runTests() {
           serverVersions.set(item.studentId, curVer + 1);
           if (!sentDatesPerStudent.has(item.studentId)) sentDatesPerStudent.set(item.studentId, []);
           sentDatesPerStudent.get(item.studentId)!.push(item.date);
-          return { ok: true, status: 200, mutationId: item.idempotencyKey, newVersion: curVer + 1 };
+          return {
+            ok: true,
+            status: 200,
+            mutationId: item.idempotencyKey,
+            newVersion: curVer + 1,
+            proof: {
+              mutationId: item.idempotencyKey,
+              persisted: true,
+              operation: 'attendance',
+              studentId: item.studentId,
+              friday: item.friday || item.date,
+              sheetName: item.sheet || body.sheet || 'نشط',
+              row: 10,
+              newVersion: curVer + 1
+            }
+          };
         });
         return new Response(JSON.stringify({ ok: true, action: 'batch', results, serverDurationMs: 42 }), { status: 200 });
       }
@@ -735,10 +750,28 @@ async function runTests() {
       serverVersions.set(body.studentId, curVer + 1);
       if (!sentDatesPerStudent.has(body.studentId)) sentDatesPerStudent.set(body.studentId, []);
       sentDatesPerStudent.get(body.studentId)!.push(body.date);
-      return new Response(JSON.stringify({ ok: true, id: body.idempotencyKey }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          id: body.idempotencyKey,
+          proof: {
+            mutationId: body.idempotencyKey,
+            persisted: true,
+            operation: 'attendance',
+            studentId: body.studentId,
+            friday: body.friday || body.date,
+            sheetName: body.sheet || 'نشط',
+            row: 10,
+            newVersion: curVer + 1
+          }
+        }),
+        { status: 200 }
+      );
     };
 
-    const okDrain = await executeProcessOfflineQueue(null as AuthUser | null, false);
+    const okDrain = await executeProcessOfflineQueue(null as AuthUser | null, false, undefined, undefined, {
+      nowMs: Date.now() + 10_000
+    });
     assert.equal(sawNoCors, false, 'MUST NEVER use opaque mode: no-cors');
     assert.equal(okDrain.success, true);
     assert.equal(okDrain.sentCount, batchPlan.mutations.length);

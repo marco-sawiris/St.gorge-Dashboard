@@ -6,6 +6,7 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   CloudUpload
 } from 'lucide-react';
 
@@ -14,12 +15,15 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
     syncState,
     isSyncing,
     pendingMutationsCount,
+    partialSyncInfo,
     lastSuccessfulSyncTime,
     lastSuccessfulSyncCompact,
     setIsSyncModalOpen
   } = useApp();
 
-  // Configuration for each of the 6 real states
+  const skippedCount = partialSyncInfo?.skippedSheets?.length || 0;
+
+  // Configuration for each of the 7 real states (including persistent 'partial' warning state)
   // Note: Always displays last successful sync date & time next to "متصل", or clear "لم تتم مزامنة بعد" if none
   const config = {
     connected: {
@@ -45,6 +49,14 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
       colorClass: 'text-[var(--success-text)]',
       bgClass: 'bg-[var(--success-bg)] border-[var(--success-border)]',
       dotClass: 'bg-[var(--success-text)]'
+    },
+    partial: {
+      label: skippedCount > 0 ? `مزامنة جزئية (${skippedCount} غير مؤكد)` : 'مزامنة جزئية',
+      mobileLabel: 'جزئية',
+      icon: AlertTriangle,
+      colorClass: 'text-[var(--warning-text)]',
+      bgClass: 'bg-[var(--warning-bg)] border-[var(--warning-border)]',
+      dotClass: 'bg-[var(--warning-text)]'
     },
     failed: {
       label: lastSuccessfulSyncCompact ? `فشلت المزامنة • آخر نجاح ${lastSuccessfulSyncCompact}` : 'فشلت المزامنة',
@@ -78,9 +90,12 @@ export const SyncStatusIndicator: React.FC<{ className?: string }> = ({ classNam
     <button
       type="button"
       onClick={() => setIsSyncModalOpen(true)}
+      data-sync-state={syncState}
       className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] sm:min-h-[38px] h-auto rounded-xl text-[10.5px] sm:text-[11.5px] font-semibold transition-all duration-200 cursor-pointer select-none active:scale-95 shadow-xs border min-w-0 max-w-[132px] sm:max-w-[240px] md:max-w-none shrink-0 overflow-hidden ${config.bgClass} ${config.colorClass} ${className}`}
       title={
-        lastSuccessfulSyncTime
+        syncState === 'partial' && partialSyncInfo?.skippedSheets?.length
+          ? `مزامنة جزئية: تم تخطي (${partialSyncInfo.skippedSheets.join('، ')}) مع حماية البيانات المحلية — اضغط للتفاصيل`
+          : lastSuccessfulSyncTime
           ? `آخر مزامنة ناجحة: ${lastSuccessfulSyncTime} — اضغط للتفاصيل`
           : 'لم تتم أي مزامنة ناجحة بعد — اضغط للتفاصيل'
       }

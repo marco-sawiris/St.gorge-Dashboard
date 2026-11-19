@@ -679,7 +679,22 @@ async function runTests() {
 
       if (body.action === 'attendance') {
         return new Response(
-          JSON.stringify({ ok: true, status: 200, mutationId: body.idempotencyKey, newVersion: (body.expectedVersion || 1) + 1 }),
+          JSON.stringify({
+            ok: true,
+            status: 200,
+            mutationId: body.idempotencyKey,
+            newVersion: (body.expectedVersion || 1) + 1,
+            proof: {
+              mutationId: body.idempotencyKey,
+              persisted: true,
+              operation: 'attendance',
+              studentId: body.studentId,
+              friday: body.friday || body.date,
+              sheetName: incomingSheet,
+              row: 8,
+              newVersion: (body.expectedVersion || 1) + 1
+            }
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
       }

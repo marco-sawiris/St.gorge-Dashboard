@@ -320,11 +320,25 @@ async function runConsolidatedTests() {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ ok: true, mutationId: testMutId })
+        json: async () => ({
+          ok: true,
+          mutationId: testMutId,
+          proof: {
+            mutationId: testMutId,
+            persisted: true,
+            operation: capturedBody.action || 'attendance',
+            studentId: capturedBody.studentId || mockStudent.id,
+            friday: capturedBody.friday || capturedBody.date,
+            sheetName: capturedBody.sheet || 'نشط',
+            row: 3
+          }
+        })
       } as any;
     };
 
-    const successProcess = await executeProcessOfflineQueue(null, false);
+    const successProcess = await executeProcessOfflineQueue(null, false, undefined, undefined, {
+      nowMs: Date.now() + 10_000
+    });
     assert(successProcess.success === true && successProcess.remainingCount === 0, 'Task 6d: Success flushes mutation cleanly');
     assert(capturedBody?.sheet === 'نشط' && capturedBody?.name === mockStudent.name, 'Task 6e: POST body carries Arabic name and sheet in UTF-8 JSON');
     queued = await idbGetPendingMutations();

@@ -133,6 +133,14 @@ export function getMonthFridays(year: number, month: number): string[] {
 }
 
 /**
+ * Returns today's calendar date (YYYY-MM-DD) strictly in Africa/Cairo timezone.
+ * Eliminates UTC midnight date-shift bugs (e.g., 00:00–02:59 Cairo time).
+ */
+export function getCairoTodayIsoDate(refDate: Date = new Date()): string {
+  return getCairoDateParts(refDate).isoDate;
+}
+
+/**
  * Returns the nearest upcoming Friday (or today if Friday) in Africa/Cairo timezone.
  */
 export function getNearestFridayString(refDate: Date = new Date()): string {
@@ -141,6 +149,24 @@ export function getNearestFridayString(refDate: Date = new Date()): string {
   const base = new Date(Date.UTC(cairo.year, cairo.month - 1, cairo.day + diff));
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${base.getUTCFullYear()}-${pad(base.getUTCMonth() + 1)}-${pad(base.getUTCDate())}`;
+}
+
+/**
+ * Resolves consistent Cairo-local followup dates for both local storage and offline mutations:
+ * - `date`: exact Africa/Cairo calendar date (YYYY-MM-DD) when the followup was recorded.
+ * - `friday`: intended service week Friday (YYYY-MM-DD); preserves an explicit valid Friday if supplied,
+ *   otherwise resolves the active Africa/Cairo Friday week.
+ */
+export function resolveFollowupCairoDates(
+  refDate: Date = new Date(),
+  explicitFriday?: string
+): { date: string; friday: string } {
+  const date = getCairoTodayIsoDate(refDate);
+  const trimmedFriday = typeof explicitFriday === 'string' ? explicitFriday.trim() : '';
+  const friday = /^\d{4}-\d{2}-\d{2}$/.test(trimmedFriday)
+    ? trimmedFriday
+    : getNearestFridayString(refDate);
+  return { date, friday };
 }
 
 /**

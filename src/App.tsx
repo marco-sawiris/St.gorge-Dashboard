@@ -15,6 +15,7 @@ import { AppearanceModal } from './components/modals/AppearanceModal';
 import { PdfAttendanceImportModal } from './components/modals/PdfAttendanceImportModal';
 import { SyncDetailsModal } from './components/modals/SyncDetailsModal';
 import { QueueDetailsModal } from './components/modals/QueueDetailsModal';
+import { BackupRestoreModal } from './components/modals/BackupRestoreModal';
 import { StudentCard } from './components/cards/StudentCard';
 import { StudentsTableView } from './components/table/StudentsTableView';
 import { DashboardChartsView } from './components/charts/DashboardChartsView';
@@ -114,6 +115,7 @@ export default function App() {
         <PdfAttendanceImportModal />
         <SyncDetailsModal />
         <QueueDetailsModal />
+        <BackupRestoreModal />
 
         {/* Add Modal & Table-View Edit Modal (Cards view uses Inline Card Edit so all cards stay visible) */}
         <StudentFormModal

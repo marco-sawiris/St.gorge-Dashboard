@@ -160,7 +160,16 @@ async function runAutoSyncTests() {
           ok: true,
           row: 2,
           total: 6,
-          lastAttendance: fridayDate1
+          lastAttendance: fridayDate1,
+          proof: {
+            mutationId: sentPayload1.idempotencyKey,
+            persisted: true,
+            operation: 'attendance',
+            studentId: sentPayload1.studentId,
+            friday: sentPayload1.friday || fridayDate1,
+            sheetName: sentPayload1.sheet || 'نشط',
+            row: 2
+          }
         })
       } as any;
     };
@@ -227,7 +236,16 @@ async function runAutoSyncTests() {
           ok: true,
           row: 2,
           total: 5,
-          lastAttendance: ''
+          lastAttendance: '',
+          proof: {
+            mutationId: sentPayload2.idempotencyKey,
+            persisted: true,
+            operation: 'attendance',
+            studentId: sentPayload2.studentId,
+            friday: sentPayload2.friday || fridayDate1,
+            sheetName: sentPayload2.sheet || 'نشط',
+            row: 2
+          }
         })
       } as any;
     };
@@ -292,6 +310,7 @@ async function runAutoSyncTests() {
     let reconnectFetchCalled = false;
     globalThis.fetch = async (url: any, init?: any) => {
       reconnectFetchCalled = true;
+      const b = JSON.parse(init?.body || '{}');
       return {
         ok: true,
         status: 200,
@@ -299,7 +318,16 @@ async function runAutoSyncTests() {
           ok: true,
           row: 3,
           total: 5,
-          lastAttendance: fridayDate1
+          lastAttendance: fridayDate1,
+          proof: {
+            mutationId: b.idempotencyKey,
+            persisted: true,
+            operation: b.action || 'attendance',
+            studentId: b.studentId,
+            friday: b.friday || fridayDate1,
+            sheetName: b.sheet || 'نشط',
+            row: 3
+          }
         })
       } as any;
     };
@@ -392,7 +420,20 @@ async function runAutoSyncTests() {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ ok: true, row: 2 })
+        json: async () => ({
+          ok: true,
+          row: 2,
+          proof: {
+            mutationId: b.idempotencyKey,
+            persisted: true,
+            operation: b.action,
+            studentId: b.studentId,
+            friday: b.friday || b.date || '2026-11-06',
+            sheetName: b.sheet || 'نشط',
+            row: 2,
+            ...(b.action === 'followup' ? { followupLogAppended: true, followupLogRow: 12, recordId: `rec_${b.idempotencyKey}` } : {})
+          }
+        })
       } as any;
     };
 
@@ -467,15 +508,32 @@ async function runAutoSyncTests() {
     assert(pendingAfter6[0].lastError?.includes('تعذر الاتصال بالشبكة'), 'Scenario 6: Recorded descriptive error message');
 
     // Network recovers on retry
-    globalThis.fetch = async () => {
+    globalThis.fetch = async (_url: any, init?: any) => {
+      const b = JSON.parse(init?.body || '{}');
       return {
         ok: true,
         status: 200,
-        json: async () => ({ ok: true, row: 2, total: 6, lastAttendance: fridayDate1 })
+        json: async () => ({
+          ok: true,
+          row: 2,
+          total: 6,
+          lastAttendance: fridayDate1,
+          proof: {
+            mutationId: b.idempotencyKey,
+            persisted: true,
+            operation: 'attendance',
+            studentId: b.studentId,
+            friday: b.friday || fridayDate1,
+            sheetName: b.sheet || 'نشط',
+            row: 2
+          }
+        })
       } as any;
     };
 
-    const syncRes6Recover = await executeProcessOfflineQueue(mockAdminUser, false);
+    const syncRes6Recover = await executeProcessOfflineQueue(mockAdminUser, false, undefined, undefined, {
+      nowMs: Date.now() + 10_000
+    });
     assert.strictEqual(syncRes6Recover.success, true, 'Scenario 6: Automatic retry succeeds');
     assert.strictEqual(syncRes6Recover.sentCount, 1, 'Scenario 6: Sent 1 on recovery');
 

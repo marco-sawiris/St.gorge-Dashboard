@@ -19,7 +19,8 @@ import {
   PanelRightOpen,
   Bot,
   Palette,
-  FileUp
+  FileUp,
+  HardDriveDownload
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -36,6 +37,7 @@ export const Sidebar: React.FC = () => {
     setIsAreaModalOpen,
     setIsSyncModalOpen,
     setIsAssistantOpen,
+    setIsBackupModalOpen,
     students,
     filters,
     setFilters,
@@ -408,6 +410,22 @@ export const Sidebar: React.FC = () => {
               <Palette className="w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)]" />
               <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
                 مظهر وسمة التطبيق
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setIsBackupModalOpen?.(true);
+              }}
+              title="النسخ الاحتياطي والاستعادة"
+              style={{ '--i': 10 } as React.CSSProperties}
+              className={navLinkClass(false)}
+            >
+              <HardDriveDownload className="w-[18px] h-[18px] shrink-0 text-[var(--accent-secondary)]" />
+              <span className={`min-w-0 flex-1 whitespace-normal break-words leading-[1.35] text-right ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+                النسخ الاحتياطي والاستعادة
               </span>
             </button>
 

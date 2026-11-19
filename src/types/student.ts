@@ -1,5 +1,7 @@
+export type StudentIdentityQuality = 'explicit_id' | 'stable_code' | 'unkeyed';
+
 export interface Student {
-  id: string; // Real UUID v4
+  id: string; // Real UUID v4 or canonical stable student code ID
   code: string; // e.g. "SG-101"
   name: string;
   servant: string;
@@ -19,6 +21,9 @@ export interface Student {
   sourceSheet: string;
   rowNumber?: number;
   version: number; // Concurrency version
+  hasRemoteVersion?: boolean; // True only when remote source provided an explicit authoritative version column
+  hasUnsyncedLocalChanges?: boolean; // True while local edits are awaiting remote confirmation
+  identityQuality?: StudentIdentityQuality; // Provenance of student ID stability
   att: Record<string, boolean>; // date (YYYY-MM-DD) -> boolean
   fu: Record<string, string>; // date (YYYY-MM-DD) -> followup status
   fuOutcomes?: Record<string, 'تم التواصل' | 'لم يتم التواصل'>; // date (YYYY-MM-DD) -> phone call outcome

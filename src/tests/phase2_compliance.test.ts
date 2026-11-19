@@ -362,12 +362,26 @@ async function runPhase2Tests() {
     // Relay key authenticates the shared endpoint; no servant account login is required.
     setRelayKey('PHASE2_TEST_RELAY_KEY_32_CHARACTERS_MINIMUM');
 
-    // 4a. Direct execution succeeds without requiring servant login when server responds 200 ok
-    (globalThis as any).fetch = async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ ok: true })
-    });
+    // 4a. Direct execution succeeds without requiring servant login when server responds with valid persistence proof
+    (globalThis as any).fetch = async (_url: string, init?: any) => {
+      const b = JSON.parse(String(init?.body || '{}'));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          proof: {
+            mutationId: b.idempotencyKey || mutation.id,
+            persisted: true,
+            operation: 'attendance',
+            studentId: mutation.studentId,
+            friday: mutation.payload.friday,
+            sheetName: mutation.sourceSheet,
+            row: 5
+          }
+        })
+      };
+    };
     const directResult = await executeProcessOfflineQueue(null, false);
     assert(directResult.success === true, 'Direct queue processing works without servant login');
     assert(directResult.sentCount === 1 && directResult.remainingCount === 0, 'Mutation sent and cleared');
@@ -436,14 +450,26 @@ async function runPhase2Tests() {
     let recordedPushIso: string | null = null;
     let callIndex = 0;
 
-    // mut1 succeeds (200), mut2 fails (500)
-    (globalThis as any).fetch = async () => {
+    // mut1 succeeds (200 with proof), mut2 fails (500)
+    (globalThis as any).fetch = async (_url: string, init?: any) => {
       callIndex++;
       if (callIndex === 1) {
+        const b = JSON.parse(String(init?.body || '{}'));
         return {
           ok: true,
           status: 200,
-          json: async () => ({ ok: true })
+          json: async () => ({
+            ok: true,
+            proof: {
+              mutationId: b.idempotencyKey || mut1.id,
+              persisted: true,
+              operation: 'attendance',
+              studentId: mut1.studentId,
+              friday: mut1.payload.friday,
+              sheetName: mut1.sourceSheet,
+              row: 6
+            }
+          })
         };
       }
       return {
@@ -1182,7 +1208,7 @@ async function runPhase2Tests() {
     };
 
     const syncAllResult = await executeSyncData('__ALL__', mockAuthenticatedUser, false, syncLock);
-    assert(syncAllResult === true, 'executeSyncData for __ALL__ proceeds safely');
+    assert(syncAllResult === 'partial', 'executeSyncData for __ALL__ returns partial when unconfirmed empty sheets are skipped');
 
     // 3. Verify Zero Data Loss on Unconfirmed Sheets:
     // - 'نشط': confirmed empty -> cleared from database

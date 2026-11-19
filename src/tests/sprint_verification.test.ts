@@ -280,7 +280,21 @@ async function runSprintTests() {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ ok: true, mutationId: mutId, newVersion: 2 })
+        json: async () => ({
+          ok: true,
+          mutationId: mutId,
+          newVersion: 2,
+          proof: {
+            mutationId: body.idempotencyKey || mutId,
+            persisted: true,
+            operation: body.action || 'attendance',
+            studentId: body.studentId || serverStudent.id,
+            friday: body.friday || body.date || '2026-11-13',
+            sheetName: body.sheet || 'نشط',
+            row: 2,
+            newVersion: 2
+          }
+        })
       } as any;
     }
     return { ok: false, status: 404 } as any;
@@ -316,7 +330,19 @@ async function runSprintTests() {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ ok: true, newVersion: 3 })
+        json: async () => ({
+          ok: true,
+          newVersion: 3,
+          proof: {
+            mutationId: capturedRelayPostBody.idempotencyKey || capturedRelayPostBody.id,
+            persisted: true,
+            operation: capturedRelayPostBody.action || 'update',
+            studentId: capturedRelayPostBody.studentId || serverStudent.id,
+            sheetName: capturedRelayPostBody.sheet || 'نشط',
+            row: 2,
+            newVersion: 3
+          }
+        })
       } as any;
     }
     capturedRelayGetUrl = urlStr;

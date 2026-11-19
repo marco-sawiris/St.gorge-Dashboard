@@ -1,0 +1,516 @@
+{
+  "metadata": {
+    "schemaVersion": "1.0.0",
+    "phase": "Phase 1 — Historical Followup Data Preservation",
+    "mode": "read_only_static_backup",
+    "backupWeekEnding": "2026-11-20",
+    "createdAt": "2026-11-20T00:00:00Z",
+    "syncDirectives": {
+      "createMutations": false,
+      "queueOfflineSync": false,
+      "writeToGoogleSheets": false,
+      "modifyLocalDatabase": false
+    },
+    "rulesApplied": [
+      "Strict separation between followup_records, attendance_notes, and weekly_status.",
+      "Attendance/follow-up notes (2026-11-18) are NOT treated as completed follow-up records (completedFollowup: false).",
+      "Unconfirmed codes, dates, servants, or call outcomes are explicitly set to \"unknown\" without inference or synthetic test data.",
+      "Original source metadata is preserved on every record.",
+      "No sync mutations or pending operations are generated."
+    ],
+    "recordCounts": {
+      "followup_records": 8,
+      "attendance_notes": 6,
+      "weekly_status_followed_up": 9,
+      "weekly_status_remaining": 5
+    }
+  },
+  "followup_records": [
+    {
+      "id": "hist-followup-001",
+      "studentName": "ماهر صبحي",
+      "sheetStudentName": "ماهر صبحى ",
+      "studentCode": "612902",
+      "servant": "unknown",
+      "method": "unknown",
+      "date": "unknown",
+      "fridayDate": "unknown",
+      "sourceSheet": "unknown",
+      "callOutcome": "unknown",
+      "notes": "unknown",
+      "completedFollowup": true,
+      "source": {
+        "primary": "تقرير سجل الافتقاد بتاريخ 6 نوفمبر 2026",
+        "crossReference": "Google Sheets tab: سجل الافتقاد (row 2)"
+      }
+    },
+    {
+      "id": "hist-followup-002",
+      "studentName": "كريس جوزيف عاطف",
+      "sheetStudentName": "كريس جوزيف عاطف",
+      "studentCode": "unknown",
+      "servant": "ماركو ملجي فارس",
+      "method": "اتصال",
+      "sheetRawType": "تم تليفونياً — لم يتم الوصول",
+      "date": "2026-10-20",
+      "fridayDate": "2026-10-23",
+      "sourceSheet": "نشط",
+      "callOutcome": "لم يتم التواصل",
+      "notes": "unknown",
+      "completedFollowup": true,
+      "source": {
+        "primary": "تقرير سجل الافتقاد بتاريخ 6 نوفمبر 2026",
+        "crossReference": "Google Sheets tab: سجل الافتقاد (row 9)"
+      }
+    },
+    {
+      "id": "hist-followup-003",
+      "studentName": "توماس كامل يوسف فرج",
+      "sheetStudentName": "توماس كامل يوسف فرج",
+      "studentCode": "1304",
+      "servant": "ماركو ملجي فارس",
+      "method": "اتصال",
+      "sheetRawType": "تم تليفونياً",
+      "date": "2026-10-19",
+      "fridayDate": "2026-10-23",
+      "sourceSheet": "غير حاضر",
+      "callOutcome": "unknown",
+      "notes": "ليس لديه اي  ارقام تليفون ورقم التليفون اللي كان موجود علي الواتس اب كانت صورة لبنت محجة  وتم التاكد انه غير متاح علي اي جروب",
+      "completedFollowup": true,
+      "source": {
+        "primary": "تقرير سجل الافتقاد بتاريخ 6 نوفمبر 2026",
+        "crossReference": "Google Sheets tab: سجل الافتقاد (row 3)"
+      }
+    },
+    {
+      "id": "hist-followup-004",
+      "studentName": "كاراس أسامة سلامة",
+      "sheetStudentName": "كاراس أسامة سلامة",
+      "studentCode": "1313",
+      "servant": "ماركو ملجي فارس",
+      "method": "اتصال",
+      "sheetRawType": "تم تليفونياً",
+      "date": "2026-10-19",
+      "fridayDate": "2026-10-23",
+      "sourceSheet": "غير حاضر",
+      "callOutcome": "unknown",
+      "notes": "unknown",
+      "completedFollowup": true,
+      "source": {
+        "primary": "تقرير سجل الافتقاد بتاريخ 6 نوفمبر 2026",
+        "crossReference": "Google Sheets tab: سجل الافتقاد (row 4)"
+      }
+    },
+    {
+      "id": "hist-followup-005",
+      "studentName": "مايكل ميلاد عيد",
+      "sheetStudentName": "مايكل ميلاد عيد",
+      "studentCode": "1312",
+      "servant": "ماركو ملجي فارس",
+      "method": "اتصال",
+      "sheetRawType": "تم تليفونياً",
+      "date": "2026-10-19",
+      "fridayDate": "2026-10-23",
+      "sourceSheet": "غير حاضر",
+      "callOutcome": "unknown",
+      "notes": "بيحضر  في كنيسة  كنيسة العدرا بعزبة النخل",
+      "completedFollowup": true,
+      "source": {
+        "primary": "تقرير سجل الافتقاد بتاريخ 6 نوفمبر 2026",
+        "crossReference": "Google Sheets tab: سجل الافتقاد (row 5)"
+      }
+    },
+    {
+      "id": "hist-followup-006",
+      "studentName": "مينا أيمن فؤاد",
+      "sheetStudentName": "مينا أيمن فؤاد",
+      "studentCode": "616777",
+      "servant": "ماركو ملجي فارس",
+      "method": "اتصال",
+      "sheetRawType": "تم تليفونياً",
+      "date": "2026-10-19",
+      "fridayDate": "2026-10-23",
+      "sourceSheet": "غير حاضر",
+      "callOutcome": "unknown",
+      "notes": "unknown",
+      "completedFollowup": true,
+      "source": {
+        "primary": "تقرير سجل الافتقاد بتاريخ 6 نوفمبر 2026",
+        "crossReference": "Google Sheets tab: سجل الافتقاد (row 6)"
+      }
+    },
+    {
+      "id": "hist-followup-007",
+      "studentName": "بافلى أيمن حسنى",
+      "sheetStudentName": "بافلى أيمن حسنى",
+      "studentCode": "1308",
+      "servant": "ماركو ملجي فارس",
+      "method": "اتصال",
+      "sheetRawType": "تم تليفونياً",
+      "date": "2026-10-19",
+      "fridayDate": "2026-10-23",
+      "sourceSheet": "غير حاضر",
+      "callOutcome": "unknown",
+      "notes": "unknown",
+      "completedFollowup": true,
+      "source": {
+        "primary": "تقرير سجل الافتقاد بتاريخ 6 نوفمبر 2026",
+        "crossReference": "Google Sheets tab: سجل الافتقاد (row 7)"
+      }
+    },
+    {
+      "id": "hist-followup-008",
+      "studentName": "ديفيد أيمن حسنى",
+      "sheetStudentName": "ديفيد أيمن حسنى",
+      "studentCode": "1307",
+      "servant": "ماركو ملجي فارس",
+      "method": "اتصال",
+      "sheetRawType": "تم تليفونياً",
+      "date": "2026-10-19",
+      "fridayDate": "2026-10-23",
+      "sourceSheet": "غير حاضر",
+      "callOutcome": "unknown",
+      "notes": "unknown",
+      "completedFollowup": true,
+      "source": {
+        "primary": "تقرير سجل الافتقاد بتاريخ 6 نوفمبر 2026",
+        "crossReference": "Google Sheets tab: سجل الافتقاد (row 8)"
+      }
+    }
+  ],
+  "attendance_notes": [
+    {
+      "id": "att-note-001",
+      "recordType": "attendance_note",
+      "completedFollowup": false,
+      "status": "attendance_note_only",
+      "studentName": "كيفين سامح أميل عزمي",
+      "studentCode": "unknown",
+      "servant": "unknown",
+      "sourceSheet": "unknown",
+      "date": "2026-11-18",
+      "callOutcome": "unknown",
+      "note": "غياب بسبب الامتحانات",
+      "source": {
+        "primary": "ملاحظات المتابعة بتاريخ 2026-11-18",
+        "crossReference": "Not present in live Google Sheets tabs (نشط / غير حاضر)"
+      }
+    },
+    {
+      "id": "att-note-002",
+      "recordType": "attendance_note",
+      "completedFollowup": false,
+      "status": "attendance_note_only",
+      "studentName": "كيرلس سامح إبراهيم",
+      "studentCode": "unknown",
+      "servant": "unknown",
+      "sourceSheet": "unknown",
+      "date": "2026-11-18",
+      "callOutcome": "unknown",
+      "note": "بيحضر في الأمير تادرس",
+      "source": {
+        "primary": "ملاحظات المتابعة بتاريخ 2026-11-18",
+        "crossReference": "Not present in live Google Sheets tabs (نشط / غير حاضر)"
+      }
+    },
+    {
+      "id": "att-note-003",
+      "recordType": "attendance_note",
+      "completedFollowup": false,
+      "status": "attendance_note_only",
+      "studentName": "فيلوباتير سامح سليمان",
+      "studentCode": "unknown",
+      "servant": "unknown",
+      "sourceSheet": "unknown",
+      "date": "2026-11-18",
+      "callOutcome": "unknown",
+      "note": "غياب بسبب الدروس",
+      "source": {
+        "primary": "ملاحظات المتابعة بتاريخ 2026-11-18",
+        "crossReference": "Not present in live Google Sheets tabs (نشط / غير حاضر)"
+      }
+    },
+    {
+      "id": "att-note-004",
+      "recordType": "attendance_note",
+      "completedFollowup": false,
+      "status": "attendance_note_only",
+      "studentName": "فام ياسر أمين",
+      "sheetStudentName": "فام ياسر امين",
+      "studentCode": "1303",
+      "servant": "ماركو ملجي فارس",
+      "sourceSheet": "نشط",
+      "date": "2026-11-18",
+      "callOutcome": "unknown",
+      "note": "هيحاول يظبط مواعيد دروسه",
+      "source": {
+        "primary": "ملاحظات المتابعة بتاريخ 2026-11-18",
+        "crossReference": "Google Sheets tab: نشط (row 15)"
+      }
+    },
+    {
+      "id": "att-note-005",
+      "recordType": "attendance_note",
+      "completedFollowup": false,
+      "status": "attendance_note_only",
+      "studentName": "شنودة عياد",
+      "sheetStudentName": "شنودة عياد فيض",
+      "studentCode": "1305",
+      "servant": "ماركو ملجي فارس",
+      "sourceSheet": "نشط",
+      "date": "2026-11-18",
+      "callOutcome": "unknown",
+      "note": "مش بيحضر لكنه هيحاول ييجي",
+      "source": {
+        "primary": "ملاحظات المتابعة بتاريخ 2026-11-18",
+        "crossReference": "Google Sheets tab: نشط (row 16)"
+      }
+    },
+    {
+      "id": "att-note-006",
+      "recordType": "attendance_note",
+      "completedFollowup": false,
+      "status": "attendance_note_only",
+      "studentName": "جوناثان رامي نبيل",
+      "sheetStudentName": "جوناثان رامي نبيل",
+      "studentCode": "651016",
+      "servant": "ماركو ملجي فارس",
+      "sourceSheet": "نشط",
+      "date": "2026-11-18",
+      "callOutcome": "unknown",
+      "note": "افتقاد منزلي",
+      "source": {
+        "primary": "ملاحظات المتابعة بتاريخ 2026-11-18",
+        "crossReference": "Google Sheets tab: نشط (row 14)"
+      }
+    }
+  ],
+  "weekly_status": {
+    "weekEnding": "2026-11-20",
+    "scope": {
+      "tab": "نشط",
+      "servant": "ماركو ملجي فارس",
+      "totalTracked": 14,
+      "followedUpCount": 9,
+      "remainingCount": 5
+    },
+    "source": {
+      "primary": "ملخص الأسبوع المنتهي 2026-11-20",
+      "crossReference": "Google Sheets tab: نشط (column: افتقاد 2026-11-20, servant: ماركو ملجي فارس)"
+    },
+    "followed_up": [
+      {
+        "id": "weekly-2026-11-20-fu-001",
+        "studentName": "مايكل ايهاب وليم وديع",
+        "studentCode": "397816",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "تم تليفونياً",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-fu-002",
+        "studentName": "كاراس نور الدين سمير",
+        "studentCode": "830957",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "تم تليفونياً",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-fu-003",
+        "studentName": "فيلوباتير مينا محروس",
+        "studentCode": "unknown",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "تم تليفونياً",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-fu-004",
+        "studentName": "جوناثان رامي نبيل",
+        "studentCode": "651016",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "تم تليفونياً",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-fu-005",
+        "studentName": "فام ياسر امين",
+        "studentCode": "1303",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "تم تليفونياً",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-fu-006",
+        "studentName": "شنودة عياد فيض",
+        "studentCode": "1305",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "واتساب",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-fu-007",
+        "studentName": "بيشوى ميلاد منير",
+        "studentCode": "650125",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "تم تليفونياً",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-fu-008",
+        "studentName": "مايكل أسامة عادل",
+        "studentCode": "1310",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "واتساب",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-fu-009",
+        "studentName": "ستيڤين بيامين رفعت",
+        "studentCode": "unknown",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "method": "تم تليفونياً",
+        "lastFollowupDate": "2026-11-18",
+        "callOutcome": "unknown",
+        "status": "followed_up",
+        "source": {
+          "primary": "Google Sheets tab: نشط (افتقاد 2026-11-20)",
+          "reportSummary": "ملخص الأسبوع المنتهي 2026-11-20 (9 من 14)"
+        }
+      }
+    ],
+    "remaining": [
+      {
+        "id": "weekly-2026-11-20-rem-001",
+        "studentName": "مارتن مايكل عوض",
+        "reportedCodeFromPrompt": "SG-12",
+        "sheetCode": "unknown",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "lastFollowupDate": "unknown",
+        "callOutcome": "unknown",
+        "status": "not_followed_up_in_week",
+        "source": {
+          "primary": "ملخص الأسبوع المنتهي 2026-11-20 (قائمة المتبقين)",
+          "crossReference": "Google Sheets tab: نشط (افتقاد 2026-11-20 فارغ، خلية الكود فارغة)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-rem-002",
+        "studentName": "كيڤين إلهامى فواد بطرس",
+        "reportedCodeFromPrompt": "SG-21",
+        "sheetCode": "unknown",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "lastFollowupDate": "2026-10-27",
+        "callOutcome": "unknown",
+        "status": "not_followed_up_in_week",
+        "source": {
+          "primary": "ملخص الأسبوع المنتهي 2026-11-20 (قائمة المتبقين)",
+          "crossReference": "Google Sheets tab: نشط (افتقاد 2026-11-20 فارغ، خلية الكود فارغة)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-rem-003",
+        "studentName": "كيڤين ميلاد صبحى",
+        "reportedCodeFromPrompt": "SG-22",
+        "sheetCode": "unknown",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "lastFollowupDate": "2026-10-27",
+        "callOutcome": "unknown",
+        "status": "not_followed_up_in_week",
+        "source": {
+          "primary": "ملخص الأسبوع المنتهي 2026-11-20 (قائمة المتبقين)",
+          "crossReference": "Google Sheets tab: نشط (افتقاد 2026-11-20 فارغ، خلية الكود فارغة)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-rem-004",
+        "studentName": "كاراس ميلاد عادل",
+        "reportedCodeFromPrompt": "SG-23",
+        "sheetCode": "unknown",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "lastFollowupDate": "unknown",
+        "callOutcome": "unknown",
+        "status": "not_followed_up_in_week",
+        "source": {
+          "primary": "ملخص الأسبوع المنتهي 2026-11-20 (قائمة المتبقين)",
+          "crossReference": "Google Sheets tab: نشط (افتقاد 2026-11-20 فارغ، خلية الكود فارغة)"
+        }
+      },
+      {
+        "id": "weekly-2026-11-20-rem-005",
+        "studentName": "كريس چوزيف عاطف",
+        "reportedCodeFromPrompt": "SG-24",
+        "sheetCode": "unknown",
+        "servant": "ماركو ملجي فارس",
+        "sourceSheet": "نشط",
+        "lastFollowupDate": "2026-10-27",
+        "callOutcome": "unknown",
+        "status": "not_followed_up_in_week",
+        "source": {
+          "primary": "ملخص الأسبوع المنتهي 2026-11-20 (قائمة المتبقين)",
+          "crossReference": "Google Sheets tab: نشط (افتقاد 2026-11-20 فارغ، خلية الكود فارغة)"
+        }
+      }
+    ]
+  }
+}
