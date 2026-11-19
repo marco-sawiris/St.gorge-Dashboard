@@ -189,14 +189,32 @@ export const SyncDetailsModal: React.FC = () => {
 
           {/* Sync Error Notice if any */}
           {lastSyncError && (
-            <div className="p-3.5 rounded-2xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] space-y-1">
+            <div className="p-3.5 rounded-2xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)] space-y-1.5">
               <div className="flex items-center gap-2 font-bold text-xs">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>سبب تعذر المزامنة الأخيرة:</span>
+                <span>
+                  {(queueSummary && queueSummary.total > 0 && (lastSyncError.includes('missing_persisted_flag') || lastSyncError.includes('طابور الإرسال') || lastSyncError.includes('لم يُثبت حفظها')))
+                    ? 'تنبيه طابور الإرسال (سحب البيانات من الشيت منفصل):'
+                    : 'سبب تعذر المزامنة الأخيرة:'}
+                </span>
               </div>
               <p className="text-xs m-0 font-mono pr-6">
                 {lastSyncError}
               </p>
+              {queueSummary && queueSummary.total > 0 && (lastSyncError.includes('missing_persisted_flag') || lastSyncError.includes('طابور الإرسال') || lastSyncError.includes('لم يُثبت حفظها')) && (
+                <div className="pr-6 pt-1 space-y-1.5">
+                  <p className="text-[11px] m-0 font-semibold leading-relaxed">
+                    هذا السبب يخص عمليات كتابة معلقة في الطابور المحلي تنتظر إثبات الحفظ من الخادم (RemotePersistenceProof)، ولا يوقف قراءة البيانات من Google Sheets.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsQueueModalOpen(true)}
+                    className="glass-btn px-2.5 py-1 rounded-lg text-[11px] font-bold border-[var(--danger-border)] cursor-pointer"
+                  >
+                    عرض العمليات المعلقة ({queueSummary.total})
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

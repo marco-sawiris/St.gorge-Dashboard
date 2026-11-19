@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { Search, RefreshCw, X } from 'lucide-react';
-import { SheetName } from '../../types/student';
+import { SheetName, INACTIVE_STUDENT_CLASSIFICATION } from '../../types/student';
 
 export const SearchFilterBar: React.FC = () => {
   const { filters, setFilters, syncData, isSyncing, students } = useApp();
@@ -14,6 +14,13 @@ export const SearchFilterBar: React.FC = () => {
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [students]);
+
+  const hasLocalInactiveStudents = React.useMemo(
+    () =>
+      filters.sheet === INACTIVE_STUDENT_CLASSIFICATION ||
+      students.some((s) => s.sourceSheet === INACTIVE_STUDENT_CLASSIFICATION),
+    [students, filters.sheet]
+  );
 
   const hasActiveFilters = Boolean(
     filters.searchQuery.trim() ||
@@ -69,6 +76,11 @@ export const SearchFilterBar: React.FC = () => {
             <option value="نشط" className="bg-[var(--surface-primary)] text-[var(--text-primary)]">فصل: نشط</option>
             <option value="غير حاضر" className="bg-[var(--surface-primary)] text-[var(--text-primary)]">فصل: غير حاضر</option>
             <option value="فصل البابا شنودة" className="bg-[var(--surface-primary)] text-[var(--text-primary)]">فصل: البابا شنودة</option>
+            {hasLocalInactiveStudents && (
+              <option value={INACTIVE_STUDENT_CLASSIFICATION} className="bg-[var(--surface-primary)] text-[var(--text-primary)]">
+                تصنيف محلي: غير نشط
+              </option>
+            )}
             <option value="__ALL__" className="bg-[var(--surface-primary)] text-[var(--text-primary)]">عرض كل الفصول (الكل)</option>
           </select>
         </div>

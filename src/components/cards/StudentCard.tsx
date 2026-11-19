@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Student, APPROVED_SHEETS } from '../../types/student';
+import { Student, STUDENT_CLASSIFICATION_OPTIONS } from '../../types/student';
 import { useApp } from '../../context/AppContext';
 import {
   CheckCircle2,
@@ -452,7 +452,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
               onChange={(e) => setEditSheet(e.target.value)}
               className="box-border w-full min-w-0 min-h-[36px] h-auto py-1.5 px-2 rounded-lg bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
             >
-              {APPROVED_SHEETS.map((s) => (
+              {STUDENT_CLASSIFICATION_OPTIONS.map((s) => (
                 <option key={s} value={s} className="bg-[var(--surface-primary)] text-[var(--text-primary)]">
                   {s}
                 </option>

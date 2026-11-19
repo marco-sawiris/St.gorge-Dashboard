@@ -255,7 +255,7 @@ async function runTests() {
     });
     await idbSaveStudents([localInactive], 'غير نشط', true);
 
-    // 1A: Gviz __ALL__ where 'نشط' & 'فصل البابا شنودة' succeed, 'غير نشط' falls back
+    // 1A: Gviz __ALL__ where 'نشط' & 'فصل البابا شنودة' succeed, while live tab 'غير حاضر' falls back
     (globalThis as any).fetch = createMockFetch((url) => {
       const sheet = new URL(url).searchParams.get('sheet') || '';
       if (sheet === 'نشط') {
@@ -264,15 +264,6 @@ async function runTests() {
             sig: 'sig_active_t1',
             headers: VALID_STUDENT_HEADERS,
             rows: [['101', 'كريس جوزيف عاطف', 'ماركو ملجي فارس', '01211111111', '1', '1']]
-          })
-        };
-      }
-      if (sheet === 'غير حاضر') {
-        return {
-          body: buildGvizPayload({
-            sig: 'sig_absent_t1',
-            headers: VALID_STUDENT_HEADERS,
-            rows: [['151', 'كاراس أسامة سلامة', 'ماركو ملجي فارس', '01215151515', '0', '0']]
           })
         };
       }
@@ -323,15 +314,20 @@ async function runTests() {
       }
     );
 
-    assert.equal(gvizOutcome, 'partial', 'Gviz __ALL__ with skipped tab MUST return "partial", not true');
+    assert.equal(gvizOutcome, 'partial', 'Gviz __ALL__ with skipped live tab MUST return "partial", not true');
     assert.equal(recordTimesCalls, 0, 'Last Successful Sync Time MUST NOT be updated on Partial Sync');
     assert.equal(lastSyncTime, existingLastSyncIso, 'Existing Last Successful Sync Time must stay strictly unchanged');
     assert.ok(partialInfo, 'onRecordPartialSync must receive PartialSyncInfo');
-    assert.deepEqual((partialInfo as PartialSyncInfo).skippedSheets, ['غير نشط']);
+    assert.deepEqual((partialInfo as PartialSyncInfo).skippedSheets, ['غير حاضر']);
     assert.equal((partialInfo as PartialSyncInfo).appliedSheets.includes('نشط'), true);
     assert.equal((partialInfo as PartialSyncInfo).appliedSheets.includes('فصل البابا شنودة'), true);
+    assert.equal(
+      (await idbGetStudents()).some((s) => s.id === localInactive.id && s.sourceSheet === 'غير نشط'),
+      true,
+      'Local "غير نشط" student must remain protected'
+    );
 
-    // Startup fallback notification persisted in storage even when onNotify was undefined!
+    // Startup fallback notification persisted in storage even when onNotify was omitted!
     const storedNotifs = loadAndMigrateNotifications().notifications;
     assert.equal(
       storedNotifs.some((n) => n.type === 'warn' && n.title.includes('مزامنة جزئية')),
@@ -339,7 +335,7 @@ async function runTests() {
       'Warning notification must be persisted when onNotify is omitted during partial startup sync'
     );
 
-    // 1B: Relay __ALL__ where 'نشط' has rows, 'فصل البابا شنودة' is confirmedEmpty, and 'غير نشط' is unconfirmed empty
+    // 1B: Relay __ALL__ where 'نشط' has rows, 'فصل البابا شنودة' is confirmedEmpty, and live tab 'غير حاضر' is unconfirmed empty
     mockLocalStorage.set('stgorge_apps_script_url', 'https://script.google.com/macros/s/TEST_MOCK_RELAY/exec');
     mockLocalStorage.set('stgorge_relay_key', 'TEST_RELAY_KEY_LOCAL');
 
@@ -355,19 +351,11 @@ async function runTests() {
                 name: 'كريس جوزيف عاطف',
                 sourceSheet: 'نشط',
                 version: 1
-              }),
-              makeStudent({
-                id: 'gs_code_غير حاضر_151',
-                code: '151',
-                name: 'كاراس أسامة سلامة',
-                sourceSheet: 'غير حاضر',
-                version: 1
               })
             ],
             confirmedEmptySheets: ['فصل البابا شنودة'],
             sheetsMeta: {
               'نشط': { verified: true, isComplete: true },
-              'غير حاضر': { verified: true, isComplete: true },
               'فصل البابا شنودة': { verified: true, isComplete: true }
             }
           })
@@ -396,15 +384,15 @@ async function runTests() {
       }
     );
 
-    assert.equal(relayOutcome, 'partial', 'Relay __ALL__ with unconfirmed empty tab MUST return "partial"');
+    assert.equal(relayOutcome, 'partial', 'Relay __ALL__ with unconfirmed empty live tab MUST return "partial"');
     assert.equal(relayRecordTimesCalls, 0, 'Relay Partial Sync MUST NOT update Last Successful Sync Time');
     assert.deepEqual(
       (relayPartialInfo as PartialSyncInfo | null)?.skippedSheets,
-      ['غير نشط'],
-      'Unconfirmed empty Relay tab MUST be recorded in skippedSheets'
+      ['غير حاضر'],
+      'Unconfirmed empty live Relay tab MUST be recorded in skippedSheets'
     );
 
-    // 1C: Full Relay Sync (all 3 tabs confirmed) -> returns true, clears partialSyncInfo, updates Last Sync Time
+    // 1C: Full Relay Sync (all 3 live tabs confirmed) -> returns true, clears partialSyncInfo, updates Last Sync Time
     (globalThis as any).fetch = createMockFetch((url) => {
       if (url.includes('script.google.com')) {
         return {

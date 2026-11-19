@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { CENTRAL_SPREADSHEET_ID } from '../../src/config/centralSheetConfig';
 dotenv.config();
 
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -44,7 +45,7 @@ export const ENV = {
   CORS_ORIGINS: process.env.CORS_ORIGINS || '',
 
   // Google Sheets integration config
-  GOOGLE_SHEET_ID: process.env.GOOGLE_SHEET_ID || '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0',
+  GOOGLE_SHEET_ID: process.env.GOOGLE_SHEET_ID || CENTRAL_SPREADSHEET_ID,
   GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
   GOOGLE_PRIVATE_KEY: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
 

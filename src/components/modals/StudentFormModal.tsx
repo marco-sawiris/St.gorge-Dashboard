@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Student, APPROVED_SHEETS } from '../../types/student';
+import { Student, STUDENT_CLASSIFICATION_OPTIONS } from '../../types/student';
 import { useApp } from '../../context/AppContext';
 import { X, UserPlus, Save, AlertCircle } from 'lucide-react';
 
@@ -301,7 +301,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 onChange={(e) => setSheet(e.target.value)}
                 className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] cursor-pointer shadow-xs"
               >
-                {APPROVED_SHEETS.map((s) => (
+                {STUDENT_CLASSIFICATION_OPTIONS.map((s) => (
                   <option key={s} value={s} className="bg-[var(--surface-primary)] text-[var(--text-primary)]">
                     {s}
                   </option>

@@ -472,7 +472,7 @@ async function runTests() {
       'Local "غير نشط" student must remain untouched after probe-caught fallback'
     );
 
-    // 3C: __ALL__ mode with valid "نشط" & "فصل البابا شنودة " + missing "غير نشط"
+    // 3C: __ALL__ mode with valid "نشط" & "فصل البابا شنودة " + unverified live tab "غير حاضر" + local "غير نشط"
     (globalThis as any).fetch = createMockGvizFetch((sheet) => {
       if (sheet === 'نشط') {
         return {
@@ -505,7 +505,7 @@ async function runTests() {
     }, allHttpCalls);
 
     const allOk = await executeSyncData('__ALL__', null, false, syncLock);
-    assert.equal(allOk, 'partial', '__ALL__ sync should return partial when verified tabs update while an unverified tab is skipped');
+    assert.equal(allOk, 'partial', '__ALL__ sync should return partial when a live tab ("غير حاضر") is unverified while valid tabs update');
     stored = await idbGetStudents();
     assert.equal(
       stored.some((s) => s.sourceSheet === 'نشط' && s.name === 'بافلى أيمن حسنى'),
@@ -520,12 +520,12 @@ async function runTests() {
     assert.equal(
       stored.some((s) => s.id === 'st_inactive_precious' && s.sourceSheet === 'غير نشط'),
       true,
-      'Unverified "غير نشط" preserved during __ALL__ sync'
+      'Local "غير نشط" student preserved during __ALL__ sync'
     );
     assert.equal((await idbGetFollowupRecords()).some((r) => r.id === followup.id), true);
     assert.equal((await idbGetAttendanceHistory()).some((h) => h.id === history.id), true);
 
-    console.log('✅ Test 3 Passed: Non-existent tab ("غير نشط") HTTP 200 fallback blocked in single & __ALL__ modes');
+    console.log('✅ Test 3 Passed: Non-existent tab fallback blocked in single mode & live-tab partial protection verified in __ALL__ mode');
     passed++;
   }
 

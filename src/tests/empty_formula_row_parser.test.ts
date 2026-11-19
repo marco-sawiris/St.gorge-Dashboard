@@ -352,7 +352,8 @@ async function runTests() {
   }
 
   // ------------------------------------------------------------------
-  // CASE 9: Unverified tab stays protected & __ALL__ stays 'partial' when another tab is unverified
+  // CASE 9: Absent 'غير نشط' tab does NOT force Partial Sync, local 'غير نشط' stays protected,
+  //         and fallback on a real live tab ('غير حاضر') triggers 'partial' cleanly
   // ------------------------------------------------------------------
   {
     await resetFakeDatabase();
@@ -387,6 +388,7 @@ async function runTests() {
     popeFormulaRow[12] = '0';
 
     const httpCalls: string[] = [];
+    let simulateAbsentTabFallback = false;
     (globalThis as any).fetch = async (input: any, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : String(input?.url || input);
       const method = (init?.method || 'GET').toUpperCase();
@@ -405,7 +407,7 @@ async function runTests() {
           headers: POPE_LIKE_HEADERS,
           rows: [makeValidStudentRow(1)]
         });
-      } else if (sheet === 'غير حاضر') {
+      } else if (sheet === 'غير حاضر' && !simulateAbsentTabFallback) {
         body = buildGvizPayload({
           sig: 'sig_absent_c9',
           headers: POPE_LIKE_HEADERS,
@@ -433,18 +435,16 @@ async function runTests() {
       return { ok: true, status: 200, text: async () => body, json: async () => ({}) };
     };
 
-    // First verify fetchSheetStudentsViaGviz confirms "فصل البابا شنودة" (10 students) while rejecting "غير نشط"
+    // 9A: When the 3 live Google Sheets tabs succeed and 'غير نشط' does not exist on Drive,
+    // __ALL__ completes cleanly without requesting 'غير نشط' or returning permanent 'partial'.
     const gvizAll = await fetchSheetStudentsViaGviz(DEFAULT_SPREADSHEET_ID, '__ALL__');
     assert.equal(gvizAll.confirmedSheets.includes('فصل البابا شنودة'), true, '"فصل البابا شنودة" must now be verified');
     assert.equal(gvizAll.sheetsMeta['فصل البابا شنودة']?.parsedRowCount, 10);
-    assert.equal(gvizAll.unverifiedSheets.includes('غير نشط'), true, '"غير نشط" must remain unverified');
+    assert.equal(gvizAll.unverifiedSheets.includes('غير نشط'), false, '"غير نشط" is an in-app classification and not required in __ALL__');
 
-    // Run executeSyncData('__ALL__') -> MUST return 'partial', NOT update Last Sync Time, and preserve "غير نشط"!
-    let lastSyncCalls = 0;
-    let partialInfo: PartialSyncInfo | null = null;
+    let fullSyncCalls = 0;
     const syncLock = { current: false };
-
-    const outcome = await executeSyncData(
+    const fullOutcome = await executeSyncData(
       '__ALL__',
       null,
       false,
@@ -452,7 +452,25 @@ async function runTests() {
       undefined,
       undefined,
       () => {
-        lastSyncCalls++;
+        fullSyncCalls++;
+      }
+    );
+    assert.equal(fullOutcome, true, '__ALL__ must complete with true when all 3 live Google Sheets tabs succeed');
+    assert.equal(fullSyncCalls, 1, 'Last Successful Sync Time updates when all 3 live tabs succeed');
+
+    // 9B: When a real live tab ('غير حاضر') falls back, __ALL__ MUST return 'partial' without updating Last Sync Time
+    simulateAbsentTabFallback = true;
+    let partialSyncCalls = 0;
+    let partialInfo: PartialSyncInfo | null = null;
+    const partialOutcome = await executeSyncData(
+      '__ALL__',
+      null,
+      false,
+      syncLock,
+      undefined,
+      undefined,
+      () => {
+        partialSyncCalls++;
       },
       undefined,
       undefined,
@@ -462,16 +480,16 @@ async function runTests() {
       }
     );
 
-    assert.equal(outcome, 'partial', '__ALL__ must remain "partial" while "غير نشط" is unverified');
-    assert.equal(lastSyncCalls, 0, 'Last Successful Sync Time MUST NOT update during partial sync');
-    assert.deepEqual((partialInfo as PartialSyncInfo | null)?.skippedSheets, ['غير نشط']);
+    assert.equal(partialOutcome, 'partial', '__ALL__ must return "partial" when live tab "غير حاضر" is unverified');
+    assert.equal(partialSyncCalls, 0, 'Last Successful Sync Time MUST NOT update during partial sync');
+    assert.deepEqual((partialInfo as PartialSyncInfo | null)?.skippedSheets, ['غير حاضر']);
     assert.equal((partialInfo as PartialSyncInfo | null)?.appliedSheets.includes('فصل البابا شنودة'), true);
 
     const stored = await idbGetStudents();
     assert.equal(
       stored.some((s) => s.id === 'gs_code_غير_نشط_901' && s.sourceSheet === 'غير نشط'),
       true,
-      'Unverified "غير نشط" local student MUST remain strictly protected'
+      'Local "غير نشط" student MUST remain strictly protected'
     );
     assert.equal(
       stored.filter((s) => s.sourceSheet === 'فصل البابا شنودة').length,
@@ -480,7 +498,7 @@ async function runTests() {
     );
     assert.equal(httpCalls.every((c) => c.startsWith('GET ')), true, 'Zero POST/write calls');
 
-    console.log('✅ Case 9 Passed: "فصل البابا شنودة" verified (10/10), unverified "غير نشط" protected, __ALL__ stays "partial"');
+    console.log('✅ Case 9 Passed: "فصل البابا شنودة" verified (10/10), local "غير نشط" protected without false partial sync, real live-tab fallback handled cleanly');
     passed++;
   }
 

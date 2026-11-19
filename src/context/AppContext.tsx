@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Student, SheetName, AppFilterState, APPROVED_SHEETS } from '../types/student';
+import {
+  Student,
+  SheetName,
+  AppFilterState,
+  APPROVED_SHEETS,
+  LIVE_GOOGLE_SHEET_TABS,
+  INACTIVE_STUDENT_CLASSIFICATION
+} from '../types/student';
+import { CENTRAL_SPREADSHEET_ID } from '../config/centralSheetConfig';
 import { FollowupRecord, CallOutcome } from '../types/followup';
 import { AppNotification, MutationStageTimings, OfflineMutation, AuthUser, SyncOutcomeStatus } from '../types/auth';
 import {
@@ -85,7 +93,22 @@ import {
 } from '../services/googleSheetParser';
 import { useAuth } from './AuthContext';
 
-export const SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
+export const SPREADSHEET_ID = CENTRAL_SPREADSHEET_ID;
+
+export function formatPullWithPendingQueueMessage(
+  remainingMutations: ReadonlyArray<OfflineMutation>,
+  isPartialPull: boolean = false
+): string {
+  const count = remainingMutations.length;
+  const queueError = remainingMutations.find((mutation) => mutation.lastError)?.lastError;
+  const pullPrefix = isPartialPull
+    ? 'تم سحب بيانات الفصول المتاحة مع حماية الفصول غير المؤكدة'
+    : 'تم سحب وتحديث البيانات من Google Sheets بنجاح';
+  if (queueError) {
+    return `${pullPrefix}، والسبب التالي يخص (${count}) عملية كتابة معلقة في طابور الإرسال (محفوظة محلياً): ${queueError}`;
+  }
+  return `${pullPrefix}، وما زالت هناك ${count} عملية كتابة معلقة لم يتم تأكيد إرسالها إلى Google Sheets.`;
+}
 
 /**
  * Pure helper function to compute the mathematically latest timestamp between push and pull.
@@ -2454,11 +2477,19 @@ export async function executeSyncData(
         }
       }
 
-      // Explicitly include all approved sheets and all sheets present in server response
+      // Explicitly include all live Google Sheet tabs and any verified sheets returned by server.
+      // Never force in-app 'غير نشط' classification as a mandatory tab during __ALL__ sync.
       const sheetsToProcess = new Set<string>();
-      APPROVED_SHEETS.forEach((s) => sheetsToProcess.add(s));
+      LIVE_GOOGLE_SHEET_TABS.forEach((s) => sheetsToProcess.add(s));
       for (const sheetName of bySheet.keys()) {
-        sheetsToProcess.add(sheetName);
+        if (sheetName === INACTIVE_STUDENT_CLASSIFICATION) {
+          const inactiveMeta = data?.sheetsMeta?.[INACTIVE_STUDENT_CLASSIFICATION];
+          if (inactiveMeta?.verified === true && inactiveMeta?.isComplete === true) {
+            sheetsToProcess.add(sheetName);
+          }
+        } else {
+          sheetsToProcess.add(sheetName);
+        }
       }
 
       // Uniform completeness criteria for BOTH Gviz and Relay/Express:
@@ -2576,10 +2607,7 @@ export async function executeSyncData(
         );
 
         if (remainingMutations.length > 0) {
-          const queueError = remainingMutations.find((mutation) => mutation.lastError)?.lastError;
-          const partialError =
-            queueError ||
-            `تم سحب بيانات جزئية، وما زالت هناك ${remainingMutations.length} عملية معلقة لم يتم تأكيد إرسالها إلى Google Sheets.`;
+          const partialError = formatPullWithPendingQueueMessage(remainingMutations, true);
           onRecordError?.(partialError);
           return false;
         }
@@ -2597,8 +2625,7 @@ export async function executeSyncData(
         onNotify?.('تم التحديث بنجاح', 'تم تحديث جميع الفصول بنجاح دون المساس بأي بيانات محلية', 'success');
         return true;
       } else {
-        const queueError = remainingMutations.find((mutation) => mutation.lastError)?.lastError;
-        const partialError = queueError || `تم سحب البيانات، لكن ما زالت هناك ${remainingMutations.length} عملية معلقة لم يتم تأكيد إرسالها إلى Google Sheets.`;
+        const partialError = formatPullWithPendingQueueMessage(remainingMutations, false);
         onRecordError?.(partialError);
         onNotify?.(
           'المزامنة غير مكتملة',
@@ -2675,8 +2702,7 @@ export async function executeSyncData(
         onUpdateStudents?.(finalStudents);
         const nowIso = new Date().toISOString();
         onRecordTimes?.(nowIso);
-        const queueError = remainingMutations.find((mutation) => mutation.lastError)?.lastError;
-        const partialError = queueError || `تم سحب البيانات، لكن ما زالت هناك ${remainingMutations.length} عملية معلقة لم يتم تأكيد إرسالها إلى Google Sheets.`;
+        const partialError = formatPullWithPendingQueueMessage(remainingMutations, false);
         onRecordError?.(partialError);
         onNotify?.(
           'المزامنة غير مكتملة',

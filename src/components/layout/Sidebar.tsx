@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../../context/AppContext';
+import { CENTRAL_SPREADSHEET_EDIT_URL } from '../../config/centralSheetConfig';
 
 const stGeorgeIcon = new URL('../../assets/images/st_george_icon_1794405195493.jpg', import.meta.url).href;
 import {
@@ -352,7 +353,7 @@ export const Sidebar: React.FC = () => {
             </button>
 
             <a
-              href="https://docs.google.com/spreadsheets/d/15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0/edit"
+              href={CENTRAL_SPREADSHEET_EDIT_URL}
               target="_blank"
               rel="noopener noreferrer"
               title="فتح ملف الشيت"

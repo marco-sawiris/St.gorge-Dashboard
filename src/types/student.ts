@@ -31,8 +31,24 @@ export interface Student {
 }
 
 export const ALL_SHEETS_SENTINEL = '__ALL__' as const;
-export const APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط'] as const;
-export type ApprovedSheet = (typeof APPROVED_SHEETS)[number];
+
+// Actual existing student roster tabs in the central Google Sheets file
+export const LIVE_GOOGLE_SHEET_TABS = ['نشط', 'غير حاضر', 'فصل البابا شنودة'] as const;
+
+// In-app student classification preserved locally without requiring a Google Sheets tab
+export const INACTIVE_STUDENT_CLASSIFICATION = 'غير نشط' as const;
+
+export const STUDENT_CLASSIFICATION_OPTIONS = [
+  ...LIVE_GOOGLE_SHEET_TABS,
+  INACTIVE_STUDENT_CLASSIFICATION
+] as const;
+
+// Remote completeness checks (__ALL__) only require the actual Google Sheets tabs
+export const APPROVED_SHEETS = LIVE_GOOGLE_SHEET_TABS;
+
+export type LiveGoogleSheetTab = (typeof LIVE_GOOGLE_SHEET_TABS)[number];
+export type StudentClassificationOption = (typeof STUDENT_CLASSIFICATION_OPTIONS)[number];
+export type ApprovedSheet = StudentClassificationOption;
 export type SheetName = ApprovedSheet | typeof ALL_SHEETS_SENTINEL;
 
 export interface AppFilterState {

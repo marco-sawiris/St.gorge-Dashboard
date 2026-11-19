@@ -3,7 +3,15 @@ import { AuthenticatedRequest, authenticateToken, requireRole } from '../middlew
 import { dbManager } from '../db';
 import { apiLimiter } from '../middleware/rateLimit';
 import { googleSheetsService } from '../services/googleSheetsService';
-import { Student, APPROVED_SHEETS, ALL_SHEETS_SENTINEL } from '../../src/types/student';
+import { ENV } from '../config/env';
+import { CENTRAL_SPREADSHEET_ID, isDisallowedClientSpreadsheetOverride } from '../../src/config/centralSheetConfig';
+import {
+  Student,
+  LIVE_GOOGLE_SHEET_TABS,
+  INACTIVE_STUDENT_CLASSIFICATION,
+  STUDENT_CLASSIFICATION_OPTIONS,
+  ALL_SHEETS_SENTINEL
+} from '../../src/types/student';
 import { getCairoDateParts, getCairoTodayIsoDate } from '../../src/utils/arabicUtils';
 import type { RemotePersistenceProof } from '../../src/services/remotePersistenceVerification';
 
@@ -53,17 +61,39 @@ function isExplicitlyInvalidSheetInput(raw: unknown): boolean {
   return lower === 'undefined' || lower === 'null' || lower === 'nan' || lower === '[object object]';
 }
 
+function hasClientSpreadsheetOverride(candidates: unknown[]): boolean {
+  const authoritativeId = ENV.GOOGLE_SHEET_ID || CENTRAL_SPREADSHEET_ID;
+  return candidates.some((c) => isDisallowedClientSpreadsheetOverride(c, authoritativeId));
+}
+
 async function handleGetSheetStudents(req: AuthenticatedRequest, res: Response) {
+  if (hasClientSpreadsheetOverride([req.query.spreadsheetId, req.query.sheetId])) {
+    return res.status(400).json({
+      ok: false,
+      error: 'غير مسموح بتجاوز معرف ملف Google Sheets المركزي.'
+    });
+  }
+
   const targetSheet = resolveSafeSheetName([req.query.sheet, req.query.tab, req.query.sourceSheet], ALL_SHEETS_SENTINEL);
 
-  if (targetSheet !== ALL_SHEETS_SENTINEL && !APPROVED_SHEETS.includes(targetSheet as any)) {
+  if (targetSheet !== ALL_SHEETS_SENTINEL && !STUDENT_CLASSIFICATION_OPTIONS.includes(targetSheet as any)) {
     return res.status(400).json({
-      error: `اسم الفصل غير صالح: (${targetSheet}). الفصول المعتمدة هي: ${APPROVED_SHEETS.join(', ')}`
+      error: `اسم الفصل غير صالح: (${targetSheet}). الفصول المعتمدة هي: ${STUDENT_CLASSIFICATION_OPTIONS.join(', ')}`
     });
   }
 
   try {
     const students = await googleSheetsService.getStudents(targetSheet);
+    const hasInactiveStudents = students.some((s) => s.sourceSheet === INACTIVE_STUDENT_CLASSIFICATION);
+    const confirmedSheets =
+      targetSheet === ALL_SHEETS_SENTINEL
+        ? Array.from(
+            new Set([
+              ...LIVE_GOOGLE_SHEET_TABS,
+              ...(hasInactiveStudents ? [INACTIVE_STUDENT_CLASSIFICATION] : [])
+            ])
+          )
+        : [targetSheet];
 
     return res.json({
       ok: true,
@@ -72,7 +102,7 @@ async function handleGetSheetStudents(req: AuthenticatedRequest, res: Response) 
       isComplete: true,
       confirmedComplete: true,
       isConfirmedComplete: true,
-      confirmedSheets: targetSheet === ALL_SHEETS_SENTINEL ? [...APPROVED_SHEETS] : [targetSheet],
+      confirmedSheets,
       students
     });
   } catch (err: any) {
@@ -126,6 +156,13 @@ router.post(
       });
     }
 
+    if (hasClientSpreadsheetOverride([req.query?.spreadsheetId, req.query?.sheetId, req.body?.spreadsheetId, req.body?.sheetId])) {
+      return res.status(400).json({
+        ok: false,
+        error: 'غير مسموح بتجاوز معرف ملف Google Sheets المركزي.'
+      });
+    }
+
     const { action, studentId, sourceSheet, payload, expectedVersion } = req.body || {};
 
     if (!action || !studentId) {
@@ -174,7 +211,10 @@ router.post(
       });
     }
 
-    const currentStudent = googleSheetsService.getStudentById(studentId);
+    const currentStudent =
+      action === 'add'
+        ? googleSheetsService.getStudentById(studentId)
+        : await googleSheetsService.getStudentByIdAsync(studentId);
 
     if (action !== 'add' && !currentStudent) {
       return res.status(404).json({ error: 'المخدوم غير موجود في قاعدة بيانات الخادم' });
@@ -312,7 +352,7 @@ router.post(
     } else if (action === 'add') {
       const candidate = payload?.newStudent && typeof payload.newStudent === 'object' ? payload.newStudent : payload || {};
       const targetSheet = resolveSafeSheetName([candidate.sourceSheet, sourceSheet, req.body?.sheet, req.body?.tab], 'نشط');
-      if (!APPROVED_SHEETS.includes(targetSheet as any)) {
+      if (!STUDENT_CLASSIFICATION_OPTIONS.includes(targetSheet as any)) {
         return res.status(400).json({ error: `فصل غير معتمد: ${targetSheet}` });
       }
       const studentName = String(candidate.name || req.body.studentName || '').trim();
@@ -482,6 +522,13 @@ router.get(
   authenticateToken,
   apiLimiter,
   async (req: AuthenticatedRequest, res: Response) => {
+    if (hasClientSpreadsheetOverride([req.query?.spreadsheetId, req.query?.sheetId])) {
+      return res.status(400).json({
+        ok: false,
+        error: 'غير مسموح بتجاوز معرف ملف Google Sheets المركزي.'
+      });
+    }
+
     const startedAt = Date.now();
     const rawKeys = String(req.query.keys || req.query.key || '');
     const keys = rawKeys
@@ -528,6 +575,13 @@ router.post(
   requireRole(['admin', 'servant']),
   apiLimiter,
   async (req: AuthenticatedRequest, res: Response) => {
+    if (hasClientSpreadsheetOverride([req.query?.spreadsheetId, req.query?.sheetId, req.body?.spreadsheetId, req.body?.sheetId])) {
+      return res.status(400).json({
+        ok: false,
+        error: 'غير مسموح بتجاوز معرف ملف Google Sheets المركزي.'
+      });
+    }
+
     const startedAt = Date.now();
     const user = req.user!;
     const ip = getClientIp(req);
@@ -538,6 +592,12 @@ router.post(
     }
     if (mutations.length > 50) {
       return res.status(400).json({ ok: false, error: 'حجم الدفعة يتجاوز الحد الأقصى المسموح (50 عملية)' });
+    }
+    if (mutations.some((m: any) => hasClientSpreadsheetOverride([m?.spreadsheetId, m?.sheetId]))) {
+      return res.status(400).json({
+        ok: false,
+        error: 'غير مسموح بتجاوز معرف ملف Google Sheets المركزي داخل الدفعة.'
+      });
     }
 
     // Strict Zero-Delete check across entire batch
@@ -556,6 +616,8 @@ router.post(
         error: 'عملية حذف المخدومين محظورة نهائياً في النظام لحماية سجلات الخدمة.'
       });
     }
+
+    await googleSheetsService.ensureStudentsLoaded();
 
     const results: any[] = new Array(mutations.length);
     const workingStudents = new Map<string, Student>();

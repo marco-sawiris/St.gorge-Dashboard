@@ -1,8 +1,14 @@
 import crypto from 'crypto';
 import { ENV } from '../config/env';
-import { Student, APPROVED_SHEETS, ALL_SHEETS_SENTINEL } from '../../src/types/student';
+import { CENTRAL_SPREADSHEET_ID } from '../../src/config/centralSheetConfig';
 import {
-  DEFAULT_SPREADSHEET_ID,
+  Student,
+  LIVE_GOOGLE_SHEET_TABS,
+  INACTIVE_STUDENT_CLASSIFICATION,
+  STUDENT_CLASSIFICATION_OPTIONS,
+  ALL_SHEETS_SENTINEL
+} from '../../src/types/student';
+import {
   fetchSheetStudentsViaGviz,
   parse2DRowsToStudents
 } from '../../src/services/googleSheetParser';
@@ -18,7 +24,9 @@ interface GoogleTokenCache {
  *   and GOOGLE_PRIVATE_KEY are configured in server environment variables.
  * - Uses real Google Sheets Visualization endpoint (gviz/tq) when Service Account secrets are absent,
  *   parsing actual rows and Friday attendance/followup columns from Google Drive.
- * - NEVER injects or falls back to fake/mock student records in production.
+ * - Eliminates Express Cold-Start 404s via deduplicated ensureStudentsLoaded() / getStudentByIdAsync().
+ * - Maps writes dynamically by header names & multi-key row matching so custom/reordered columns
+ *   and spreadsheet formulas are never overwritten positionally.
  */
 export interface FollowupLogWriteInput {
   date: string;
@@ -50,19 +58,66 @@ const ACTUAL_GOOGLE_TAB_CANDIDATES: Record<string, string[]> = {
 
 const FOLLOWUP_LOG_TAB = 'سجل الافتقاد';
 
+function sanitizeSheetCell(val: unknown): string {
+  const str = String(val ?? '');
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return `'${str}`;
+  }
+  return str;
+}
+
+function normalizeArabicForMatch(val: unknown): string {
+  let s = String(val ?? '').trim();
+  if (!s) return '';
+  s = s.replace(/[\u064B-\u065F\u0670\u0640]/g, '');
+  s = s.replace(/[أإآٱ]/g, 'ا');
+  s = s.replace(/ى/g, 'ي');
+  s = s.replace(/ة/g, 'ه');
+  s = s.replace(/چ/g, 'ج');
+  s = s.replace(/ڤ/g, 'ف');
+  s = s.replace(/پ/g, 'ب');
+  s = s.replace(/گ/g, 'ك');
+  s = s.replace(/ژ/g, 'ز');
+  return s.replace(/\s+/g, ' ').toLowerCase();
+}
+
+function findColumnIndexByAliases(headers: string[], aliases: string[]): number {
+  const normalizedHeaders = headers.map((h) => String(h || '').trim());
+  for (const alias of aliases) {
+    const targetLower = alias.toLowerCase().trim();
+    const idx = normalizedHeaders.findIndex((h) => h.toLowerCase() === targetLower);
+    if (idx >= 0) return idx;
+  }
+  for (const alias of aliases) {
+    const targetNorm = normalizeArabicForMatch(alias);
+    if (!targetNorm) continue;
+    const idx = normalizedHeaders.findIndex((h) => normalizeArabicForMatch(h) === targetNorm);
+    if (idx >= 0) return idx;
+  }
+  for (const alias of aliases) {
+    const targetLower = alias.toLowerCase().trim();
+    if (!targetLower || targetLower.length < 3) continue;
+    const idx = normalizedHeaders.findIndex((h) => h.toLowerCase().includes(targetLower));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
 export class GoogleSheetsService {
   private students = new Map<string, Student>();
+  private loadedSheets = new Set<string>();
   private fixtureRowNumbers = new Map<string, number>();
   private fixtureNextRow = 2;
   private fixtureFollowupLog: Array<FollowupLogWriteInput & { row: number; recordId: string }> = [];
   private testFixtureMode = false;
   private tokenCache: GoogleTokenCache | null = null;
   private lastSheetSyncAt: number = 0;
+  private loadPromise: Promise<void> | null = null;
   private readonly CACHE_TTL_MS = 15_000;
 
   public isGoogleConfigured(): boolean {
     return Boolean(
-      ENV.GOOGLE_SHEET_ID &&
+      (ENV.GOOGLE_SHEET_ID || CENTRAL_SPREADSHEET_ID) &&
       ENV.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
       ENV.GOOGLE_PRIVATE_KEY &&
       ENV.GOOGLE_PRIVATE_KEY.includes('BEGIN PRIVATE KEY')
@@ -78,14 +133,48 @@ export class GoogleSheetsService {
     this.fixtureFollowupLog = [];
     for (const s of fixtures) {
       this.students.set(s.id, { ...s, version: s.version || 1 });
+      this.loadedSheets.add(s.sourceSheet);
       if (!this.fixtureRowNumbers.has(s.id)) {
         this.fixtureRowNumbers.set(s.id, this.fixtureNextRow++);
       }
     }
   }
 
+  public clearCacheForTestsOnly(): void {
+    this.students.clear();
+    this.loadedSheets.clear();
+    this.fixtureRowNumbers.clear();
+    this.fixtureNextRow = 2;
+    this.fixtureFollowupLog = [];
+    this.testFixtureMode = false;
+    this.lastSheetSyncAt = 0;
+    this.loadPromise = null;
+  }
+
   public getFixtureFollowupLog(): ReadonlyArray<FollowupLogWriteInput & { row: number; recordId: string }> {
     return [...this.fixtureFollowupLog];
+  }
+
+  public getLoadedSheetsSnapshot(): string[] {
+    return Array.from(this.loadedSheets);
+  }
+
+  /**
+   * Ensures students are hydrated into memory before mutation lookups,
+   * eliminating Express Cold-Start 404s when a write arrives before GET /data.
+   */
+  public async ensureStudentsLoaded(): Promise<void> {
+    if (this.testFixtureMode || this.students.size > 0) {
+      return;
+    }
+    if (!this.loadPromise) {
+      this.loadPromise = this.getStudents(ALL_SHEETS_SENTINEL)
+        .then(() => undefined)
+        .finally(() => {
+          this.loadPromise = null;
+        });
+    }
+    await this.loadPromise;
   }
 
   private base64UrlEncode(input: Buffer | string): string {
@@ -144,8 +233,8 @@ export class GoogleSheetsService {
       const trimmed = String(rawTab).trim();
       const lower = trimmed.toLowerCase();
       if (trimmed && lower !== 'undefined' && lower !== 'null' && trimmed !== ALL_SHEETS_SENTINEL) {
-        if (!APPROVED_SHEETS.includes(trimmed as any)) {
-          throw new Error(`اسم التاب غير معتمد: "${trimmed}". التابات المتاحة: ${APPROVED_SHEETS.join('، ')}`);
+        if (!STUDENT_CLASSIFICATION_OPTIONS.includes(trimmed as any)) {
+          throw new Error(`اسم التاب غير معتمد: "${trimmed}". التابات المتاحة: ${STUDENT_CLASSIFICATION_OPTIONS.join('، ')}`);
         }
         return trimmed;
       }
@@ -177,7 +266,7 @@ export class GoogleSheetsService {
   private async fetchFromGoogleSheetTab(sheetName: string): Promise<Student[]> {
     const safeSheetName = this.resolveApprovedTab(sheetName);
     const accessToken = await this.getGoogleAccessToken();
-    const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
+    const sheetId = ENV.GOOGLE_SHEET_ID || CENTRAL_SPREADSHEET_ID;
     const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
     const { rows } = await this.lookupGoogleTabRows(sheetPrefix, safeSheetName, accessToken);
     if (rows.length <= 1) return [];
@@ -195,14 +284,32 @@ export class GoogleSheetsService {
       ).map((student) => ({ ...student, att: { ...(student.att || {}) }, fu: { ...(student.fu || {}) } }));
     }
 
-    const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
+    const sheetId = ENV.GOOGLE_SHEET_ID || CENTRAL_SPREADSHEET_ID;
     const shouldRefresh = this.students.size === 0 || Date.now() - this.lastSheetSyncAt > this.CACHE_TTL_MS;
 
     if (shouldRefresh) {
       if (this.isGoogleConfigured()) {
-        const sheetsToFetch = targetSheet === ALL_SHEETS_SENTINEL ? [...APPROVED_SHEETS] : [targetSheet];
-        for (const sName of sheetsToFetch) {
-          const remoteStudents = await this.fetchFromGoogleSheetTab(sName);
+        if (targetSheet === ALL_SHEETS_SENTINEL) {
+          for (const sName of LIVE_GOOGLE_SHEET_TABS) {
+            const remoteStudents = await this.fetchFromGoogleSheetTab(sName);
+            this.loadedSheets.add(sName);
+            for (const st of remoteStudents) {
+              this.students.set(st.id, st);
+            }
+          }
+          // Read optional 'غير نشط' tab only if present on Google Sheets; never fail __ALL__ if absent
+          try {
+            const optionalStudents = await this.fetchFromGoogleSheetTab(INACTIVE_STUDENT_CLASSIFICATION);
+            this.loadedSheets.add(INACTIVE_STUDENT_CLASSIFICATION);
+            for (const st of optionalStudents) {
+              this.students.set(st.id, st);
+            }
+          } catch {
+            // Optional classification tab does not exist on live spreadsheet — preserve __ALL__ completion
+          }
+        } else {
+          const remoteStudents = await this.fetchFromGoogleSheetTab(targetSheet);
+          this.loadedSheets.add(targetSheet);
           for (const st of remoteStudents) {
             this.students.set(st.id, st);
           }
@@ -210,6 +317,9 @@ export class GoogleSheetsService {
         this.lastSheetSyncAt = Date.now();
       } else {
         const result = await fetchSheetStudentsViaGviz(sheetId, targetSheet, this.students);
+        for (const confirmedSheet of result.confirmedSheets) {
+          this.loadedSheets.add(confirmedSheet);
+        }
         for (const st of result.students) {
           const existing = this.students.get(st.id);
           // Preserve server-incremented OCC version if already loaded in this process
@@ -232,6 +342,16 @@ export class GoogleSheetsService {
     return found ? { ...found, att: { ...(found.att || {}) }, fu: { ...(found.fu || {}) } } : null;
   }
 
+  public async getStudentByIdAsync(id: string): Promise<Student | null> {
+    const existing = this.getStudentById(id);
+    if (existing) return existing;
+    if (this.students.size === 0 && !this.testFixtureMode) {
+      await this.ensureStudentsLoaded();
+      return this.getStudentById(id);
+    }
+    return null;
+  }
+
   public async upsertStudent(student: Student): Promise<Student> {
     const result = await this.upsertStudentWithMeta(student);
     return result.student;
@@ -249,8 +369,6 @@ export class GoogleSheetsService {
     };
 
     let persistedRow: number;
-    // When server-side Google credentials are configured, do not report success or
-    // publish the new in-memory version until Google Sheets confirms the write.
     if (this.isGoogleConfigured()) {
       persistedRow = await this.syncStudentUpdateToGoogle(saved, !existing);
     } else if (this.testFixtureMode) {
@@ -264,91 +382,76 @@ export class GoogleSheetsService {
     return { student: { ...saved }, row: persistedRow };
   }
 
-  private async syncStudentUpdateToGoogle(student: Student, _isNew: boolean): Promise<number> {
-    const canonicalTab = this.resolveApprovedTab(student.sourceSheet);
-    const accessToken = await this.getGoogleAccessToken();
-    const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
-    const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
-    const { actualTabName: safeTab, rows } = await this.lookupGoogleTabRows(sheetPrefix, canonicalTab, accessToken);
-    const headers = (rows[0] || []).map((value) => String(value || '').trim());
-    if (!headers.length) {
-      throw new Error(`التاب "${canonicalTab}" في Google Sheets لا يحتوي على صف عناوين`);
+  /**
+   * Builds a sheet row dynamically by header names so reordered/custom columns
+   * and existing spreadsheet formulas in unrelated columns are preserved untouched.
+   */
+  public buildRowValuesForSheetHeaders(
+    headers: string[],
+    student: Student,
+    existingRow?: unknown[]
+  ): string[] {
+    const rowValues: string[] = [];
+    for (let i = 0; i < headers.length; i++) {
+      rowValues.push(existingRow && existingRow[i] !== undefined ? String(existingRow[i]) : '');
     }
 
-    const headerColumnName = (index: number): string => {
-      let n = index + 1;
-      let label = '';
-      while (n > 0) {
-        const remainder = (n - 1) % 26;
-        label = String.fromCharCode(65 + remainder) + label;
-        n = Math.floor((n - 1) / 26);
-      }
-      return label;
-    };
-    let versionColumnIndex = headers.findIndex((header) =>
-      header.toLowerCase() === 'version' || header === 'الإصدار'
-    );
-    if (versionColumnIndex < 0) {
-      versionColumnIndex = headers.length;
-      const versionColumn = headerColumnName(versionColumnIndex);
-      const versionHeaderRange = encodeURIComponent(`'${safeTab}'!${versionColumn}1`);
-      const versionHeaderResponse = await fetch(`${sheetPrefix}/${versionHeaderRange}?valueInputOption=RAW`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ values: [['version']] })
-      });
-      if (!versionHeaderResponse.ok) {
-        throw new Error(`Could not create required Google Sheets version column (${versionHeaderResponse.status})`);
-      }
-      headers.push('version');
-    }
+    const codeIdx = findColumnIndexByAliases(headers, ['كود', 'الكود', 'code']);
+    const nameIdx = findColumnIndexByAliases(headers, ['الاسم', 'name']);
+    const servantIdx = findColumnIndexByAliases(headers, ['الاشبين', 'الأشبين', 'الخادم', 'servant']);
+    const phoneStudentIdx = findColumnIndexByAliases(headers, [
+      'موبيال المخدوم',
+      'موبايل المخدوم',
+      'موبايل الطالب',
+      'تليفون الطالب',
+      'phonestudent'
+    ]);
+    const phoneParent1Idx = findColumnIndexByAliases(headers, [
+      'موبيل ولي الامر 1',
+      'ولي الامر 1',
+      'ولي الأمر 1',
+      'phoneparent1'
+    ]);
+    const phoneParent2Idx = findColumnIndexByAliases(headers, [
+      'موبيل ولي الامر 2',
+      'ولي الامر 2',
+      'ولي الأمر 2',
+      'phoneparent2'
+    ]);
+    const birthDateIdx = findColumnIndexByAliases(headers, ['تاريخ الميلاد', 'birthdate']);
+    const areaIdx = findColumnIndexByAliases(headers, ['منطقة', 'المنطقة', 'area']);
+    const addressIdx = findColumnIndexByAliases(headers, ['العنوان', 'address']);
+    const notesIdx = findColumnIndexByAliases(headers, ['ملاحظات الافتقاد', 'ملاحظات', 'notes']);
+    const lastAttendanceIdx = findColumnIndexByAliases(headers, ['آخر حضور', 'اخر حضور', 'lastattendance']);
+    const lastFollowupIdx = findColumnIndexByAliases(headers, ['آخر افتقاد', 'اخر افتقاد', 'lastfollowup']);
+    const idIdx = findColumnIndexByAliases(headers, ['id']);
+    const versionIdx = findColumnIndexByAliases(headers, ['version', 'الإصدار']);
+    const totalIdx = findColumnIndexByAliases(headers, ['إجمالي الحضور', 'اجمالي الحضور', 'attendancetotal']);
+    const monthIdx = findColumnIndexByAliases(headers, ['حضور الشهر', 'attendancemonth']);
+    const attendanceStatusIdx = findColumnIndexByAliases(headers, ['الحالة', 'attendancestatus']);
+    const followupStatusIdx = findColumnIndexByAliases(headers, ['حالة الافتقاد', 'followupstatus']);
 
-    const matchingRows = rows
-      .map((row, index) => ({ code: String(row?.[0] ?? '').trim(), rowNumber: index + 1 }))
-      .filter((row) => row.rowNumber > 1 && row.code === String(student.code).trim());
-    if (matchingRows.length > 1) {
-      throw new Error(`Duplicate student code "${student.code}" found in Google Sheets; refusing ambiguous write`);
-    }
+    if (codeIdx >= 0) rowValues[codeIdx] = sanitizeSheetCell(student.code);
+    if (nameIdx >= 0) rowValues[nameIdx] = sanitizeSheetCell(student.name);
+    if (servantIdx >= 0) rowValues[servantIdx] = sanitizeSheetCell(student.servant || '');
+    if (phoneStudentIdx >= 0) rowValues[phoneStudentIdx] = sanitizeSheetCell(student.phoneStudent || '');
+    if (phoneParent1Idx >= 0) rowValues[phoneParent1Idx] = sanitizeSheetCell(student.phoneParent1 || '');
+    if (phoneParent2Idx >= 0) rowValues[phoneParent2Idx] = sanitizeSheetCell(student.phoneParent2 || '');
+    if (birthDateIdx >= 0) rowValues[birthDateIdx] = sanitizeSheetCell(student.birthDate || '');
+    if (areaIdx >= 0) rowValues[areaIdx] = sanitizeSheetCell(student.area || '');
+    if (addressIdx >= 0) rowValues[addressIdx] = sanitizeSheetCell(student.address || '');
+    if (notesIdx >= 0) rowValues[notesIdx] = sanitizeSheetCell(student.notes || '');
+    if (lastAttendanceIdx >= 0) rowValues[lastAttendanceIdx] = sanitizeSheetCell(student.lastAttendance || '');
+    if (lastFollowupIdx >= 0) rowValues[lastFollowupIdx] = sanitizeSheetCell(student.lastFollowup || '');
+    if (idIdx >= 0) rowValues[idIdx] = sanitizeSheetCell(student.id);
+    if (versionIdx >= 0) rowValues[versionIdx] = String(student.version || 1);
+    if (totalIdx >= 0) rowValues[totalIdx] = String(student.attendanceTotal || 0);
+    if (monthIdx >= 0) rowValues[monthIdx] = String(student.attendanceMonth || 0);
+    if (attendanceStatusIdx >= 0) rowValues[attendanceStatusIdx] = sanitizeSheetCell(student.attendanceStatus || '');
+    if (followupStatusIdx >= 0) rowValues[followupStatusIdx] = sanitizeSheetCell(student.followupStatus || '');
 
-    const existingRowNumber = matchingRows[0]?.rowNumber;
-    const existingRow = existingRowNumber ? [...(rows[existingRowNumber - 1] || [])] : [];
-    const rowValues = existingRow;
-    while (rowValues.length < Math.max(headers.length, 12)) rowValues.push('');
-
-    const sanitizeSheetCell = (val: unknown): string => {
-      const str = String(val ?? '');
-      if (/^[=+\-@\t\r]/.test(str)) {
-        return `'${str}`;
-      }
-      return str;
-    };
-
-    // Stable base columns A:L.
-    const baseValues = [
-      sanitizeSheetCell(student.code),
-      sanitizeSheetCell(student.name),
-      sanitizeSheetCell(student.servant),
-      sanitizeSheetCell(student.phoneStudent || ''),
-      sanitizeSheetCell(student.phoneParent1 || ''),
-      sanitizeSheetCell(student.phoneParent2 || ''),
-      sanitizeSheetCell(student.birthDate || ''),
-      sanitizeSheetCell(student.area || ''),
-      sanitizeSheetCell(student.address || ''),
-      sanitizeSheetCell(student.notes || ''),
-      sanitizeSheetCell(student.lastAttendance || ''),
-      sanitizeSheetCell(student.lastFollowup || '')
-    ];
-    baseValues.forEach((value, index) => { rowValues[index] = value; });
-
-    // Preserve the dynamic Friday attendance and follow-up columns. These are
-    // essential: updating only A:L would make the UI appear saved while the
-    // actual Friday history in the sheet remained unchanged.
     for (let columnIndex = 0; columnIndex < headers.length; columnIndex++) {
       const header = headers[columnIndex];
-      const normalizedHeader = header.toLowerCase().trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(header) &&
           Object.prototype.hasOwnProperty.call(student.att || {}, header)) {
         rowValues[columnIndex] = student.att[header] ? '1' : '0';
@@ -358,16 +461,152 @@ export class GoogleSheetsService {
       const followupMatch = header.match(/^افتقاد\s+(\d{4}-\d{2}-\d{2})$/);
       if (followupMatch && Object.prototype.hasOwnProperty.call(student.fu || {}, followupMatch[1])) {
         rowValues[columnIndex] = sanitizeSheetCell(student.fu[followupMatch[1]] ?? '');
-        continue;
       }
-
-      if (normalizedHeader === 'id') rowValues[columnIndex] = sanitizeSheetCell(student.id);
-      else if (normalizedHeader === 'version' || header === 'الإصدار') rowValues[columnIndex] = String(student.version || 1);
-      else if (['إجمالي الحضور', 'اجمالي الحضور', 'attendancetotal'].includes(normalizedHeader)) rowValues[columnIndex] = String(student.attendanceTotal || 0);
-      else if (['حضور الشهر', 'attendancemonth'].includes(normalizedHeader)) rowValues[columnIndex] = String(student.attendanceMonth || 0);
-      else if (['الحالة', 'attendancestatus'].includes(normalizedHeader)) rowValues[columnIndex] = sanitizeSheetCell(student.attendanceStatus || '');
-      else if (['حالة الافتقاد', 'followupstatus'].includes(normalizedHeader)) rowValues[columnIndex] = sanitizeSheetCell(student.followupStatus || '');
     }
+
+    return rowValues;
+  }
+
+  private findMatchingRowNumber(headers: string[], rows: string[][], student: Student): number | undefined {
+    const codeCol = findColumnIndexByAliases(headers, ['كود', 'الكود', 'code']);
+    const idCol = findColumnIndexByAliases(headers, ['id']);
+    const nameCol = findColumnIndexByAliases(headers, ['الاسم', 'name']);
+
+    const targetCode = String(student.code || '').trim();
+    if (targetCode && codeCol >= 0) {
+      const codeMatches: number[] = [];
+      for (let i = 1; i < rows.length; i++) {
+        if (String(rows[i]?.[codeCol] ?? '').trim() === targetCode) {
+          codeMatches.push(i + 1);
+        }
+      }
+      if (codeMatches.length > 1) {
+        throw new Error(`Duplicate student code "${student.code}" found in Google Sheets; refusing ambiguous write`);
+      }
+      if (codeMatches.length === 1) return codeMatches[0];
+    }
+
+    const targetId = String(student.id || '').trim();
+    if (targetId && idCol >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        if (String(rows[i]?.[idCol] ?? '').trim() === targetId) {
+          return i + 1;
+        }
+      }
+    }
+
+    const targetNormName = normalizeArabicForMatch(student.name);
+    if (targetNormName && nameCol >= 0) {
+      const nameMatches: number[] = [];
+      for (let i = 1; i < rows.length; i++) {
+        if (normalizeArabicForMatch(rows[i]?.[nameCol]) === targetNormName) {
+          nameMatches.push(i + 1);
+        }
+      }
+      if (nameMatches.length === 1) return nameMatches[0];
+    }
+
+    return undefined;
+  }
+
+  private async ensureMissingHeadersOnSheet(
+    sheetPrefix: string,
+    safeTab: string,
+    headers: string[],
+    studentsForTab: Student[],
+    accessToken: string
+  ): Promise<void> {
+    const columnName = (index: number): string => {
+      let n = index + 1;
+      let label = '';
+      while (n > 0) {
+        const remainder = (n - 1) % 26;
+        label = String.fromCharCode(65 + remainder) + label;
+        n = Math.floor((n - 1) / 26);
+      }
+      return label;
+    };
+
+    const headerUpdates: Array<{ range: string; values: string[][] }> = [];
+    const versionColIdx = findColumnIndexByAliases(headers, ['version', 'الإصدار']);
+    if (versionColIdx < 0) {
+      const newIdx = headers.length;
+      headers.push('version');
+      headerUpdates.push({
+        range: `'${safeTab}'!${columnName(newIdx)}1`,
+        values: [['version']]
+      });
+    }
+
+    const neededAttDates = new Set<string>();
+    const neededFuHeaders = new Set<string>();
+    for (const st of studentsForTab) {
+      for (const d of Object.keys(st.att || {})) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d) && !headers.includes(d)) {
+          neededAttDates.add(d);
+        }
+      }
+      for (const fd of Object.keys(st.fu || {})) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(fd)) {
+          const fuHeader = `افتقاد ${fd}`;
+          if (!headers.includes(fuHeader)) {
+            neededFuHeaders.add(fuHeader);
+          }
+        }
+      }
+    }
+
+    for (const d of Array.from(neededAttDates).sort()) {
+      const colIdx = headers.length;
+      headers.push(d);
+      headerUpdates.push({
+        range: `'${safeTab}'!${columnName(colIdx)}1`,
+        values: [[d]]
+      });
+    }
+    for (const fuHdr of Array.from(neededFuHeaders).sort()) {
+      const colIdx = headers.length;
+      headers.push(fuHdr);
+      headerUpdates.push({
+        range: `'${safeTab}'!${columnName(colIdx)}1`,
+        values: [[fuHdr]]
+      });
+    }
+
+    if (headerUpdates.length > 0) {
+      const hdrResp = await fetch(`${sheetPrefix}:batchUpdate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          valueInputOption: 'RAW',
+          data: headerUpdates
+        })
+      });
+      if (!hdrResp.ok) {
+        throw new Error(`Could not add missing columns to Google Sheets "${safeTab}" (${hdrResp.status})`);
+      }
+    }
+  }
+
+  private async syncStudentUpdateToGoogle(student: Student, _isNew: boolean): Promise<number> {
+    const canonicalTab = this.resolveApprovedTab(student.sourceSheet);
+    const accessToken = await this.getGoogleAccessToken();
+    const sheetId = ENV.GOOGLE_SHEET_ID || CENTRAL_SPREADSHEET_ID;
+    const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
+    const { actualTabName: safeTab, rows } = await this.lookupGoogleTabRows(sheetPrefix, canonicalTab, accessToken);
+    const headers = (rows[0] || []).map((value) => String(value || '').trim());
+    if (!headers.length) {
+      throw new Error(`التاب "${canonicalTab}" في Google Sheets لا يحتوي على صف عناوين`);
+    }
+
+    await this.ensureMissingHeadersOnSheet(sheetPrefix, safeTab, headers, [student], accessToken);
+
+    const existingRowNumber = this.findMatchingRowNumber(headers, rows, student);
+    const existingRow = existingRowNumber ? rows[existingRowNumber - 1] : undefined;
+    const rowValues = this.buildRowValuesForSheetHeaders(headers, student, existingRow);
 
     const columnName = (index: number): string => {
       let n = index + 1;
@@ -381,7 +620,7 @@ export class GoogleSheetsService {
     };
 
     if (existingRowNumber) {
-      const lastColumn = columnName(Math.max(headers.length, 12) - 1);
+      const lastColumn = columnName(Math.max(headers.length, rowValues.length) - 1);
       const updateRange = encodeURIComponent(`'${safeTab}'!A${existingRowNumber}:${lastColumn}${existingRowNumber}`);
       const response = await fetch(`${sheetPrefix}/${updateRange}?valueInputOption=USER_ENTERED`, {
         method: 'PUT',
@@ -398,7 +637,7 @@ export class GoogleSheetsService {
       return existingRowNumber;
     }
 
-    const appendWidth = Math.max(headers.length, 12);
+    const appendWidth = Math.max(headers.length, rowValues.length);
     while (rowValues.length < appendWidth) rowValues.push('');
     const appendRange = encodeURIComponent(`'${safeTab}'!A:${columnName(appendWidth - 1)}`);
     const appendResponse = await fetch(`${sheetPrefix}/${appendRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
@@ -453,7 +692,7 @@ export class GoogleSheetsService {
     }
 
     const accessToken = await this.getGoogleAccessToken();
-    const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
+    const sheetId = ENV.GOOGLE_SHEET_ID || CENTRAL_SPREADSHEET_ID;
     const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
     const lookupRange = encodeURIComponent(`'${FOLLOWUP_LOG_TAB}'!A1:M5000`);
     const lookupRes = await fetch(`${sheetPrefix}/${lookupRange}`, {
@@ -489,24 +728,19 @@ export class GoogleSheetsService {
       }
     }
 
-    const sanitize = (val: unknown): string => {
-      const str = String(val ?? '');
-      return /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
-    };
-
     const effectiveRecordId = entry.recordId || `gs_fu_${rows.length + 1}`;
     const newRow = [
       entry.date,
       entry.friday,
-      sanitize(entry.sheetName),
-      sanitize(entry.studentCode),
-      sanitize(entry.studentName),
-      sanitize(entry.servant),
-      sanitize(entry.method),
-      sanitize(entry.notes || ''),
+      sanitizeSheetCell(entry.sheetName),
+      sanitizeSheetCell(entry.studentCode),
+      sanitizeSheetCell(entry.studentName),
+      sanitizeSheetCell(entry.servant),
+      sanitizeSheetCell(entry.method),
+      sanitizeSheetCell(entry.notes || ''),
       entry.mutationId,
-      sanitize(entry.callOutcome || ''),
-      sanitize(effectiveRecordId)
+      sanitizeSheetCell(entry.callOutcome || ''),
+      sanitizeSheetCell(effectiveRecordId)
     ];
 
     const appendRange = encodeURIComponent(`'${FOLLOWUP_LOG_TAB}'!A:K`);
@@ -588,7 +822,7 @@ export class GoogleSheetsService {
 
   private async syncStudentsBatchToGoogle(studentsToSave: Student[]): Promise<Record<string, number>> {
     const accessToken = await this.getGoogleAccessToken();
-    const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
+    const sheetId = ENV.GOOGLE_SHEET_ID || CENTRAL_SPREADSHEET_ID;
     const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
     const rowByStudentId: Record<string, number> = {};
 
@@ -601,12 +835,6 @@ export class GoogleSheetsService {
         n = Math.floor((n - 1) / 26);
       }
       return label;
-    };
-
-    const sanitizeSheetCell = (val: unknown): string => {
-      const str = String(val ?? '');
-      if (/^[=+\-@\t\r]/.test(str)) return `'${str}`;
-      return str;
     };
 
     const bySheet = new Map<string, Student[]>();
@@ -627,105 +855,17 @@ export class GoogleSheetsService {
         throw new Error(`Google Sheets tab "${canonicalSheetName}" has no header row`);
       }
 
-      const headerUpdates: Array<{ range: string; values: string[][] }> = [];
-      let versionColumnIndex = headers.findIndex((h) => h.toLowerCase() === 'version' || h === 'الإصدار');
-      if (versionColumnIndex < 0) {
-        versionColumnIndex = headers.length;
-        headers.push('version');
-        headerUpdates.push({
-          range: `'${sheetName}'!${columnName(versionColumnIndex)}1`,
-          values: [['version']]
-        });
-      }
-
-      // Ensure any new ISO Friday dates present in batch exist in sheet headers
-      const neededDates = new Set<string>();
-      for (const st of sheetStudents) {
-        for (const d of Object.keys(st.att || {})) {
-          if (/^\d{4}-\d{2}-\d{2}$/.test(d) && !headers.includes(d)) {
-            neededDates.add(d);
-          }
-        }
-      }
-      for (const d of Array.from(neededDates).sort()) {
-        const colIdx = headers.length;
-        headers.push(d);
-        headerUpdates.push({
-          range: `'${sheetName}'!${columnName(colIdx)}1`,
-          values: [[d]]
-        });
-      }
-
-      if (headerUpdates.length > 0) {
-        const hdrResp = await fetch(`${sheetPrefix}:batchUpdate`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            valueInputOption: 'RAW',
-            data: headerUpdates
-          })
-        });
-        if (!hdrResp.ok) {
-          throw new Error(`Could not add missing columns to Google Sheets "${sheetName}" (${hdrResp.status})`);
-        }
-      }
-
-      const codeToRowNum = new Map<string, number>();
-      for (let i = 1; i < rows.length; i++) {
-        const code = String(rows[i]?.[0] ?? '').trim();
-        if (code && !codeToRowNum.has(code)) {
-          codeToRowNum.set(code, i + 1);
-        }
-      }
+      await this.ensureMissingHeadersOnSheet(sheetPrefix, sheetName, headers, sheetStudents, accessToken);
 
       const rowBatchData: Array<{ range: string; values: string[][] }> = [];
       const appendRows: string[][] = [];
-      const width = Math.max(headers.length, 12);
+      const width = Math.max(headers.length, 1);
       const lastColLetter = columnName(width - 1);
 
       for (const student of sheetStudents) {
-        const existingRowNumber = codeToRowNum.get(String(student.code).trim());
-        const rowValues = existingRowNumber ? [...(rows[existingRowNumber - 1] || [])] : [];
-        while (rowValues.length < width) rowValues.push('');
-
-        const baseValues = [
-          sanitizeSheetCell(student.code),
-          sanitizeSheetCell(student.name),
-          sanitizeSheetCell(student.servant),
-          sanitizeSheetCell(student.phoneStudent || ''),
-          sanitizeSheetCell(student.phoneParent1 || ''),
-          sanitizeSheetCell(student.phoneParent2 || ''),
-          sanitizeSheetCell(student.birthDate || ''),
-          sanitizeSheetCell(student.area || ''),
-          sanitizeSheetCell(student.address || ''),
-          sanitizeSheetCell(student.notes || ''),
-          sanitizeSheetCell(student.lastAttendance || ''),
-          sanitizeSheetCell(student.lastFollowup || '')
-        ];
-        baseValues.forEach((v, i) => { rowValues[i] = v; });
-
-        for (let c = 0; c < headers.length; c++) {
-          const hdr = headers[c];
-          const normHdr = hdr.toLowerCase().trim();
-          if (/^\d{4}-\d{2}-\d{2}$/.test(hdr) && Object.prototype.hasOwnProperty.call(student.att || {}, hdr)) {
-            rowValues[c] = student.att[hdr] ? '1' : '0';
-            continue;
-          }
-          const fuMatch = hdr.match(/^افتقاد\s+(\d{4}-\d{2}-\d{2})$/);
-          if (fuMatch && Object.prototype.hasOwnProperty.call(student.fu || {}, fuMatch[1])) {
-            rowValues[c] = sanitizeSheetCell(student.fu[fuMatch[1]] ?? '');
-            continue;
-          }
-          if (normHdr === 'id') rowValues[c] = sanitizeSheetCell(student.id);
-          else if (normHdr === 'version' || hdr === 'الإصدار') rowValues[c] = String(student.version || 1);
-          else if (['إجمالي الحضور', 'اجمالي الحضور', 'attendancetotal'].includes(normHdr)) rowValues[c] = String(student.attendanceTotal || 0);
-          else if (['حضور الشهر', 'attendancemonth'].includes(normHdr)) rowValues[c] = String(student.attendanceMonth || 0);
-          else if (['الحالة', 'attendancestatus'].includes(normHdr)) rowValues[c] = sanitizeSheetCell(student.attendanceStatus || '');
-          else if (['حالة الافتقاد', 'followupstatus'].includes(normHdr)) rowValues[c] = sanitizeSheetCell(student.followupStatus || '');
-        }
+        const existingRowNumber = this.findMatchingRowNumber(headers, rows, student);
+        const existingRow = existingRowNumber ? rows[existingRowNumber - 1] : undefined;
+        const rowValues = this.buildRowValuesForSheetHeaders(headers, student, existingRow);
 
         if (existingRowNumber) {
           rowByStudentId[student.id] = existingRowNumber;

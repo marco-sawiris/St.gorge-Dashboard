@@ -27,6 +27,8 @@
  */
 
 var CENTRAL_SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
+var LIVE_STUDENT_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة'];
+var OPTIONAL_STUDENT_SHEETS = ['غير نشط'];
 var APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط'];
 var ALL_SHEETS_SENTINEL = '__ALL__';
 var FOLLOWUP_LOG_SHEET_NAME = 'سجل الافتقاد';
@@ -315,38 +317,77 @@ function doGet(e) {
       }
 
       var ss = getSpreadsheet();
-      var sheetsToRead = targetSheet === ALL_SHEETS_SENTINEL ? APPROVED_SHEETS : [targetSheet];
+      var sheetsToRead = [];
+      if (targetSheet === ALL_SHEETS_SENTINEL) {
+        for (var ls = 0; ls < LIVE_STUDENT_SHEETS.length; ls++) {
+          sheetsToRead.push(LIVE_STUDENT_SHEETS[ls]);
+        }
+        // Only read optional sheets (such as 'غير نشط') if that tab physically exists in the spreadsheet
+        for (var os = 0; os < OPTIONAL_STUDENT_SHEETS.length; os++) {
+          var optName = OPTIONAL_STUDENT_SHEETS[os];
+          if (findApprovedSheet(ss, optName)) {
+            sheetsToRead.push(optName);
+          }
+        }
+      } else {
+        sheetsToRead = [targetSheet];
+      }
+
       var students = [];
       var confirmedSheets = [];
+      var confirmedEmptySheets = [];
+      var sheetsMeta = {};
+      var allRequestedConfirmed = true;
 
       for (var i = 0; i < sheetsToRead.length; i++) {
         var sheetName = sheetsToRead[i];
         var sheet = findApprovedSheet(ss, sheetName);
-        if (!sheet) continue;
-        confirmedSheets.push(sheetName);
+        if (!sheet) {
+          allRequestedConfirmed = false;
+          sheetsMeta[sheetName] = { verified: false, isComplete: false, reason: 'missing_sheet' };
+          continue;
+        }
         var values = sheet.getDataRange().getValues();
-        if (values.length <= 1) continue;
+        if (values.length <= 1) {
+          confirmedSheets.push(sheetName);
+          confirmedEmptySheets.push(sheetName);
+          sheetsMeta[sheetName] = { verified: true, isComplete: true, parsedRowCount: 0 };
+          continue;
+        }
 
         var headers = values[0].map(function (h) { return formatHeaderCell(h); });
         var nameCol = findColIndex(headers, ['الاسم', 'name', 'Name']);
-        if (nameCol === -1) continue;
+        if (nameCol === -1) {
+          allRequestedConfirmed = false;
+          sheetsMeta[sheetName] = { verified: false, isComplete: false, reason: 'missing_name_column' };
+          continue;
+        }
 
+        confirmedSheets.push(sheetName);
+        var parsedForSheet = 0;
         for (var r = 1; r < values.length; r++) {
           var row = values[r];
           var rowName = String(row[nameCol] || '').trim();
           if (!rowName || rowName === 'الاسم' || rowName === 'سؤال بدون عنوان') continue;
           students.push(mapRowToStudent(headers, row, sheetName, r + 1));
+          parsedForSheet++;
         }
+        if (parsedForSheet === 0) {
+          confirmedEmptySheets.push(sheetName);
+        }
+        sheetsMeta[sheetName] = { verified: true, isComplete: true, parsedRowCount: parsedForSheet };
       }
 
       return jsonResponse({
         ok: true,
         sheet: targetSheet,
         targetSheet: targetSheet,
-        isComplete: true,
-        confirmedComplete: true,
-        isConfirmedComplete: true,
+        isComplete: allRequestedConfirmed,
+        confirmedComplete: allRequestedConfirmed,
+        isConfirmedComplete: allRequestedConfirmed,
         confirmedSheets: confirmedSheets,
+        confirmedEmptySheets: confirmedEmptySheets,
+        sheetsMeta: sheetsMeta,
         students: students,
         followupRecords: readFollowupLogRows(ss)
       });
@@ -469,23 +510,23 @@ function doPost(e) {
       if (cached) {
         try {
           var prev = JSON.parse(cached);
-          if (prev && prev.ok === true && prev.proof && prev.proof.persisted === true) {
-            prev.deduplicated = true;
-            prev.proof.deduplicated = true;
-            return jsonResponse(prev);
+          if (prev && prev.ok === true) {
+            var resolvedCached = resolveExistingIdempotencyRecord(ss, idempotencyKey, prev);
+            return jsonResponse(resolvedCached);
           }
         } catch (cacheParseErr) {
           // Fall through to durable sheet ledger if cache JSON is corrupt
         }
       }
       var durablePrevious = findDurableIdempotencyResult(ss, idempotencyKey);
-      if (durablePrevious && durablePrevious.ok === true && durablePrevious.proof && durablePrevious.proof.persisted === true) {
-        durablePrevious.deduplicated = true;
-        durablePrevious.proof.deduplicated = true;
-        try {
-          cache.put('IDEMP_' + idempotencyKey, JSON.stringify(durablePrevious), 21600);
-        } catch (cePut) {}
-        return jsonResponse(durablePrevious);
+      if (durablePrevious && durablePrevious.ok === true) {
+        var resolvedDurable = resolveExistingIdempotencyRecord(ss, idempotencyKey, durablePrevious);
+        if (resolvedDurable.proof && resolvedDurable.proof.persisted === true) {
+          try {
+            cache.put('IDEMP_' + idempotencyKey, JSON.stringify(resolvedDurable), 21600);
+          } catch (cePut) {}
+        }
+        return jsonResponse(resolvedDurable);
       }
     }
 
@@ -878,27 +919,117 @@ function getDurableIdempotencySheet(ss) {
   return ledger;
 }
 
+/**
+ * Resolves an existing idempotency record safely:
+ * - If it has a verified RemotePersistenceProof (persisted === true), replays it with deduplicated: true.
+ * - If it is a legacy pre-4.4 record ({ ok: true } without persisted proof), attempts genuine sheet
+ *   verification ONLY where provable (e.g. followup row in 'سجل الافتقاد'). Otherwise returns an
+ *   honest non-re-executing response WITHOUT fabricating persisted: true or proof.
+ */
+function resolveExistingIdempotencyRecord(ss, idempotencyKey, storedRecord) {
+  var copy = JSON.parse(JSON.stringify(storedRecord));
+  if (copy.proof && copy.proof.persisted === true) {
+    copy.deduplicated = true;
+    copy.proof.deduplicated = true;
+    return copy;
+  }
+
+  // Attempt genuine verification from 'سجل الافتقاد' if followup log row exists for this mutationId
+  var op = String(copy.operation || copy.action || '').trim().toLowerCase();
+  if (op === 'followup' || copy.fuStatus || copy.fuDate) {
+    var logSheet = findFollowupLogSheet(ss);
+    if (logSheet && logSheet.getLastRow() > 1) {
+      var logValues = logSheet.getDataRange().getValues();
+      var logHeaders = logValues[0].map(function (h) { return formatHeaderCell(h); });
+      var logMutCol = findColIndex(logHeaders, ['mutation_id']);
+      var logSheetCol = findColIndex(logHeaders, ['الشيت', 'sourceSheet', 'sheet']);
+      var logCodeCol = findColIndex(logHeaders, ['الكود', 'كود', 'code']);
+      var logDateCol = findColIndex(logHeaders, ['التاريخ']);
+      var logFriCol = findColIndex(logHeaders, ['أسبوع الجمعة', 'الجمعة']);
+      var logRecIdCol = findColIndex(logHeaders, ['record_id', 'recordId']);
+      if (logMutCol >= 0) {
+        for (var r = logValues.length - 1; r >= 1; r--) {
+          if (String(logValues[r][logMutCol] || '').trim() === String(idempotencyKey).trim()) {
+            var sheetLabel = logSheetCol >= 0 ? formatCellValue(logValues[r][logSheetCol]) : String(copy.sheetName || 'نشط');
+            var codeVal = logCodeCol >= 0 ? formatCellValue(logValues[r][logCodeCol]) : '';
+            var recIdVal = logRecIdCol >= 0 ? formatCellValue(logValues[r][logRecIdCol]) : '';
+            var repairedProof = buildPersistenceProof({
+              mutationId: idempotencyKey,
+              operation: 'followup',
+              studentId: String(copy.studentId || codeVal || 'verified_from_log'),
+              sheetName: sheetLabel || 'نشط',
+              recordId: recIdVal || ('gs_fu_' + (r + 1)),
+              friday: logFriCol >= 0 ? formatCellValue(logValues[r][logFriCol]) : undefined,
+              date: logDateCol >= 0 ? formatCellValue(logValues[r][logDateCol]) : undefined,
+              followupLogAppended: true,
+              followupLogRow: r + 1,
+              deduplicated: true
+            });
+            return buildVerifiedMutationResponse(repairedProof, {
+              deduplicated: true,
+              repairedFromSheetState: true
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Legacy pre-4.4 entry that cannot be cryptographically proven from sheet row metadata:
+  // NEVER re-execute the mutation (prevents duplicate writes / 409 conflicts) and NEVER fabricate proof.
+  return {
+    ok: true,
+    status: 200,
+    deduplicated: true,
+    legacyIdempotencyEntry: true,
+    requiresManualVerification: true,
+    mutationId: idempotencyKey,
+    operation: copy.operation || copy.action,
+    studentId: copy.studentId,
+    message: 'العملية مسجلة مسبقاً في سجل عدم التكرار (قبل تفعيل إثبات الحفظ)؛ تم منع إعادة تنفيذها لتفادي التكرار.'
+  };
+}
+
 function findDurableIdempotencyResult(ss, key) {
   var ledger = getDurableIdempotencySheet(ss);
   var lastRow = ledger.getLastRow();
   if (lastRow < 2) return null;
-  var match = ledger.getRange(2, 1, lastRow - 1, 1)
-    .createTextFinder(String(key))
-    .matchEntireCell(true)
-    .findNext();
-  if (!match) return null;
-  var raw = ledger.getRange(match.getRow(), 2).getValue();
-  if (!raw) return null;
-  try {
-    return JSON.parse(String(raw));
-  } catch (err) {
-    return null;
+  var targetKey = String(key || '').trim();
+  if (!targetKey) return null;
+  var rows = ledger.getRange(2, 1, lastRow - 1, 2).getValues();
+  // Bottom-up scan so the most recent record always takes precedence
+  for (var r = rows.length - 1; r >= 0; r--) {
+    if (String(rows[r][0] || '').trim() === targetKey) {
+      var raw = rows[r][1];
+      if (!raw) return null;
+      try {
+        return JSON.parse(String(raw));
+      } catch (err) {
+        return null;
+      }
+    }
   }
+  return null;
 }
 
 function saveDurableIdempotencyResult(ss, key, response) {
+  var targetKey = String(key || '').trim();
+  if (!targetKey) return;
   var ledger = getDurableIdempotencySheet(ss);
-  ledger.appendRow([String(key), JSON.stringify(response), new Date()]);
+  var lastRow = ledger.getLastRow();
+  var serialized = JSON.stringify(response);
+  var now = new Date();
+  if (lastRow >= 2) {
+    var existingKeys = ledger.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var r = existingKeys.length - 1; r >= 0; r--) {
+      if (String(existingKeys[r][0] || '').trim() === targetKey) {
+        ledger.getRange(r + 2, 2, 1, 2).setValues([[serialized, now]]);
+        safeFlushSpreadsheet();
+        return;
+      }
+    }
+  }
+  ledger.appendRow([targetKey, serialized, now]);
   safeFlushSpreadsheet();
 }
 
@@ -988,12 +1119,34 @@ function checkIdempotencyKeys(ss, keys) {
 function saveDurableIdempotencyBatch(ss, entries) {
   if (!entries || entries.length === 0) return;
   var ledger = getDurableIdempotencySheet(ss);
-  var startRow = Math.max(2, ledger.getLastRow() + 1);
+  var lastRow = ledger.getLastRow();
+  var existingRowMap = {};
+  if (lastRow >= 2) {
+    var existingKeys = ledger.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var r = 0; r < existingKeys.length; r++) {
+      var kStr = String(existingKeys[r][0] || '').trim();
+      if (kStr) existingRowMap[kStr] = r + 2; // latest row wins
+    }
+  }
+
   var now = new Date();
-  var rows = entries.map(function (entry) {
-    return [String(entry.key), JSON.stringify(entry.response), now];
-  });
-  ledger.getRange(startRow, 1, rows.length, 3).setValues(rows);
+  var rowsToAppend = [];
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    var eKey = String(entry.key || '').trim();
+    if (!eKey) continue;
+    var serialized = JSON.stringify(entry.response);
+    if (existingRowMap[eKey] !== undefined) {
+      ledger.getRange(existingRowMap[eKey], 2, 1, 2).setValues([[serialized, now]]);
+    } else {
+      rowsToAppend.push([eKey, serialized, now]);
+    }
+  }
+
+  if (rowsToAppend.length > 0) {
+    var startRow = Math.max(2, lastRow + 1);
+    ledger.getRange(startRow, 1, rowsToAppend.length, 3).setValues(rowsToAppend);
+  }
   safeFlushSpreadsheet();
 }
 
@@ -1035,15 +1188,10 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
       idempStateMap[mutKey] &&
       idempStateMap[mutKey].found &&
       idempStateMap[mutKey].response &&
-      idempStateMap[mutKey].response.ok === true &&
-      idempStateMap[mutKey].response.proof &&
-      idempStateMap[mutKey].response.proof.persisted === true
+      idempStateMap[mutKey].response.ok === true
     ) {
-      var prevResp = JSON.parse(JSON.stringify(idempStateMap[mutKey].response));
-      prevResp.deduplicated = true;
-      prevResp.mutationId = mutKey;
-      prevResp.proof.deduplicated = true;
-      results[idx] = prevResp;
+      results[idx] = resolveExistingIdempotencyRecord(ss, mutKey, idempStateMap[mutKey].response);
+      results[idx].mutationId = mutKey;
       continue;
     }
 

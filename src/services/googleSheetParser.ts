@@ -1,8 +1,15 @@
-import { Student, StudentIdentityQuality, APPROVED_SHEETS, ALL_SHEETS_SENTINEL } from '../types/student';
+import {
+  Student,
+  StudentIdentityQuality,
+  LIVE_GOOGLE_SHEET_TABS,
+  STUDENT_CLASSIFICATION_OPTIONS,
+  ALL_SHEETS_SENTINEL
+} from '../types/student';
 import { FollowupRecord, CallOutcome } from '../types/followup';
 import { extractFollowupCallOutcome, normalizeArabicText } from '../utils/arabicUtils';
+import { CENTRAL_SPREADSHEET_ID } from '../config/centralSheetConfig';
 
-export const DEFAULT_SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
+export const DEFAULT_SPREADSHEET_ID = CENTRAL_SPREADSHEET_ID;
 
 const INVALID_STUDENT_CODE_TOKENS = new Set([
   '',
@@ -1353,11 +1360,11 @@ export async function fetchSheetStudentsViaGviz(
     cleanedTarget.toLowerCase() === 'null'
       ? ALL_SHEETS_SENTINEL
       : cleanedTarget;
-  if (safeTarget !== ALL_SHEETS_SENTINEL && !APPROVED_SHEETS.includes(safeTarget as any)) {
+  if (safeTarget !== ALL_SHEETS_SENTINEL && !STUDENT_CLASSIFICATION_OPTIONS.includes(safeTarget as any)) {
     throw new Error(`اسم التاب غير معتمد في Google Sheets: "${safeTarget}"`);
   }
 
-  const sheetsToRead = safeTarget === ALL_SHEETS_SENTINEL ? [...APPROVED_SHEETS] : [safeTarget];
+  const sheetsToRead = safeTarget === ALL_SHEETS_SENTINEL ? [...LIVE_GOOGLE_SHEET_TABS] : [safeTarget];
   const allStudents: Student[] = [];
   const confirmedSheets: string[] = [];
   const confirmedEmptySheets: string[] = [];
