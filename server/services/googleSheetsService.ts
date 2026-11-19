@@ -20,8 +20,41 @@ interface GoogleTokenCache {
  *   parsing actual rows and Friday attendance/followup columns from Google Drive.
  * - NEVER injects or falls back to fake/mock student records in production.
  */
+export interface FollowupLogWriteInput {
+  date: string;
+  friday: string;
+  sheetName: string;
+  studentCode: string;
+  studentName: string;
+  servant: string;
+  method: string;
+  notes: string;
+  mutationId: string;
+  callOutcome?: string;
+  recordId?: string;
+}
+
+export interface FollowupLogWriteResult {
+  appended: true;
+  followupLogRow: number;
+  recordId: string;
+  deduplicated: boolean;
+}
+
+const ACTUAL_GOOGLE_TAB_CANDIDATES: Record<string, string[]> = {
+  'نشط': ['نشط'],
+  'غير حاضر': ['غير حاضر'],
+  'فصل البابا شنودة': ['فصل البابا شنودة ', 'فصل البابا شنودة'],
+  'غير نشط': ['غير نشط']
+};
+
+const FOLLOWUP_LOG_TAB = 'سجل الافتقاد';
+
 export class GoogleSheetsService {
   private students = new Map<string, Student>();
+  private fixtureRowNumbers = new Map<string, number>();
+  private fixtureNextRow = 2;
+  private fixtureFollowupLog: Array<FollowupLogWriteInput & { row: number; recordId: string }> = [];
   private testFixtureMode = false;
   private tokenCache: GoogleTokenCache | null = null;
   private lastSheetSyncAt: number = 0;
@@ -42,9 +75,17 @@ export class GoogleSheetsService {
    */
   public seedTestFixtureStudentsOnly(fixtures: Student[]): void {
     this.testFixtureMode = true;
+    this.fixtureFollowupLog = [];
     for (const s of fixtures) {
       this.students.set(s.id, { ...s, version: s.version || 1 });
+      if (!this.fixtureRowNumbers.has(s.id)) {
+        this.fixtureRowNumbers.set(s.id, this.fixtureNextRow++);
+      }
     }
+  }
+
+  public getFixtureFollowupLog(): ReadonlyArray<FollowupLogWriteInput & { row: number; recordId: string }> {
+    return [...this.fixtureFollowupLog];
   }
 
   private base64UrlEncode(input: Buffer | string): string {
@@ -112,23 +153,33 @@ export class GoogleSheetsService {
     return fallback;
   }
 
+  private async lookupGoogleTabRows(
+    sheetPrefix: string,
+    canonicalTab: string,
+    accessToken: string
+  ): Promise<{ actualTabName: string; rows: string[][] }> {
+    const candidates = ACTUAL_GOOGLE_TAB_CANDIDATES[canonicalTab] || [canonicalTab];
+    let lastStatus = 404;
+    for (const candidateTab of candidates) {
+      const lookupRange = encodeURIComponent(`'${candidateTab}'!A1:AZ1000`);
+      const res = await fetch(`${sheetPrefix}/${lookupRange}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { values?: string[][] };
+        return { actualTabName: candidateTab, rows: data.values || [] };
+      }
+      lastStatus = res.status;
+    }
+    throw new Error(`تعذر الوصول إلى التاب "${canonicalTab}" في Google Sheets (${lastStatus})`);
+  }
+
   private async fetchFromGoogleSheetTab(sheetName: string): Promise<Student[]> {
     const safeSheetName = this.resolveApprovedTab(sheetName);
     const accessToken = await this.getGoogleAccessToken();
     const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
-    const range = encodeURIComponent(`'${safeSheetName}'!A1:AZ1000`);
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`;
-
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-
-    if (!res.ok) {
-      throw new Error(`تعذر قراءة التاب "${safeSheetName}" من Google Sheets (${res.status})`);
-    }
-
-    const data = (await res.json()) as { values?: string[][] };
-    const rows = data.values || [];
+    const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
+    const { rows } = await this.lookupGoogleTabRows(sheetPrefix, safeSheetName, accessToken);
     if (rows.length <= 1) return [];
 
     const headers = rows[0].map((h) => String(h || '').trim());
@@ -182,6 +233,11 @@ export class GoogleSheetsService {
   }
 
   public async upsertStudent(student: Student): Promise<Student> {
+    const result = await this.upsertStudentWithMeta(student);
+    return result.student;
+  }
+
+  public async upsertStudentWithMeta(student: Student): Promise<{ student: Student; row: number }> {
     if (!this.isGoogleConfigured() && !this.testFixtureMode) {
       throw new Error('Google Sheets write is unavailable: configure server-side Service Account credentials before accepting mutations.');
     }
@@ -191,36 +247,32 @@ export class GoogleSheetsService {
       ...student,
       version: nextVersion
     };
+
+    let persistedRow: number;
     // When server-side Google credentials are configured, do not report success or
     // publish the new in-memory version until Google Sheets confirms the write.
     if (this.isGoogleConfigured()) {
-      await this.syncStudentUpdateToGoogle(saved, !existing);
-    } else if (!this.testFixtureMode) {
+      persistedRow = await this.syncStudentUpdateToGoogle(saved, !existing);
+    } else if (this.testFixtureMode) {
+      persistedRow = this.fixtureRowNumbers.get(saved.id) ?? this.fixtureNextRow++;
+      this.fixtureRowNumbers.set(saved.id, persistedRow);
+    } else {
       throw new Error('Google Sheets write was not attempted; refusing an in-memory-only success response.');
     }
 
     this.students.set(saved.id, saved);
-    return { ...saved };
+    return { student: { ...saved }, row: persistedRow };
   }
 
-  private async syncStudentUpdateToGoogle(student: Student, _isNew: boolean): Promise<void> {
-    const safeTab = this.resolveApprovedTab(student.sourceSheet);
+  private async syncStudentUpdateToGoogle(student: Student, _isNew: boolean): Promise<number> {
+    const canonicalTab = this.resolveApprovedTab(student.sourceSheet);
     const accessToken = await this.getGoogleAccessToken();
     const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
     const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
-    const lookupRange = encodeURIComponent(`'${safeTab}'!A1:AZ1000`);
-    const lookupResponse = await fetch(`${sheetPrefix}/${lookupRange}`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!lookupResponse.ok) {
-      throw new Error(`تعذر الوصول إلى التاب "${safeTab}" في Google Sheets (${lookupResponse.status})`);
-    }
-
-    const lookupData = (await lookupResponse.json()) as { values?: string[][] };
-    const rows = lookupData.values || [];
+    const { actualTabName: safeTab, rows } = await this.lookupGoogleTabRows(sheetPrefix, canonicalTab, accessToken);
     const headers = (rows[0] || []).map((value) => String(value || '').trim());
     if (!headers.length) {
-      throw new Error(`التاب "${safeTab}" في Google Sheets لا يحتوي على صف عناوين`);
+      throw new Error(`التاب "${canonicalTab}" في Google Sheets لا يحتوي على صف عناوين`);
     }
 
     const headerColumnName = (index: number): string => {
@@ -343,7 +395,7 @@ export class GoogleSheetsService {
         const detail = await response.text().catch(() => '');
         throw new Error(`Google Sheets update failed (${response.status}): ${detail}`);
       }
-      return;
+      return existingRowNumber;
     }
 
     const appendWidth = Math.max(headers.length, 12);
@@ -361,6 +413,125 @@ export class GoogleSheetsService {
       const detail = await appendResponse.text().catch(() => '');
       throw new Error(`Google Sheets append failed (${appendResponse.status}): ${detail}`);
     }
+    const appendJson = (await appendResponse.json().catch(() => ({}))) as { updates?: { updatedRange?: string } };
+    const rangeMatch = String(appendJson?.updates?.updatedRange || '').match(/![A-Z]+(\d+)/);
+    return rangeMatch ? parseInt(rangeMatch[1], 10) : rows.length + 1;
+  }
+
+  /**
+   * Appends a followup audit row to the central 'سجل الافتقاد' tab with deduplication.
+   * Fail-loud: throws if the tab is missing or write fails; never returns fake success.
+   */
+  public async appendFollowupLog(entry: FollowupLogWriteInput): Promise<FollowupLogWriteResult> {
+    if (!this.isGoogleConfigured() && !this.testFixtureMode) {
+      throw new Error('Google Sheets followup log write is unavailable: configure server-side Service Account credentials.');
+    }
+
+    if (this.testFixtureMode && !this.isGoogleConfigured()) {
+      const existing = this.fixtureFollowupLog.find(
+        (r) =>
+          (entry.mutationId && r.mutationId === entry.mutationId) ||
+          (entry.recordId && r.recordId === entry.recordId)
+      );
+      if (existing) {
+        return {
+          appended: true,
+          followupLogRow: existing.row,
+          recordId: entry.recordId || existing.recordId,
+          deduplicated: true
+        };
+      }
+      const nextRow = this.fixtureFollowupLog.length + 2;
+      const effectiveRecordId = entry.recordId || `gs_fu_${nextRow}`;
+      this.fixtureFollowupLog.push({ ...entry, row: nextRow, recordId: effectiveRecordId });
+      return {
+        appended: true,
+        followupLogRow: nextRow,
+        recordId: effectiveRecordId,
+        deduplicated: false
+      };
+    }
+
+    const accessToken = await this.getGoogleAccessToken();
+    const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
+    const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
+    const lookupRange = encodeURIComponent(`'${FOLLOWUP_LOG_TAB}'!A1:M5000`);
+    const lookupRes = await fetch(`${sheetPrefix}/${lookupRange}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!lookupRes.ok) {
+      throw new Error(`التاب "${FOLLOWUP_LOG_TAB}" غير موجود أو تعذر الوصول إليه في Google Sheets (${lookupRes.status})`);
+    }
+
+    const lookupJson = (await lookupRes.json()) as { values?: string[][] };
+    const rows = lookupJson.values || [];
+    const headers = (rows[0] || []).map((v) => String(v || '').trim());
+    const mutationCol = headers.findIndex((h) => h === 'mutation_id');
+    const recordIdCol = headers.findIndex((h) => h === 'record_id' || h === 'recordId');
+
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      if (mutationCol >= 0 && entry.mutationId && String(r[mutationCol] || '').trim() === entry.mutationId) {
+        return {
+          appended: true,
+          followupLogRow: i + 1,
+          recordId: entry.recordId || (recordIdCol >= 0 ? String(r[recordIdCol] || '').trim() : '') || `gs_fu_${i + 1}`,
+          deduplicated: true
+        };
+      }
+      if (recordIdCol >= 0 && entry.recordId && String(r[recordIdCol] || '').trim() === entry.recordId) {
+        return {
+          appended: true,
+          followupLogRow: i + 1,
+          recordId: entry.recordId,
+          deduplicated: true
+        };
+      }
+    }
+
+    const sanitize = (val: unknown): string => {
+      const str = String(val ?? '');
+      return /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+    };
+
+    const effectiveRecordId = entry.recordId || `gs_fu_${rows.length + 1}`;
+    const newRow = [
+      entry.date,
+      entry.friday,
+      sanitize(entry.sheetName),
+      sanitize(entry.studentCode),
+      sanitize(entry.studentName),
+      sanitize(entry.servant),
+      sanitize(entry.method),
+      sanitize(entry.notes || ''),
+      entry.mutationId,
+      sanitize(entry.callOutcome || ''),
+      sanitize(effectiveRecordId)
+    ];
+
+    const appendRange = encodeURIComponent(`'${FOLLOWUP_LOG_TAB}'!A:K`);
+    const appendRes = await fetch(`${sheetPrefix}/${appendRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ values: [newRow] })
+    });
+    if (!appendRes.ok) {
+      const detail = await appendRes.text().catch(() => '');
+      throw new Error(`فشل حفظ سجل الافتقاد في "${FOLLOWUP_LOG_TAB}" (${appendRes.status}): ${detail}`);
+    }
+    const appendData = (await appendRes.json().catch(() => ({}))) as { updates?: { updatedRange?: string } };
+    const rowMatch = String(appendData?.updates?.updatedRange || '').match(/![A-Z]+(\d+)/);
+    const appendedRow = rowMatch ? parseInt(rowMatch[1], 10) : rows.length + 1;
+
+    return {
+      appended: true,
+      followupLogRow: appendedRow,
+      recordId: effectiveRecordId,
+      deduplicated: false
+    };
   }
 
   /**
@@ -368,7 +539,16 @@ export class GoogleSheetsService {
    * Reads each target sheet ONCE and commits all updated rows in a SINGLE Google Sheets values:batchUpdate call.
    */
   public async upsertStudentsBatch(studentsToSave: Student[]): Promise<Student[]> {
-    if (!studentsToSave || studentsToSave.length === 0) return [];
+    const result = await this.upsertStudentsBatchWithMeta(studentsToSave);
+    return result.students;
+  }
+
+  public async upsertStudentsBatchWithMeta(
+    studentsToSave: Student[]
+  ): Promise<{ students: Student[]; rowByStudentId: Record<string, number> }> {
+    if (!studentsToSave || studentsToSave.length === 0) {
+      return { students: [], rowByStudentId: {} };
+    }
     if (!this.isGoogleConfigured() && !this.testFixtureMode) {
       throw new Error('Google Sheets write is unavailable: configure server-side Service Account credentials before accepting mutations.');
     }
@@ -384,22 +564,33 @@ export class GoogleSheetsService {
       return { ...st, version: nextVer };
     });
 
+    let rowByStudentId: Record<string, number> = {};
     if (this.isGoogleConfigured()) {
-      await this.syncStudentsBatchToGoogle(prepared);
-    } else if (!this.testFixtureMode) {
+      rowByStudentId = await this.syncStudentsBatchToGoogle(prepared);
+    } else if (this.testFixtureMode) {
+      for (const saved of prepared) {
+        const row = this.fixtureRowNumbers.get(saved.id) ?? this.fixtureNextRow++;
+        this.fixtureRowNumbers.set(saved.id, row);
+        rowByStudentId[saved.id] = row;
+      }
+    } else {
       throw new Error('Google Sheets batch write was not attempted; refusing an in-memory-only success response.');
     }
 
     for (const saved of prepared) {
       this.students.set(saved.id, { ...saved, att: { ...(saved.att || {}) }, fu: { ...(saved.fu || {}) } });
     }
-    return prepared.map((s) => ({ ...s }));
+    return {
+      students: prepared.map((s) => ({ ...s })),
+      rowByStudentId
+    };
   }
 
-  private async syncStudentsBatchToGoogle(studentsToSave: Student[]): Promise<void> {
+  private async syncStudentsBatchToGoogle(studentsToSave: Student[]): Promise<Record<string, number>> {
     const accessToken = await this.getGoogleAccessToken();
     const sheetId = ENV.GOOGLE_SHEET_ID || DEFAULT_SPREADSHEET_ID;
     const sheetPrefix = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values`;
+    const rowByStudentId: Record<string, number> = {};
 
     const columnName = (index: number): string => {
       let n = index + 1;
@@ -425,20 +616,15 @@ export class GoogleSheetsService {
       bySheet.get(tab)!.push({ ...st, sourceSheet: tab });
     }
 
-    for (const [sheetName, sheetStudents] of bySheet.entries()) {
-      const lookupRange = encodeURIComponent(`'${sheetName}'!A1:AZ1000`);
-      const lookupResponse = await fetch(`${sheetPrefix}/${lookupRange}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      if (!lookupResponse.ok) {
-        throw new Error(`Google Sheets batch row lookup failed for "${sheetName}" (${lookupResponse.status})`);
-      }
-
-      const lookupData = (await lookupResponse.json()) as { values?: string[][] };
-      const rows = lookupData.values || [];
+    for (const [canonicalSheetName, sheetStudents] of bySheet.entries()) {
+      const { actualTabName: sheetName, rows } = await this.lookupGoogleTabRows(
+        sheetPrefix,
+        canonicalSheetName,
+        accessToken
+      );
       const headers = (rows[0] || []).map((v) => String(v || '').trim());
       if (!headers.length) {
-        throw new Error(`Google Sheets tab "${sheetName}" has no header row`);
+        throw new Error(`Google Sheets tab "${canonicalSheetName}" has no header row`);
       }
 
       const headerUpdates: Array<{ range: string; values: string[][] }> = [];
@@ -542,11 +728,13 @@ export class GoogleSheetsService {
         }
 
         if (existingRowNumber) {
+          rowByStudentId[student.id] = existingRowNumber;
           rowBatchData.push({
             range: `'${sheetName}'!A${existingRowNumber}:${lastColLetter}${existingRowNumber}`,
             values: [rowValues]
           });
         } else {
+          rowByStudentId[student.id] = rows.length + appendRows.length + 1;
           appendRows.push(rowValues);
         }
       }
@@ -585,6 +773,8 @@ export class GoogleSheetsService {
         }
       }
     }
+
+    return rowByStudentId;
   }
 }
 

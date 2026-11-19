@@ -731,7 +731,7 @@ async function runSprintTests() {
 
   const refDate = new Date(2026, 10, 12); // Nov 12, 2026
   const bdayStudents = [
-    makeStudent({ id: 'bd_1', name: 'مارك بطرس', birthDate: '2013-11-14', phoneStudent: '01211112222' }),
+    makeStudent({ id: 'bd_1', name: 'مارك بطرس', birthDate: '2013-11-14', phoneStudent: '01211112222', phoneParent1: '' }),
     makeStudent({ id: 'bd_2', name: 'توني سمير', birthDate: '2013-02-01' })
   ];
   const upcomingBdays = getBirthdayStudents(bdayStudents, 7, refDate);

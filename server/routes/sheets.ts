@@ -4,9 +4,11 @@ import { dbManager } from '../db';
 import { apiLimiter } from '../middleware/rateLimit';
 import { googleSheetsService } from '../services/googleSheetsService';
 import { Student, APPROVED_SHEETS, ALL_SHEETS_SENTINEL } from '../../src/types/student';
-import { getCairoDateParts } from '../../src/utils/arabicUtils';
+import { getCairoDateParts, getCairoTodayIsoDate } from '../../src/utils/arabicUtils';
+import type { RemotePersistenceProof } from '../../src/services/remotePersistenceVerification';
 
 const router = Router();
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function getClientIp(req: AuthenticatedRequest): string {
   const forwarded = req.headers['x-forwarded-for'] as string | undefined;
@@ -112,11 +114,15 @@ router.post(
     // 1. Server-side Idempotency Deduplication Check
     const existingRecord = await dbManager.getIdempotencyRecord(idempotencyKey);
     if (existingRecord) {
+      const existingProof = existingRecord.responseBody?.proof
+        ? { ...existingRecord.responseBody.proof, deduplicated: true }
+        : undefined;
       return res.json({
         ok: true,
         deduplicated: true,
         message: 'العملية تم تنفيذها وتأكيدها مسبقاً (Idempotent response)',
-        ...existingRecord.responseBody
+        ...existingRecord.responseBody,
+        ...(existingProof ? { proof: existingProof } : {})
       });
     }
 
@@ -218,12 +224,21 @@ router.post(
 
     // 6. Apply Validated Mutation
     let updatedStudent: Student;
+    let attendanceMeta: { friday: string; isPresent: boolean } | null = null;
+    let followupMeta: {
+      friday: string;
+      date: string;
+      method: string;
+      notes: string;
+      callOutcome?: string;
+      recordId?: string;
+    } | null = null;
 
     if (action === 'attendance' && currentStudent && payload) {
-      const friday = String(payload.friday || payload.date || '');
+      const friday = String(payload.friday || payload.date || '').trim();
       const rawAttendance = String(payload.isPresent ?? payload.status ?? '').trim().toLowerCase();
       const isPresent = payload.isPresent === true || ['1', 'true', 'present', 'حاضر'].includes(rawAttendance);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) {
+      if (!ISO_DATE_RE.test(friday)) {
         return res.status(400).json({ error: 'تاريخ الجمعة (friday) مطلوب بصيغة YYYY-MM-DD' });
       }
 
@@ -240,6 +255,7 @@ router.post(
         .sort()
         .pop();
 
+      attendanceMeta = { friday, isPresent };
       updatedStudent = {
         ...currentStudent,
         att: nextAttendance,
@@ -249,14 +265,29 @@ router.post(
         lastAttendance: latestPresentFriday
       };
     } else if (action === 'followup' && currentStudent && payload) {
-      const friday = String(payload.friday || payload.date || '');
-      const method = String(payload.method || 'تم تليفونياً');
+      const cairoToday = getCairoTodayIsoDate();
+      const rawFriday = String(payload.friday || payload.fridayDate || '').trim();
+      const rawDate = String(payload.date || '').trim();
+      const followupDate = ISO_DATE_RE.test(rawDate) ? rawDate : cairoToday;
+      const friday = ISO_DATE_RE.test(rawFriday) ? rawFriday : (ISO_DATE_RE.test(rawDate) ? rawDate : '');
+      const method = String(payload.method || payload.status || payload.type || 'تم تليفونياً').trim();
       if (!friday) {
-        return res.status(400).json({ error: 'تاريخ الافتقاد (friday) مطلوب' });
+        return res.status(400).json({ error: 'تاريخ الافتقاد (friday) مطلوب بصيغة YYYY-MM-DD' });
       }
       const rawOutcome = String(payload.callOutcome || '').trim();
       const validOutcome =
         rawOutcome === 'تم التواصل' || rawOutcome === 'لم يتم التواصل' ? rawOutcome : undefined;
+      const recordId = String(payload.recordId || '').trim() || undefined;
+      const notes = String(payload.notes || '').trim();
+
+      followupMeta = {
+        friday,
+        date: followupDate,
+        method,
+        notes,
+        callOutcome: validOutcome,
+        recordId
+      };
 
       updatedStudent = {
         ...currentStudent,
@@ -268,7 +299,7 @@ router.post(
             }
           : {}),
         followupStatus: method,
-        lastFollowup: friday
+        lastFollowup: followupDate
       };
     } else if (action === 'update' && currentStudent && payload) {
       const sourcePayload = payload.updatedData && typeof payload.updatedData === 'object' ? payload.updatedData : payload;
@@ -328,16 +359,95 @@ router.post(
       return res.status(400).json({ error: `نوع العملية غير مدعوم أو البيانات ناقصة: ${action}` });
     }
 
-    const saved = await googleSheetsService.upsertStudent(updatedStudent);
+    let saved: Student;
+    let persistedRow: number;
+    let followupLogProof: { followupLogRow: number; recordId: string } | null = null;
+    try {
+      const persisted = await googleSheetsService.upsertStudentWithMeta(updatedStudent);
+      saved = persisted.student;
+      persistedRow = persisted.row;
 
-    const responseBody = {
+      if (action === 'followup' && followupMeta) {
+        const logRes = await googleSheetsService.appendFollowupLog({
+          date: followupMeta.date,
+          friday: followupMeta.friday,
+          sheetName: saved.sourceSheet,
+          studentCode: saved.code,
+          studentName: saved.name,
+          servant: saved.servant,
+          method: followupMeta.method,
+          notes: followupMeta.notes,
+          mutationId: idempotencyKey,
+          callOutcome: followupMeta.callOutcome,
+          recordId: followupMeta.recordId
+        });
+        followupLogProof = {
+          followupLogRow: logRes.followupLogRow,
+          recordId: logRes.recordId
+        };
+      }
+    } catch (err: any) {
+      return res.status(502).json({
+        ok: false,
+        error: err?.message || 'تعذر حفظ العملية في Google Sheets المركزي'
+      });
+    }
+
+    const verifiedAt = new Date().toISOString();
+    const proof: RemotePersistenceProof & { present?: boolean; isPresent?: boolean } = {
       mutationId: idempotencyKey,
+      persisted: true,
+      operation: action as RemotePersistenceProof['operation'],
       studentId: saved.id,
+      sheetName: saved.sourceSheet,
+      row: persistedRow,
+      recordId:
+        followupLogProof?.recordId ||
+        (attendanceMeta ? `${saved.id}:${attendanceMeta.friday}` : saved.id),
       newVersion: saved.version,
-      action
+      verifiedAt,
+      ...(attendanceMeta
+        ? {
+            friday: attendanceMeta.friday,
+            present: attendanceMeta.isPresent,
+            isPresent: attendanceMeta.isPresent
+          }
+        : {}),
+      ...(followupMeta && followupLogProof
+        ? {
+            friday: followupMeta.friday,
+            date: followupMeta.date,
+            followupLogAppended: true,
+            followupLogRow: followupLogProof.followupLogRow
+          }
+        : {})
     };
 
-    // 7. Store Idempotency Record
+    const responseBody = {
+      ok: true,
+      persisted: true,
+      operation: action,
+      action,
+      mutationId: idempotencyKey,
+      studentId: saved.id,
+      sheetName: saved.sourceSheet,
+      row: persistedRow,
+      recordId: proof.recordId,
+      newVersion: saved.version,
+      verifiedAt,
+      ...(attendanceMeta ? { friday: attendanceMeta.friday, present: attendanceMeta.isPresent, isPresent: attendanceMeta.isPresent } : {}),
+      ...(followupMeta && followupLogProof
+        ? {
+            friday: followupMeta.friday,
+            date: followupMeta.date,
+            followupLogAppended: true,
+            followupLogRow: followupLogProof.followupLogRow
+          }
+        : {}),
+      proof
+    };
+
+    // 7. Store Idempotency Record ONLY after real remote persistence succeeded
     await dbManager.saveIdempotencyRecord({
       key: idempotencyKey,
       action,
@@ -355,11 +465,10 @@ router.post(
       action: `MUTATE_${String(action).toUpperCase()}`,
       status: 'success',
       ipAddress: ip,
-      details: { studentId: saved.id, newVersion: saved.version, sheet: saved.sourceSheet }
+      details: { studentId: saved.id, newVersion: saved.version, sheet: saved.sourceSheet, row: persistedRow }
     });
 
     return res.json({
-      ok: true,
       ...responseBody,
       student: saved
     });
@@ -388,13 +497,14 @@ router.get(
       .filter((k) => k.length > 0)
       .slice(0, 100);
 
-    const results: Record<string, { found: boolean; response?: any; status?: string }> = {};
+    const results: Record<string, { found: boolean; proof?: any; response?: any; status?: string }> = {};
     for (const key of keys) {
       const rec = await dbManager.getIdempotencyRecord(key);
       if (rec) {
         results[key] = {
           found: true,
           status: rec.status,
+          proof: rec.responseBody?.proof,
           response: rec.responseBody
         };
       } else {
@@ -450,14 +560,24 @@ router.post(
     const results: any[] = new Array(mutations.length);
     const workingStudents = new Map<string, Student>();
     const blockedStudentIds = new Set<string>();
-    const stagedIdempotencyRecords: Array<{
+    const stagedItems: Array<{
       index: number;
       key: string;
-      action: string;
+      action: 'attendance' | 'followup';
       studentId: string;
-      responseBody: any;
+      sheetName: string;
+      newVersion: number;
+      friday: string;
+      present?: boolean;
+      date?: string;
+      method?: string;
+      notes?: string;
+      callOutcome?: string;
+      recordId?: string;
+      studentSnapshot: Student;
     }> = [];
-    const currentCairoMonth = getCairoDateParts().isoDate.slice(0, 7);
+    const currentCairoToday = getCairoTodayIsoDate();
+    const currentCairoMonth = currentCairoToday.slice(0, 7);
 
     for (let i = 0; i < mutations.length; i++) {
       const mut = mutations[i] || {};
@@ -470,11 +590,15 @@ router.post(
       // 1. Server-side idempotency deduplication
       const existingRec = await dbManager.getIdempotencyRecord(itemKey);
       if (existingRec) {
+        const existingProof = existingRec.responseBody?.proof
+          ? { ...existingRec.responseBody.proof, deduplicated: true }
+          : undefined;
         results[i] = {
           ok: true,
           status: 200,
           deduplicated: true,
-          ...existingRec.responseBody
+          ...existingRec.responseBody,
+          ...(existingProof ? { proof: existingProof } : {})
         };
         continue;
       }
@@ -484,13 +608,13 @@ router.post(
       const expectedVersion = mut.expectedVersion;
       const payload = mut.payload || mut;
 
-      if (action !== 'attendance' || !studentId) {
+      if ((action !== 'attendance' && action !== 'followup') || !studentId) {
         results[i] = {
           ok: false,
           status: 400,
           mutationId: itemKey,
           studentId,
-          error: 'المعالجة المجمعة تقبل عمليات الحضور الصحيحة فقط'
+          error: 'المعالجة المجمعة تقبل عمليات الحضور والافتقاد الصحيحة فقط'
         };
         continue;
       }
@@ -571,75 +695,126 @@ router.post(
         continue;
       }
 
-      const friday = String(payload.friday || payload.date || mut.date || mut.friday || '').trim();
-      const rawAttendance = String(payload.isPresent ?? payload.present ?? mut.isPresent ?? mut.present ?? '').trim().toLowerCase();
-      const isPresent =
-        payload.isPresent === true ||
-        payload.present === true ||
-        mut.isPresent === true ||
-        mut.present === true ||
-        ['1', 'true', 'present', 'حاضر'].includes(rawAttendance);
+      if (action === 'attendance') {
+        const friday = String(payload.friday || payload.date || mut.date || mut.friday || '').trim();
+        const rawAttendance = String(payload.isPresent ?? payload.present ?? mut.isPresent ?? mut.present ?? '').trim().toLowerCase();
+        const isPresent =
+          payload.isPresent === true ||
+          payload.present === true ||
+          mut.isPresent === true ||
+          mut.present === true ||
+          ['1', 'true', 'present', 'حاضر'].includes(rawAttendance);
 
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) {
-        results[i] = {
-          ok: false,
-          status: 400,
-          mutationId: itemKey,
-          studentId,
-          error: 'تاريخ الجمعة (friday) مطلوب بصيغة YYYY-MM-DD'
+        if (!ISO_DATE_RE.test(friday)) {
+          results[i] = {
+            ok: false,
+            status: 400,
+            mutationId: itemKey,
+            studentId,
+            error: 'تاريخ الجمعة (friday) مطلوب بصيغة YYYY-MM-DD'
+          };
+          continue;
+        }
+
+        const previousAttendance = currentStudent.att?.[friday];
+        const prevVal = previousAttendance === true;
+        const delta = isPresent ? (prevVal ? 0 : 1) : prevVal ? -1 : 0;
+        const nextAttendance = { ...(currentStudent.att || {}), [friday]: isPresent };
+        const monthlyAttendanceCount = Object.entries(nextAttendance).reduce(
+          (count, [d, present]) => (d.slice(0, 7) === currentCairoMonth && present === true ? count + 1 : count),
+          0
+        );
+        const latestPresentFriday = Object.entries(nextAttendance)
+          .filter(([, present]) => present === true)
+          .map(([d]) => d)
+          .sort()
+          .pop();
+
+        const nextVersion = (currentStudent.version || 1) + 1;
+        const updatedStudent: Student = {
+          ...currentStudent,
+          att: nextAttendance,
+          attendanceTotal: Math.max(0, (currentStudent.attendanceTotal || 0) + delta),
+          attendanceMonth: monthlyAttendanceCount,
+          attendanceStatus: isPresent ? 'حاضر' : 'غائب',
+          lastAttendance: latestPresentFriday,
+          version: nextVersion
         };
-        continue;
+
+        workingStudents.set(studentId, updatedStudent);
+        stagedItems.push({
+          index: i,
+          key: itemKey,
+          action: 'attendance',
+          studentId,
+          sheetName: updatedStudent.sourceSheet,
+          newVersion: nextVersion,
+          friday,
+          present: isPresent,
+          studentSnapshot: updatedStudent
+        });
+      } else {
+        const rawFriday = String(payload.friday || payload.fridayDate || mut.friday || '').trim();
+        const rawDate = String(payload.date || mut.date || '').trim();
+        const followupDate = ISO_DATE_RE.test(rawDate) ? rawDate : currentCairoToday;
+        const friday = ISO_DATE_RE.test(rawFriday) ? rawFriday : (ISO_DATE_RE.test(rawDate) ? rawDate : '');
+        const method = String(payload.method || payload.status || payload.type || mut.method || 'تم تليفونياً').trim();
+        if (!friday) {
+          results[i] = {
+            ok: false,
+            status: 400,
+            mutationId: itemKey,
+            studentId,
+            error: 'تاريخ الافتقاد (friday) مطلوب بصيغة YYYY-MM-DD'
+          };
+          continue;
+        }
+        const rawOutcome = String(payload.callOutcome || mut.callOutcome || '').trim();
+        const validOutcome =
+          rawOutcome === 'تم التواصل' || rawOutcome === 'لم يتم التواصل' ? rawOutcome : undefined;
+        const recordId = String(payload.recordId || mut.recordId || '').trim() || undefined;
+        const notes = String(payload.notes || mut.notes || '').trim();
+
+        const nextVersion = (currentStudent.version || 1) + 1;
+        const updatedStudent: Student = {
+          ...currentStudent,
+          fu: { ...(currentStudent.fu || {}), [friday]: method },
+          ...(validOutcome
+            ? {
+                fuOutcomes: { ...(currentStudent.fuOutcomes || {}), [friday]: validOutcome },
+                lastCallOutcome: validOutcome
+              }
+            : {}),
+          followupStatus: method,
+          lastFollowup: followupDate,
+          version: nextVersion
+        };
+
+        workingStudents.set(studentId, updatedStudent);
+        stagedItems.push({
+          index: i,
+          key: itemKey,
+          action: 'followup',
+          studentId,
+          sheetName: updatedStudent.sourceSheet,
+          newVersion: nextVersion,
+          friday,
+          date: followupDate,
+          method,
+          notes,
+          callOutcome: validOutcome,
+          recordId,
+          studentSnapshot: updatedStudent
+        });
       }
-
-      const previousAttendance = currentStudent.att?.[friday];
-      const prevVal = previousAttendance === true;
-      const delta = isPresent ? (prevVal ? 0 : 1) : prevVal ? -1 : 0;
-      const nextAttendance = { ...(currentStudent.att || {}), [friday]: isPresent };
-      const monthlyAttendanceCount = Object.entries(nextAttendance).reduce(
-        (count, [d, present]) => (d.slice(0, 7) === currentCairoMonth && present === true ? count + 1 : count),
-        0
-      );
-      const latestPresentFriday = Object.entries(nextAttendance)
-        .filter(([, present]) => present === true)
-        .map(([d]) => d)
-        .sort()
-        .pop();
-
-      const nextVersion = (currentStudent.version || 1) + 1;
-      const updatedStudent: Student = {
-        ...currentStudent,
-        att: nextAttendance,
-        attendanceTotal: Math.max(0, (currentStudent.attendanceTotal || 0) + delta),
-        attendanceMonth: monthlyAttendanceCount,
-        attendanceStatus: isPresent ? 'حاضر' : 'غائب',
-        lastAttendance: latestPresentFriday,
-        version: nextVersion
-      };
-
-      workingStudents.set(studentId, updatedStudent);
-
-      const responseBody = {
-        ok: true,
-        status: 200,
-        mutationId: itemKey,
-        studentId,
-        newVersion: nextVersion,
-        action: 'attendance'
-      };
-      results[i] = responseBody;
-      stagedIdempotencyRecords.push({
-        index: i,
-        key: itemKey,
-        action: 'attendance',
-        studentId,
-        responseBody
-      });
     }
 
     // Persist net final modified student records in ONE Google Sheets batch call BEFORE recording idempotency!
+    let rowByStudentId: Record<string, number> = {};
     if (workingStudents.size > 0) {
       try {
-        await googleSheetsService.upsertStudentsBatch(Array.from(workingStudents.values()));
+        const batchSaved = await googleSheetsService.upsertStudentsBatchWithMeta(Array.from(workingStudents.values()));
+        rowByStudentId = batchSaved.rowByStudentId;
       } catch (err: any) {
         return res.status(502).json({
           ok: false,
@@ -649,8 +824,123 @@ router.post(
       }
     }
 
-    // Record durable idempotency ONLY after sheet write confirmed
-    for (const rec of stagedIdempotencyRecords) {
+    // Finalize structured proofs + followup log rows + durable idempotency per item
+    const confirmedItems: Array<{ key: string; action: string; studentId: string; responseBody: any }> = [];
+    const verifiedAt = new Date().toISOString();
+
+    for (const staged of stagedItems) {
+      const persistedRow = rowByStudentId[staged.studentId] || 2;
+      if (staged.action === 'followup') {
+        try {
+          const logRes = await googleSheetsService.appendFollowupLog({
+            date: staged.date || currentCairoToday,
+            friday: staged.friday,
+            sheetName: staged.sheetName,
+            studentCode: staged.studentSnapshot.code,
+            studentName: staged.studentSnapshot.name,
+            servant: staged.studentSnapshot.servant,
+            method: staged.method || 'تم تليفونياً',
+            notes: staged.notes || '',
+            mutationId: staged.key,
+            callOutcome: staged.callOutcome,
+            recordId: staged.recordId
+          });
+
+          const proof: RemotePersistenceProof = {
+            mutationId: staged.key,
+            persisted: true,
+            operation: 'followup',
+            studentId: staged.studentId,
+            sheetName: staged.sheetName,
+            row: persistedRow,
+            recordId: logRes.recordId,
+            newVersion: staged.newVersion,
+            friday: staged.friday,
+            date: staged.date || currentCairoToday,
+            followupLogAppended: true,
+            followupLogRow: logRes.followupLogRow,
+            verifiedAt
+          };
+          const itemResponse = {
+            ok: true,
+            status: 200,
+            persisted: true,
+            operation: 'followup',
+            action: 'followup',
+            mutationId: staged.key,
+            studentId: staged.studentId,
+            sheetName: staged.sheetName,
+            row: persistedRow,
+            recordId: logRes.recordId,
+            newVersion: staged.newVersion,
+            friday: staged.friday,
+            date: staged.date || currentCairoToday,
+            followupLogAppended: true,
+            followupLogRow: logRes.followupLogRow,
+            verifiedAt,
+            proof
+          };
+          results[staged.index] = itemResponse;
+          confirmedItems.push({
+            key: staged.key,
+            action: 'followup',
+            studentId: staged.studentId,
+            responseBody: itemResponse
+          });
+        } catch (err: any) {
+          results[staged.index] = {
+            ok: false,
+            status: 502,
+            mutationId: staged.key,
+            studentId: staged.studentId,
+            error: err?.message || 'فشل حفظ سجل الافتقاد في Google Sheets'
+          };
+        }
+      } else {
+        const proof: RemotePersistenceProof & { present: boolean; isPresent: boolean } = {
+          mutationId: staged.key,
+          persisted: true,
+          operation: 'attendance',
+          studentId: staged.studentId,
+          sheetName: staged.sheetName,
+          row: persistedRow,
+          recordId: `${staged.studentId}:${staged.friday}`,
+          newVersion: staged.newVersion,
+          friday: staged.friday,
+          present: Boolean(staged.present),
+          isPresent: Boolean(staged.present),
+          verifiedAt
+        };
+        const itemResponse = {
+          ok: true,
+          status: 200,
+          persisted: true,
+          operation: 'attendance',
+          action: 'attendance',
+          mutationId: staged.key,
+          studentId: staged.studentId,
+          sheetName: staged.sheetName,
+          row: persistedRow,
+          recordId: proof.recordId,
+          newVersion: staged.newVersion,
+          friday: staged.friday,
+          present: Boolean(staged.present),
+          isPresent: Boolean(staged.present),
+          verifiedAt,
+          proof
+        };
+        results[staged.index] = itemResponse;
+        confirmedItems.push({
+          key: staged.key,
+          action: 'attendance',
+          studentId: staged.studentId,
+          responseBody: itemResponse
+        });
+      }
+    }
+
+    // Record durable idempotency ONLY after sheet write & followup log confirmed
+    for (const rec of confirmedItems) {
       await dbManager.saveIdempotencyRecord({
         key: rec.key,
         action: rec.action,
@@ -661,16 +951,16 @@ router.post(
       });
     }
 
-    if (stagedIdempotencyRecords.length > 0) {
+    if (confirmedItems.length > 0) {
       await dbManager.logAudit({
         timestamp: new Date(),
         userId: user.userId,
         username: user.username,
-        action: 'MUTATE_BATCH_ATTENDANCE',
+        action: 'MUTATE_BATCH',
         status: 'success',
         ipAddress: ip,
         details: {
-          confirmedCount: stagedIdempotencyRecords.length,
+          confirmedCount: confirmedItems.length,
           studentsTouched: workingStudents.size
         }
       });

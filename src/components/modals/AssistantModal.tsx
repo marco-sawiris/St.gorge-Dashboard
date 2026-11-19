@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { generateUUID } from '../../utils/uuid';
 import { formatWhatsAppUrl, getLatestHeldFridayString } from '../../utils/arabicUtils';
+import { buildWhatsAppFollowupDeepLink } from '../../data/followupMessageTemplates';
 
 interface QuickPromptItem {
   id: string;
@@ -62,6 +63,7 @@ const QUICK_PROMPTS: QuickPromptItem[] = [
   { id: 'stats', label: 'عرض الإحصائيات', query: 'إحصائيات', icon: BarChart3, accent: 'text-[var(--info-text)]' },
   { id: 'no_reply', label: 'لم يتم التواصل', query: 'مين محدش رد عليه؟', icon: PhoneOff, accent: 'text-orange-700 dark:text-orange-300' },
   { id: 'followup_missing', label: 'باقي الافتقاد', query: 'مين نسيت افتقدهم الأسبوع ده؟', icon: PhoneCall, accent: 'text-[var(--info-text)]' },
+  { id: 'followup_msg', label: 'رسالة افتقاد', query: 'اكتب رسالة افتقاد', icon: MessageSquare, accent: 'text-emerald-700 dark:text-emerald-300' },
   { id: 'summary', label: 'ملخص الخدمة', query: 'اعرض ملخص الخدمة', icon: Sparkles, accent: 'text-[var(--accent-primary)]' },
   { id: 'birthdays', label: 'أعياد الميلاد', query: 'أعياد الميلاد', icon: Cake, accent: 'text-pink-700 dark:text-pink-300' },
   { id: 'history', label: 'سجل المحادثات', query: 'سجل المحادثات', icon: History, accent: 'text-indigo-700 dark:text-indigo-300' }
@@ -141,6 +143,7 @@ export const AssistantModal: React.FC = () => {
   const [expandedIndividualMsgs, setExpandedIndividualMsgs] = useState<Record<string, boolean>>({});
   const [selectedIdsByMsg, setSelectedIdsByMsg] = useState<Record<string, Record<string, boolean>>>({});
   const [draftStatusByMsg, setDraftStatusByMsg] = useState<Record<string, Record<string, boolean>>>({});
+  const [editedFollowupDraftByMsg, setEditedFollowupDraftByMsg] = useState<Record<string, string>>({});
   const [pendingDraftConfirm, setPendingDraftConfirm] = useState<DraftConfirmationState | null>(null);
   const [isExecutingAttendance, setIsExecutingAttendance] = useState(false);
 
@@ -911,9 +914,18 @@ export const AssistantModal: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[var(--app-bg)]/35">
             {messages.map((msg) => {
               const isBot = msg.role === 'bot';
-              const waUrl = msg.whatsappText
-                ? formatWhatsAppUrl(msg.whatsappPhone, msg.whatsappText)
-                : null;
+              const hasFollowupDraft = Boolean(isBot && msg.meta?.followupEditableDraft);
+              const effectiveFollowupDraft = hasFollowupDraft
+                ? editedFollowupDraftByMsg[msg.id] ?? msg.meta!.followupEditableDraft!
+                : undefined;
+              const effectiveCopyText = effectiveFollowupDraft ?? msg.copyText;
+              const waUrl = hasFollowupDraft
+                ? msg.whatsappPhone
+                  ? buildWhatsAppFollowupDeepLink(msg.whatsappPhone, effectiveFollowupDraft || '')
+                  : null
+                : msg.whatsappText
+                  ? formatWhatsAppUrl(msg.whatsappPhone, msg.whatsappText)
+                  : null;
 
               const interactiveData = msg.meta?.interactiveAttendance;
               const isInteractiveAttendance = Boolean(isBot && interactiveData && interactiveData.students.length > 0);
@@ -1193,15 +1205,69 @@ export const AssistantModal: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Editable Follow-up Message Composer inside Bot Message */}
+                    {hasFollowupDraft && (
+                      <div className="mt-2.5 pt-2.5 border-t border-[var(--border-color)] space-y-2 select-none">
+                        {msg.meta?.followupOptions && msg.meta.followupOptions.length > 1 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {msg.meta.followupOptions.map((opt, optIdx) => (
+                              <button
+                                key={opt.templateId}
+                                type="button"
+                                onClick={() =>
+                                  setEditedFollowupDraftByMsg((prev) => ({
+                                    ...prev,
+                                    [msg.id]: opt.message
+                                  }))
+                                }
+                                className={`min-h-[28px] px-2 py-0.5 rounded-lg border text-[10.5px] font-bold cursor-pointer transition-colors ${
+                                  effectiveFollowupDraft === opt.message
+                                    ? 'bg-[var(--info-bg)] border-[var(--info-border)] text-[var(--info-text)]'
+                                    : 'bg-[var(--surface-secondary)] border-[var(--border-color)] text-[var(--text-secondary)]'
+                                }`}
+                              >
+                                خيار {optIdx + 1}: {opt.title}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <label className="block text-[10.5px] font-bold text-[var(--text-secondary)]">
+                          تعديل نص رسالة الافتقاد قبل النسخ أو الإرسال اليدوي
+                        </label>
+                        <textarea
+                          rows={3}
+                          dir="rtl"
+                          value={effectiveFollowupDraft || ''}
+                          onChange={(e) =>
+                            setEditedFollowupDraftByMsg((prev) => ({
+                              ...prev,
+                              [msg.id]: e.target.value
+                            }))
+                          }
+                          className="w-full p-2.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold leading-relaxed text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] resize-y select-text"
+                        />
+                        {msg.meta?.followupPhoneSourceLabel && (
+                          <p className="text-[10.5px] font-bold text-[var(--text-muted)] m-0">
+                            رقم واتساب المستهدف: {msg.meta.followupPhoneSourceLabel}
+                          </p>
+                        )}
+                        {msg.meta?.followupPhoneWarning && (
+                          <p className="text-[10.5px] font-bold text-[var(--warning-text)] m-0">
+                            {msg.meta.followupPhoneWarning}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Utility Row (Copy / WhatsApp) + Balanced Action Grid */}
-                    {isBot && (msg.copyText || waUrl || displayActions.length > 0) && (
+                    {isBot && (effectiveCopyText || waUrl || displayActions.length > 0) && (
                       <div className="mt-2.5 pt-2 border-t border-[var(--border-color)] space-y-2 select-none">
-                        {(msg.copyText || waUrl) && (
+                        {(effectiveCopyText || waUrl) && (
                           <div className="flex flex-row items-center gap-1.5 flex-wrap">
-                            {msg.copyText && (
+                            {effectiveCopyText && (
                               <button
                                 type="button"
-                                onClick={() => handleCopy(msg.id, msg.copyText!)}
+                                onClick={() => handleCopy(msg.id, effectiveCopyText)}
                                 className="min-h-[32px] px-2.5 py-1 rounded-lg bg-[var(--surface-secondary)] hover:border-[#20c7e8]/60 border border-[var(--border-color)] text-[11px] font-bold text-[var(--text-primary)] flex items-center gap-1.5 cursor-pointer transition-colors"
                               >
                                 {copiedId === msg.id ? (
@@ -1212,7 +1278,7 @@ export const AssistantModal: React.FC = () => {
                                 ) : (
                                   <>
                                     <Copy className="w-3.5 h-3.5 text-[var(--info-text)] shrink-0" />
-                                    <span>نسخ</span>
+                                    <span>نسخ الرسالة</span>
                                   </>
                                 )}
                               </button>
@@ -1226,7 +1292,7 @@ export const AssistantModal: React.FC = () => {
                                 className="min-h-[32px] px-2.5 py-1 rounded-lg bg-[var(--info-bg)] hover:opacity-95 border border-[var(--info-border)] text-[11px] font-bold text-[var(--info-text)] flex items-center gap-1.5 transition-colors"
                               >
                                 <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                                <span>إرسال واتساب</span>
+                                <span>إرسال عبر واتساب</span>
                               </a>
                             )}
                           </div>

@@ -1,10 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Student } from '../../types/student';
 import { CallOutcome } from '../../types/followup';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
-import { X, HeartHandshake, Phone, MessageSquare, Home, Mail, AlertCircle, CheckCircle2, PhoneCall, PhoneOff } from 'lucide-react';
+import {
+  X,
+  HeartHandshake,
+  Phone,
+  MessageSquare,
+  Home,
+  Mail,
+  AlertCircle,
+  CheckCircle2,
+  PhoneCall,
+  PhoneOff,
+  Copy,
+  Check,
+  ExternalLink,
+  AlertTriangle
+} from 'lucide-react';
 import { formatTelHref, formatWhatsAppUrl } from '../../utils/arabicUtils';
+import {
+  FOLLOWUP_MESSAGE_TEMPLATES,
+  FollowupMessageAudience,
+  buildWhatsAppFollowupDeepLink,
+  renderFollowupMessageTemplate,
+  resolveFollowupClassName,
+  resolveFollowupPhoneTarget
+} from '../../data/followupMessageTemplates';
 
 interface QuickFollowupModalProps {
   student: Student | null;
@@ -26,10 +49,38 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // WhatsApp Follow-up Message State (independent from followup saving; NEVER auto-sends)
+  const [audienceFilter, setAudienceFilter] = useState<'all' | FollowupMessageAudience>('all');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(FOLLOWUP_MESSAGE_TEMPLATES[0].id);
+  const [messageDraft, setMessageDraft] = useState<string>('');
+  const [copiedMessage, setCopiedMessage] = useState(false);
+  const [whatsappFeedback, setWhatsappFeedback] = useState<string>('');
+
+  const filteredTemplates = useMemo(() => {
+    if (audienceFilter === 'all') return FOLLOWUP_MESSAGE_TEMPLATES;
+    return FOLLOWUP_MESSAGE_TEMPLATES.filter((tpl) => tpl.audience === audienceFilter);
+  }, [audienceFilter]);
+
+  const phoneTarget = useMemo(() => resolveFollowupPhoneTarget(student), [student]);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && student) {
       setCallOutcome(null);
       setErrorMsg('');
+      setWhatsappFeedback('');
+      setCopiedMessage(false);
+      const defaultTpl =
+        phoneTarget.isFallbackToStudent
+          ? FOLLOWUP_MESSAGE_TEMPLATES.find((t) => t.audience === 'student') || FOLLOWUP_MESSAGE_TEMPLATES[0]
+          : FOLLOWUP_MESSAGE_TEMPLATES[0];
+      setAudienceFilter('all');
+      setSelectedTemplateId(defaultTpl.id);
+      setMessageDraft(
+        renderFollowupMessageTemplate(defaultTpl, {
+          studentName: student.name,
+          className: resolveFollowupClassName(student.sourceSheet)
+        })
+      );
     }
   }, [isOpen, student?.id]);
 
@@ -52,6 +103,65 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
       setCallOutcome(null);
     }
   };
+
+  const handleAudienceChange = (nextAudience: 'all' | FollowupMessageAudience) => {
+    setAudienceFilter(nextAudience);
+    setWhatsappFeedback('');
+    const pool =
+      nextAudience === 'all'
+        ? FOLLOWUP_MESSAGE_TEMPLATES
+        : FOLLOWUP_MESSAGE_TEMPLATES.filter((t) => t.audience === nextAudience);
+    if (pool.length > 0 && !pool.some((t) => t.id === selectedTemplateId)) {
+      const nextTpl = pool[0];
+      setSelectedTemplateId(nextTpl.id);
+      setMessageDraft(
+        renderFollowupMessageTemplate(nextTpl, {
+          studentName: student.name,
+          className: resolveFollowupClassName(student.sourceSheet)
+        })
+      );
+    }
+  };
+
+  const handleTemplateSelect = (nextId: string) => {
+    setSelectedTemplateId(nextId);
+    setWhatsappFeedback('');
+    const tpl = FOLLOWUP_MESSAGE_TEMPLATES.find((t) => t.id === nextId) || FOLLOWUP_MESSAGE_TEMPLATES[0];
+    setMessageDraft(
+      renderFollowupMessageTemplate(tpl, {
+        studentName: student.name,
+        className: resolveFollowupClassName(student.sourceSheet)
+      })
+    );
+  };
+
+  const handleCopyDraft = async () => {
+    const textToCopy = messageDraft.trim();
+    if (!textToCopy) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopiedMessage(true);
+        setWhatsappFeedback('تم نسخ نص الرسالة بنجاح، يمكنك لصقها وإرسالها يدوياً.');
+        setTimeout(() => setCopiedMessage(false), 2200);
+      } else {
+        setWhatsappFeedback('النسخ التلقائي غير مدعوم على هذا الجهاز؛ يمكنك تحديد النص ونسخه يدوياً.');
+      }
+    } catch {
+      setWhatsappFeedback('تعذر النسخ التلقائي؛ يمكنك تحديد نص الرسالة ونسخه يدوياً دون أي تأثير على حفظ الافتقاد.');
+    }
+  };
+
+  const activeMessageText =
+    messageDraft ||
+    renderFollowupMessageTemplate(selectedTemplateId, {
+      studentName: student.name,
+      className: resolveFollowupClassName(student.sourceSheet)
+    });
+
+  const whatsappDeepLink = phoneTarget.hasValidPhone
+    ? buildWhatsAppFollowupDeepLink(phoneTarget.rawPhone, activeMessageText)
+    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +202,7 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-fadeIn select-none">
-      <div className="w-full max-w-md glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[90vh] animate-wordIn">
+      <div className="w-full max-w-lg glass-strong border border-[var(--border-color)] rounded-3xl shadow-[var(--shadow)] overflow-hidden flex flex-col max-h-[92vh] animate-wordIn">
         {/* Header */}
         <div className="px-4 sm:px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between gap-2 bg-[var(--surface-secondary)] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -209,6 +319,153 @@ export const QuickFollowupModal: React.FC<QuickFollowupModalProps> = ({
               placeholder="مثال: تم الاتصال بوالدة المخدوم للتأكيد على حضور القداس، ووعد بالحضور..."
               className="w-full p-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-xs sm:text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] resize-none"
             />
+          </div>
+
+          {/* WhatsApp Follow-up Message Composer (Manual Send Only — Independent of Follow-up Sync) */}
+          <div
+            data-testid="whatsapp-followup-section"
+            className="p-3.5 rounded-2xl bg-[var(--surface-primary)] border border-[var(--border-color)] space-y-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <MessageSquare className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
+                <span className="text-xs font-extrabold text-[var(--text-primary)]">
+                  إرسال رسالة افتقاد عبر واتساب (اختياري)
+                </span>
+              </div>
+              <span className="text-[10.5px] font-bold text-[var(--text-muted)]">
+                20 رسالة جاهزة
+              </span>
+            </div>
+
+            {/* Audience Filter Buttons */}
+            <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="تصنيف رسائل الافتقاد">
+              {(
+                [
+                  { id: 'all', label: 'الكل (20)' },
+                  { id: 'parent', label: 'لولي الأمر' },
+                  { id: 'student', label: 'للطالب' },
+                  { id: 'general', label: 'عامة' }
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleAudienceChange(tab.id)}
+                  className={`min-h-[32px] px-2 py-1 rounded-lg border text-[11px] font-bold transition-colors cursor-pointer ${
+                    audienceFilter === tab.id
+                      ? 'bg-[var(--info-bg)] border-[var(--info-border)] text-[var(--info-text)]'
+                      : 'bg-[var(--surface-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Template Selector */}
+            <div className="space-y-1">
+              <label
+                htmlFor="followup-whatsapp-template-select"
+                className="block text-[11px] font-bold text-[var(--text-secondary)]"
+              >
+                اختر نص الرسالة المناسبة
+              </label>
+              <select
+                id="followup-whatsapp-template-select"
+                value={selectedTemplateId}
+                onChange={(e) => handleTemplateSelect(e.target.value)}
+                className="w-full min-h-[38px] px-3 py-2 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+              >
+                {filteredTemplates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.index}. {tpl.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Editable Message Preview */}
+            <div className="space-y-1">
+              <label
+                htmlFor="followup-whatsapp-message-editor"
+                className="block text-[11px] font-bold text-[var(--text-secondary)]"
+              >
+                معاينة وتعديل الرسالة قبل الإرسال اليدوي
+              </label>
+              <textarea
+                id="followup-whatsapp-message-editor"
+                rows={4}
+                value={activeMessageText}
+                onChange={(e) => {
+                  setMessageDraft(e.target.value);
+                  setWhatsappFeedback('');
+                }}
+                dir="rtl"
+                className="w-full p-2.5 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-xs font-semibold leading-relaxed text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] resize-y select-text"
+              />
+            </div>
+
+            {/* Target Phone Resolution Status (Parent Phone Priority) */}
+            {phoneTarget.hasValidPhone ? (
+              <div className="px-3 py-2 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <span className="font-bold text-[var(--text-secondary)]">
+                  سيتم فتح واتساب على: <strong className="text-[var(--text-primary)]">{phoneTarget.sourceLabel}</strong>
+                </span>
+                <span className="font-mono font-bold text-[var(--info-text)]" dir="ltr">
+                  {phoneTarget.rawPhone}
+                </span>
+              </div>
+            ) : (
+              <div
+                role="alert"
+                className="p-2.5 rounded-xl bg-[var(--warning-bg)] border border-[var(--warning-border)] text-[var(--warning-text)] flex items-start gap-2 text-[11px] font-bold"
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{phoneTarget.warningMessage}</span>
+              </div>
+            )}
+
+            {whatsappFeedback && (
+              <p className="text-[11px] font-bold text-[var(--info-text)] m-0">{whatsappFeedback}</p>
+            )}
+
+            {/* Manual WhatsApp Open + Copy Actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              {whatsappDeepLink && (
+                <a
+                  href={whatsappDeepLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="whatsapp-followup-send-link"
+                  className="flex-1 min-h-[38px] px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                  <span>إرسال عبر واتساب</span>
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleCopyDraft()}
+                data-testid="whatsapp-followup-copy-btn"
+                className="min-h-[38px] px-3 py-2 rounded-xl bg-[var(--surface-secondary)] hover:border-[var(--info-border)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+              >
+                {copiedMessage ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-[var(--info-text)] shrink-0" />
+                    <span>تم النسخ</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-[var(--info-text)] shrink-0" />
+                    <span>نسخ الرسالة</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <p className="text-[10.5px] font-medium text-[var(--text-muted)] m-0">
+              يتم فتح واتساب فقط لمراجعة الرسالة وإرسالها يدوياً، ولا يؤثر ذلك على حفظ سجل الافتقاد أو المزامنة.
+            </p>
           </div>
 
           {/* Quick Direct Link helpers */}

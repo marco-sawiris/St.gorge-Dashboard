@@ -1,29 +1,43 @@
 /**
- * St. George Church Dashboard — Unified Google Apps Script Relay (Code.gs)
- * -------------------------------------------------------------------
- * Fully unified and authoritative Google Apps Script backend.
- * Compatible with BOTH:
- * 1. Live deployed web app contract ("notes-v2" in Google Sheets):
- *    - Flat JSON actions: 'attendance', 'followup', 'update', 'add'.
- *    - Direct parameters: sheet, name, date, present, status, notes, fields.
- *    - Direct column updates: Friday columns, 'افتقاد YYYY-MM-DD', 'آخر حضور', 'آخر افتقاد', 'إجمالي الحضور'.
- * 2. Enterprise GitHub Relay features:
- *    - LockService (atomic concurrency lock prevents race conditions).
- *    - ScriptProperties RELAY_KEY validation (constant-time comparison).
- *    - Durable Idempotency (CacheService + _mutation_idempotency ledger).
- *    - Optimistic Concurrency Control (OCC 409) when expectedVersion is supplied.
- *    - Zero-delete protection (HTTP 403).
- *    - Multi-sheet support ('نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط').
- *    - Pastoral audit logging to 'سجل الافتقاد' tab.
- *    - Full student reads via doGet?action=getStudents.
+ * ============================================================================
+ * St. George Dashboard — Authoritative Google Apps Script Backend
+ * Phase 4.4 — Central Google Sheets Persistence & Remote Persistence Proof
+ * ============================================================================
+ *
+ * Authoritative Central Database:
+ *   Central Spreadsheet ID = "15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0"
+ *
+ * Compatible with:
+ *   1. St. George Dashboard Web / Android APK (Phase 4.3.2–4.4 Offline Queue + Proof Verification)
+ *   2. Legacy Standalone HTML App (notes-v2 / notes-v3 payload formats)
+ *
+ * Core Guarantees:
+ *   - Strict Central Spreadsheet enforcement (never accepts client-supplied spreadsheetId)
+ *   - Safe tab-name mapping (maps UI 'فصل البابا شنودة' <-> live tab 'فصل البابا شنودة ' without creating tabs)
+ *   - Never falls back to 'ردود النموذج 1' for student writes
+ *   - Structured RemotePersistenceProof returned ONLY AFTER confirmed sheet write + flush
+ *   - Durable idempotency ledger (_mutation_idempotency) + LockService concurrency protection
+ *   - Optimistic Concurrency Control (HTTP 409) when version column exists; safe progression when absent
+ *   - Strict Zero-Delete policy (HTTP 403)
+ *   - Strict ES5 syntax (no optional chaining, no let/const/arrow functions)
  *
  * Script Properties (Google Apps Script -> Project Settings -> Script Properties):
  *   SPREADSHEET_ID = "15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0" (Optional if container-bound)
  *   RELAY_KEY      = Optional secret key for external client authentication.
  */
 
+var CENTRAL_SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
 var APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط'];
 var ALL_SHEETS_SENTINEL = '__ALL__';
+var FOLLOWUP_LOG_SHEET_NAME = 'سجل الافتقاد';
+var FORBIDDEN_STUDENT_WRITE_SHEETS = ['ردود النموذج 1', 'سجل الافتقاد', '_mutation_idempotency'];
+
+var APPROVED_SHEET_ACTUAL_ALIASES = {
+  'نشط': ['نشط'],
+  'غير حاضر': ['غير حاضر'],
+  'فصل البابا شنودة': ['فصل البابا شنودة ', 'فصل البابا شنودة'],
+  'غير نشط': ['غير نشط']
+};
 
 function isMissingOrLiteralUndefined(val) {
   if (val === undefined || val === null) return true;
@@ -61,12 +75,45 @@ function normalizeArabicForMatch(val) {
   return s.replace(/\s+/g, ' ').toLowerCase();
 }
 
+function isValidIsoDate(val) {
+  return typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim());
+}
+
+function getCairoTodayDateString() {
+  var tz = 'Africa/Cairo';
+  try {
+    return Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  } catch (e) {
+    var d = new Date();
+    var y = d.getUTCFullYear();
+    var m = String(d.getUTCMonth() + 1);
+    var day = String(d.getUTCDate());
+    if (m.length < 2) m = '0' + m;
+    if (day.length < 2) day = '0' + day;
+    return y + '-' + m + '-' + day;
+  }
+}
+
+function getCairoMonthString() {
+  return getCairoTodayDateString().substring(0, 7);
+}
+
+function safeFlushSpreadsheet() {
+  if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.flush === 'function') {
+    SpreadsheetApp.flush();
+  }
+}
+
 function jsonResponse(payload) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+/**
+ * Always resolves the authoritative central Google Sheet.
+ * Never accepts a client-supplied spreadsheetId.
+ */
 function getSpreadsheet() {
   try {
     var active = SpreadsheetApp.getActiveSpreadsheet();
@@ -74,8 +121,143 @@ function getSpreadsheet() {
   } catch (e) {}
 
   var props = PropertiesService.getScriptProperties();
-  var sheetId = props.getProperty('SPREADSHEET_ID') || '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
+  var sheetId = String(props.getProperty('SPREADSHEET_ID') || '').trim() || CENTRAL_SPREADSHEET_ID;
   return SpreadsheetApp.openById(sheetId);
+}
+
+/**
+ * Safely locates an approved student sheet tab in the central spreadsheet.
+ * Handles trailing-space live tab names (e.g. 'فصل البابا شنودة ') without renaming
+ * or creating tabs, and strictly refuses non-student tabs like 'ردود النموذج 1'.
+ */
+function findApprovedSheet(ss, canonicalSheetName) {
+  var canonical = String(canonicalSheetName || '').trim();
+  if (!canonical || APPROVED_SHEETS.indexOf(canonical) === -1) {
+    return null;
+  }
+
+  var aliases = APPROVED_SHEET_ACTUAL_ALIASES[canonical] || [canonical];
+  for (var i = 0; i < aliases.length; i++) {
+    var candidate = ss.getSheetByName(aliases[i]);
+    if (candidate) {
+      var actualName = String(candidate.getName() || '');
+      if (FORBIDDEN_STUDENT_WRITE_SHEETS.indexOf(actualName.trim()) === -1) {
+        return candidate;
+      }
+    }
+  }
+
+  // Fallback scan by trimmed name across existing sheets only (never creates tabs)
+  if (typeof ss.getSheets === 'function') {
+    var allSheets = ss.getSheets() || [];
+    for (var j = 0; j < allSheets.length; j++) {
+      var sh = allSheets[j];
+      var shTrimmed = String((sh && typeof sh.getName === 'function' ? sh.getName() : '') || '').trim();
+      if (shTrimmed === canonical && FORBIDDEN_STUDENT_WRITE_SHEETS.indexOf(shTrimmed) === -1) {
+        return sh;
+      }
+    }
+  }
+
+  return null;
+}
+
+function findFollowupLogSheet(ss) {
+  var exact = ss.getSheetByName(FOLLOWUP_LOG_SHEET_NAME);
+  if (exact) return exact;
+  if (typeof ss.getSheets === 'function') {
+    var allSheets = ss.getSheets() || [];
+    for (var i = 0; i < allSheets.length; i++) {
+      var sh = allSheets[i];
+      var shName = String((sh && typeof sh.getName === 'function' ? sh.getName() : '') || '').trim();
+      if (shName === FOLLOWUP_LOG_SHEET_NAME) return sh;
+    }
+  }
+  return null;
+}
+
+/**
+ * Constructs a structured RemotePersistenceProof matching
+ * src/services/remotePersistenceVerification.ts.
+ * Must ONLY be called after the remote sheet write has succeeded and flushed.
+ */
+function buildPersistenceProof(opts) {
+  var proof = {
+    mutationId: String(opts.mutationId || '').trim(),
+    persisted: true,
+    operation: String(opts.operation || '').trim(),
+    studentId: String(opts.studentId || '').trim(),
+    sheetName: String(opts.sheetName || '').trim(),
+    verifiedAt: opts.verifiedAt || new Date().toISOString()
+  };
+
+  if (typeof opts.row === 'number' && isFinite(opts.row) && opts.row >= 1) {
+    proof.row = Math.floor(opts.row);
+  }
+  if (opts.recordId !== undefined && opts.recordId !== null && String(opts.recordId).trim()) {
+    proof.recordId = String(opts.recordId).trim();
+  }
+  if (typeof opts.newVersion === 'number' && isFinite(opts.newVersion) && opts.newVersion >= 1) {
+    proof.newVersion = Math.floor(opts.newVersion);
+  }
+  if (opts.friday && isValidIsoDate(String(opts.friday))) {
+    proof.friday = String(opts.friday).trim();
+  }
+  if (opts.date && isValidIsoDate(String(opts.date))) {
+    proof.date = String(opts.date).trim();
+  }
+  if (opts.present !== undefined) {
+    proof.present = Boolean(opts.present);
+    proof.isPresent = Boolean(opts.present);
+  }
+  if (opts.followupLogAppended === true) {
+    proof.followupLogAppended = true;
+  }
+  if (typeof opts.followupLogRow === 'number' && isFinite(opts.followupLogRow) && opts.followupLogRow >= 1) {
+    proof.followupLogRow = Math.floor(opts.followupLogRow);
+  }
+  if (opts.deduplicated === true) {
+    proof.deduplicated = true;
+  }
+  return proof;
+}
+
+function buildVerifiedMutationResponse(proof, extraFields) {
+  var res = {
+    ok: true,
+    status: 200,
+    persisted: true,
+    operation: proof.operation,
+    action: proof.operation,
+    mutationId: proof.mutationId,
+    studentId: proof.studentId,
+    sheetName: proof.sheetName,
+    verifiedAt: proof.verifiedAt,
+    proof: proof
+  };
+  if (proof.row !== undefined) res.row = proof.row;
+  if (proof.recordId !== undefined) res.recordId = proof.recordId;
+  if (proof.newVersion !== undefined) res.newVersion = proof.newVersion;
+  if (proof.friday !== undefined) res.friday = proof.friday;
+  if (proof.date !== undefined) res.date = proof.date;
+  if (proof.present !== undefined) {
+    res.present = proof.present;
+    res.isPresent = proof.isPresent;
+  }
+  if (proof.followupLogAppended === true) {
+    res.followupLogAppended = true;
+  }
+  if (proof.followupLogRow !== undefined) {
+    res.followupLogRow = proof.followupLogRow;
+  }
+  if (extraFields) {
+    for (var k in extraFields) {
+      if (Object.prototype.hasOwnProperty.call(extraFields, k) && extraFields[k] !== undefined) {
+        res[k] = extraFields[k];
+      }
+    }
+  }
+  return res;
 }
 
 function constantTimeStringEquals(left, right) {
@@ -105,15 +287,16 @@ function doGet(e) {
   try {
     var action = (e && e.parameter && e.parameter.action) || 'health';
 
-    // Health check returns exact signature expected by both systems plus batch/idempotency capability flags
+    // Health check returns exact signature expected by both systems plus batch/idempotency/proof flags
     if (action === 'health' || !e || !e.parameter || !e.parameter.action) {
       return jsonResponse({
         ok: true,
         status: 'ok',
         msg: 'Apps Script شغال',
-        version: 'notes-v3',
+        version: 'notes-v4-proof',
         supportsBatch: true,
-        capabilities: ['attendance', 'followup', 'update', 'add', 'batch', 'checkIdempotency'],
+        supportsPersistenceProof: true,
+        capabilities: ['attendance', 'followup', 'update', 'add', 'batch', 'checkIdempotency', 'persistenceProof'],
         mode: 'google_apps_script_relay',
         timestamp: new Date().toISOString()
       });
@@ -138,7 +321,7 @@ function doGet(e) {
 
       for (var i = 0; i < sheetsToRead.length; i++) {
         var sheetName = sheetsToRead[i];
-        var sheet = ss.getSheetByName(sheetName);
+        var sheet = findApprovedSheet(ss, sheetName);
         if (!sheet) continue;
         confirmedSheets.push(sheetName);
         var values = sheet.getDataRange().getValues();
@@ -268,25 +451,40 @@ function doPost(e) {
       return jsonResponse({ ok: false, status: 400, error: 'اسم الفصل غير معتمد: ' + targetSheetName });
     }
     var ss = getSpreadsheet();
-    var sheet = ss.getSheetByName(targetSheetName);
+    var sheet = findApprovedSheet(ss, targetSheetName);
     if (!sheet) {
       return jsonResponse({ ok: false, status: 404, error: 'التاب مش موجود: ' + targetSheetName });
     }
 
-    // Idempotency check
-    var idempotencyKey = String(body.idempotencyKey || body.id || mutation.id || '').trim();
+    // Idempotency check (cache + durable ledger)
+    var idempotencyKey = String(body.idempotencyKey || body.mutationId || mutation.id || body.id || '').trim();
     var cache = CacheService.getScriptCache();
     if (idempotencyKey) {
-      var cached = cache.get('IDEMP_' + idempotencyKey);
+      var cached = null;
+      try {
+        cached = cache.get('IDEMP_' + idempotencyKey);
+      } catch (cacheReadErr) {
+        cached = null;
+      }
       if (cached) {
-        var prev = JSON.parse(cached);
-        prev.deduplicated = true;
-        return jsonResponse(prev);
+        try {
+          var prev = JSON.parse(cached);
+          if (prev && prev.ok === true && prev.proof && prev.proof.persisted === true) {
+            prev.deduplicated = true;
+            prev.proof.deduplicated = true;
+            return jsonResponse(prev);
+          }
+        } catch (cacheParseErr) {
+          // Fall through to durable sheet ledger if cache JSON is corrupt
+        }
       }
       var durablePrevious = findDurableIdempotencyResult(ss, idempotencyKey);
-      if (durablePrevious) {
+      if (durablePrevious && durablePrevious.ok === true && durablePrevious.proof && durablePrevious.proof.persisted === true) {
         durablePrevious.deduplicated = true;
-        cache.put('IDEMP_' + idempotencyKey, JSON.stringify(durablePrevious), 21600);
+        durablePrevious.proof.deduplicated = true;
+        try {
+          cache.put('IDEMP_' + idempotencyKey, JSON.stringify(durablePrevious), 21600);
+        } catch (cePut) {}
         return jsonResponse(durablePrevious);
       }
     }
@@ -303,9 +501,10 @@ function doPost(e) {
     var versionCol = findColIndex(headers, ['version', 'الإصدار']);
 
     // Extract student identifiers
-    var targetName = String(body.name || body.studentName || mutation.studentName || (mutation.payload && mutation.payload.name) || '').trim();
-    var targetCode = String(body.studentCode || body.code || mutation.studentCode || (mutation.payload && mutation.payload.code) || '').trim();
-    var targetId = String(body.studentId || body.id || mutation.studentId || '').trim();
+    var addPayloadFields = body.fields || (mutPayload && mutPayload.newStudent) || (mutPayload && mutPayload.fields) || mutPayload || {};
+    var targetName = String(body.name || body.studentName || mutation.studentName || addPayloadFields.name || '').trim();
+    var targetCode = String(body.studentCode || body.code || mutation.studentCode || addPayloadFields.code || '').trim();
+    var targetId = String(body.studentId || mutation.studentId || addPayloadFields.id || '').trim();
 
     // Row Matching Logic
     var rowIndex = -1;
@@ -341,7 +540,7 @@ function doPost(e) {
     }
 
     if (action === 'add') {
-      var addFields = body.fields || (mutation.payload && mutation.payload.fields) || mutation.payload || {};
+      var addFields = body.fields || (mutPayload && mutPayload.newStudent) || (mutPayload && mutPayload.fields) || mutPayload || {};
       var addName = String(addFields.name || targetName || '').trim();
       if (!addName) {
         return jsonResponse({ ok: false, status: 400, error: 'الاسم مطلوب' });
@@ -350,8 +549,9 @@ function doPost(e) {
         return jsonResponse({ ok: false, status: 409, error: 'المخدوم موجود بالفعل في الشيت' });
       }
 
+      var addCode = String(addFields.code || targetCode || '').trim();
       var newRow = headers.map(function (h) {
-        if (h === 'كود' || h.indexOf('الكود') !== -1 || h.toLowerCase() === 'code') return sanitizeFormulaValue(addFields.code || targetCode || '');
+        if (h === 'كود' || h.indexOf('الكود') !== -1 || h.toLowerCase() === 'code') return sanitizeFormulaValue(addCode);
         if (h.indexOf('الاسم') !== -1 || h.toLowerCase() === 'name') return sanitizeFormulaValue(addName);
         if (h.indexOf('الاشبين') !== -1 || h.indexOf('الأشبين') !== -1 || h.indexOf('الخادم') !== -1 || h.toLowerCase() === 'servant') return sanitizeFormulaValue(addFields.servant || '');
         if (h.indexOf('موبيال المخدوم') !== -1 || h.indexOf('موبايل المخدوم') !== -1 || h.indexOf('موبايل الطالب') !== -1 || h.indexOf('تليفون الطالب') !== -1) return sanitizeFormulaValue(addFields.phoneStudent || '');
@@ -368,18 +568,27 @@ function doPost(e) {
       });
 
       sheet.appendRow(newRow);
+      safeFlushSpreadsheet();
       var addedRowNum = sheet.getLastRow();
-      var addResult = {
-        ok: true,
-        status: 200,
-        row: addedRowNum,
+      var effectiveAddStudentId = targetId || ('gs_' + targetSheetName + '_' + (addCode || 'SG') + '_' + addedRowNum).replace(/\s+/g, '_');
+
+      var addProof = buildPersistenceProof({
         mutationId: idempotencyKey,
-        newVersion: 1,
-        action: 'add'
-      };
+        operation: 'add',
+        studentId: effectiveAddStudentId,
+        sheetName: targetSheetName,
+        row: addedRowNum,
+        recordId: effectiveAddStudentId,
+        newVersion: 1
+      });
+      var addResult = buildVerifiedMutationResponse(addProof, {
+        studentName: addName,
+        studentCode: addCode
+      });
+
       if (idempotencyKey) {
         saveDurableIdempotencyResult(ss, idempotencyKey, addResult);
-        cache.put('IDEMP_' + idempotencyKey, JSON.stringify(addResult), 21600);
+        try { cache.put('IDEMP_' + idempotencyKey, JSON.stringify(addResult), 21600); } catch (ceAdd) {}
       }
       return jsonResponse(addResult);
     }
@@ -390,11 +599,16 @@ function doPost(e) {
     }
 
     var rowNum = rowIndex + 1;
-    var currentVersion = (versionCol >= 0) ? (parseInt(values[rowIndex][versionCol], 10) || 1) : 1;
-    var expectedVersion = mutation.expectedVersion || body.expectedVersion;
+    var rowCode = codeCol >= 0 ? formatCellValue(values[rowIndex][codeCol]) : targetCode;
+    var rowStoredId = idCol >= 0 ? formatCellValue(values[rowIndex][idCol]) : '';
+    var effectiveStudentId = targetId || rowStoredId || ('gs_' + targetSheetName + '_' + (rowCode || ('row' + rowNum)) + '_' + rowNum).replace(/\s+/g, '_');
 
-    // Concurrency Check (OCC 409) if client explicitly provided expectedVersion
-    if (typeof expectedVersion === 'number' && isFinite(expectedVersion) && expectedVersion >= 1) {
+    var expectedVersion = mutation.expectedVersion !== undefined ? mutation.expectedVersion : body.expectedVersion;
+    var currentVersion = (versionCol >= 0) ? (parseInt(values[rowIndex][versionCol], 10) || 1) : 1;
+
+    // Enforce OCC 409 strictly whenever the sheet tracks a version column.
+    // When versionCol === -1 (legacy sheet without version column), avoid permanent false 409 loops.
+    if (versionCol >= 0 && typeof expectedVersion === 'number' && isFinite(expectedVersion) && expectedVersion >= 1) {
       if (currentVersion !== expectedVersion) {
         return jsonResponse({
           ok: false,
@@ -403,25 +617,23 @@ function doPost(e) {
         });
       }
     }
-    var nextVersion = currentVersion + 1;
+    var nextVersion = (versionCol >= 0)
+      ? (currentVersion + 1)
+      : ((typeof expectedVersion === 'number' && isFinite(expectedVersion) && expectedVersion >= 1) ? (Math.floor(expectedVersion) + 1) : 2);
 
     // 1. ATTENDANCE ACTION
     if (action === 'attendance') {
-      var friday = String(body.date || body.friday || (mutation.payload && (mutation.payload.friday || mutation.payload.date)) || '').trim();
-      if (!friday) {
-        return jsonResponse({ ok: false, status: 400, error: 'تاريخ غير صحيح' });
-      }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) {
+      var friday = String(body.friday || body.date || (mutPayload && (mutPayload.friday || mutPayload.date)) || '').trim();
+      if (!isValidIsoDate(friday)) {
         return jsonResponse({ ok: false, status: 400, error: 'تاريخ غير صحيح' });
       }
 
-      var rawPresent = body.present !== undefined ? body.present : (body.isPresent !== undefined ? body.isPresent : (mutation.payload && (mutation.payload.isPresent !== undefined ? mutation.payload.isPresent : mutation.payload.present)));
+      var rawPresent = body.present !== undefined ? body.present : (body.isPresent !== undefined ? body.isPresent : (mutPayload && (mutPayload.isPresent !== undefined ? mutPayload.isPresent : mutPayload.present)));
       var isPresent = rawPresent === true || ['1', 'true', 'present', 'حاضر'].indexOf(String(rawPresent).trim().toLowerCase()) !== -1;
 
       // Locate or create Friday column
       var fridayCol = findExactHeaderIndex(headers, friday);
       if (fridayCol < 0) {
-        // Find insert position before summary columns or append at end
         var insertBeforeCol = findColIndex(headers, ['آخر حضور', 'اخر حضور', 'إجمالي الحضور', 'حضور الشهر']);
         if (insertBeforeCol >= 0) {
           sheet.insertColumnBefore(insertBeforeCol + 1);
@@ -435,6 +647,8 @@ function doPost(e) {
           fridayCol = lastCol;
         }
         values = sheet.getDataRange().getValues();
+        headers = values[0].map(function (h) { return formatHeaderCell(h); });
+        versionCol = findColIndex(headers, ['version', 'الإصدار']);
       }
 
       var prevAttendanceVal = String(values[rowIndex][fridayCol] || '').trim().toLowerCase();
@@ -464,8 +678,8 @@ function doPost(e) {
       for (var c = 0; c < headers.length; c++) {
         var hdrDate = String(headers[c] || '').trim();
         if (/^\d{4}-\d{2}-\d{2}$/.test(hdrDate)) {
-          var cellV = (c === fridayCol) ? (isPresent ? 1 : 0) : values[rowIndex][c];
-          if (cellV === 1 || String(cellV).trim() === '1' || cellV === true) {
+          var cellV2 = (c === fridayCol) ? (isPresent ? 1 : 0) : values[rowIndex][c];
+          if (cellV2 === 1 || String(cellV2).trim() === '1' || cellV2 === true) {
             if (hdrDate > latestPresentFriday) latestPresentFriday = hdrDate;
           }
         }
@@ -475,7 +689,7 @@ function doPost(e) {
       // Monthly Attendance Count
       var monthCol = findColIndex(headers, ['حضور الشهر', 'attendanceMonth']);
       if (monthCol >= 0) {
-        var currentCairoMonth = Utilities.formatDate(new Date(), 'Africa/Cairo', 'yyyy-MM');
+        var currentCairoMonth = getCairoMonthString();
         var monthCount = 0;
         for (var c = 0; c < headers.length; c++) {
           var h = String(headers[c] || '').trim();
@@ -491,109 +705,154 @@ function doPost(e) {
         sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion);
       }
 
-      var attendanceResult = {
-        ok: true,
-        status: 200,
-        row: rowNum,
-        total: totalCount,
-        lastAttendance: latestPresentFriday,
+      safeFlushSpreadsheet();
+
+      var attProof = buildPersistenceProof({
         mutationId: idempotencyKey,
+        operation: 'attendance',
+        studentId: effectiveStudentId,
+        sheetName: targetSheetName,
+        row: rowNum,
+        recordId: effectiveStudentId + ':' + friday,
         newVersion: nextVersion,
-        action: 'attendance'
-      };
+        friday: friday,
+        present: isPresent
+      });
+      var attendanceResult = buildVerifiedMutationResponse(attProof, {
+        total: totalCount,
+        lastAttendance: latestPresentFriday
+      });
+
       if (idempotencyKey) {
         saveDurableIdempotencyResult(ss, idempotencyKey, attendanceResult);
-        cache.put('IDEMP_' + idempotencyKey, JSON.stringify(attendanceResult), 21600);
+        try { cache.put('IDEMP_' + idempotencyKey, JSON.stringify(attendanceResult), 21600); } catch (ceAtt) {}
       }
       return jsonResponse(attendanceResult);
     }
 
     // 2. FOLLOWUP ACTION
     if (action === 'followup') {
-      var fuMethod = String(body.status || body.followupStatus || body.type || (mutation.payload && (mutation.payload.status || mutation.payload.followupStatus || mutation.payload.method || mutation.payload.type)) || '').trim();
+      var fuMethod = String(body.status || body.followupStatus || body.type || body.method || (mutPayload && (mutPayload.status || mutPayload.followupStatus || mutPayload.method || mutPayload.type)) || '').trim();
       if (!fuMethod) {
         return jsonResponse({ ok: false, status: 400, error: 'حالة الافتقاد مطلوبة' });
       }
 
-      var todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Africa/Cairo', 'yyyy-MM-dd');
-      var fuDateColHeader = 'افتقاد ' + todayStr;
+      var cairoToday = getCairoTodayDateString();
+      var rawFuFriday = String(body.friday || body.fridayDate || (mutPayload && (mutPayload.friday || mutPayload.fridayDate)) || '').trim();
+      var rawFuDate = String(body.date || (mutPayload && mutPayload.date) || '').trim();
+      var fuDate = isValidIsoDate(rawFuDate) ? rawFuDate : cairoToday;
+      var fuFriday = isValidIsoDate(rawFuFriday) ? rawFuFriday : fuDate;
+      var fuRecordId = String(body.recordId || (mutPayload && mutPayload.recordId) || '').trim();
 
-      // Locate or create specific followup column for today
+      var fuDateColHeader = 'افتقاد ' + fuFriday;
       var fuCol = findExactHeaderIndex(headers, fuDateColHeader);
       if (fuCol < 0) {
-        var lastCol = sheet.getLastColumn();
-        sheet.getRange(1, lastCol + 1).setValue(fuDateColHeader);
+        var lastColFu = sheet.getLastColumn();
+        sheet.getRange(1, lastColFu + 1).setValue(fuDateColHeader);
         headers.push(fuDateColHeader);
-        fuCol = lastCol;
+        fuCol = lastColFu;
       }
 
-      sheet.getRange(rowNum, fuCol + 1).setValue(fuMethod);
-      setIfFound(sheet, rowNum, headers, ['آخر افتقاد', 'اخر افتقاد', 'lastFollowup'], todayStr);
+      sheet.getRange(rowNum, fuCol + 1).setValue(sanitizeFormulaValue(fuMethod));
+      setIfFound(sheet, rowNum, headers, ['آخر افتقاد', 'اخر افتقاد', 'lastFollowup'], fuDate);
       setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'followupStatus'], fuMethod);
 
-      // Pastoral log row
-      var fuNotes = body.notes || (mutation.payload && mutation.payload.notes) || '';
-      var fuOutcomeRaw = String(body.callOutcome || (mutation.payload && mutation.payload.callOutcome) || '').trim();
+      // Pastoral log row — MUST succeed and return row proof; never fail silently
+      var fuNotes = body.notes !== undefined ? body.notes : ((mutPayload && mutPayload.notes) || '');
+      var fuOutcomeRaw = String(body.callOutcome || (mutPayload && mutPayload.callOutcome) || '').trim();
       var fuOutcome = (fuOutcomeRaw === 'تم التواصل' || fuOutcomeRaw === 'لم يتم التواصل') ? fuOutcomeRaw : '';
-      appendFollowupLogRow(ss, targetSheetName, headers, values[rowIndex], todayStr, fuMethod, fuNotes, idempotencyKey, fuOutcome);
+
+      var logWriteResult = appendFollowupLogRow(
+        ss,
+        targetSheetName,
+        headers,
+        values[rowIndex],
+        fuFriday,
+        fuMethod,
+        fuNotes,
+        idempotencyKey,
+        fuOutcome,
+        fuDate,
+        fuRecordId
+      );
+      if (!logWriteResult || logWriteResult.appended !== true || !logWriteResult.followupLogRow) {
+        return jsonResponse({ ok: false, status: 500, error: 'تعذر إثبات حفظ سجل الافتقاد في تاب سجل الافتقاد' });
+      }
 
       if (versionCol >= 0) {
         sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion);
       }
 
-      var followupResult = {
-        ok: true,
-        status: 200,
-        row: rowNum,
-        lastFollowup: todayStr,
-        fuDate: todayStr,
-        fuStatus: fuMethod,
-        callOutcome: fuOutcome || undefined,
+      safeFlushSpreadsheet();
+
+      var fuProof = buildPersistenceProof({
         mutationId: idempotencyKey,
+        operation: 'followup',
+        studentId: effectiveStudentId,
+        sheetName: targetSheetName,
+        row: rowNum,
+        recordId: logWriteResult.recordId,
         newVersion: nextVersion,
-        action: 'followup'
-      };
+        friday: fuFriday,
+        date: fuDate,
+        followupLogAppended: true,
+        followupLogRow: logWriteResult.followupLogRow
+      });
+      var followupResult = buildVerifiedMutationResponse(fuProof, {
+        lastFollowup: fuDate,
+        fuDate: fuDate,
+        fuStatus: fuMethod,
+        callOutcome: fuOutcome || undefined
+      });
+
       if (idempotencyKey) {
         saveDurableIdempotencyResult(ss, idempotencyKey, followupResult);
-        cache.put('IDEMP_' + idempotencyKey, JSON.stringify(followupResult), 21600);
+        try { cache.put('IDEMP_' + idempotencyKey, JSON.stringify(followupResult), 21600); } catch (ceFu) {}
       }
       return jsonResponse(followupResult);
     }
 
     // 3. UPDATE ACTION
     if (action === 'update') {
-      var updateNotes = body.notes !== undefined ? body.notes : (mutation.payload && mutation.payload.notes !== undefined ? mutation.payload.notes : undefined);
+      var updateFields = body.fields || (mutPayload && mutPayload.updatedData) || (mutPayload && mutPayload.fields) || mutPayload || {};
+      var updateNotes = body.notes !== undefined ? body.notes : (updateFields.notes !== undefined ? updateFields.notes : (mutPayload && mutPayload.notes !== undefined ? mutPayload.notes : undefined));
       if (updateNotes !== undefined) {
         setIfFound(sheet, rowNum, headers, ['ملاحظات الافتقاد', 'ملاحظات', 'notes'], updateNotes);
       }
 
-      var updateFields = body.fields || (mutation.payload && mutation.payload.fields) || mutation.payload || {};
-      if (updateFields.name) setIfFound(sheet, rowNum, headers, ['الاسم', 'name'], updateFields.name);
-      if (updateFields.code) setIfFound(sheet, rowNum, headers, ['كود', 'الكود', 'code'], updateFields.code);
-      if (updateFields.servant) setIfFound(sheet, rowNum, headers, ['الاشبين', 'الأشبين', 'الخادم', 'servant'], updateFields.servant);
-      if (updateFields.phoneStudent) setIfFound(sheet, rowNum, headers, ['موبيال المخدوم', 'موبايل المخدوم', 'موبايل الطالب', 'تليفون الطالب'], updateFields.phoneStudent);
-      if (updateFields.phoneParent1) setIfFound(sheet, rowNum, headers, ['موبيل ولي الامر 1', 'ولي الأمر 1'], updateFields.phoneParent1);
-      if (updateFields.phoneParent2) setIfFound(sheet, rowNum, headers, ['موبيل ولي الامر 2', 'ولي الأمر 2'], updateFields.phoneParent2);
-      if (updateFields.birthDate) setIfFound(sheet, rowNum, headers, ['تاريخ الميلاد'], updateFields.birthDate);
-      if (updateFields.area) setIfFound(sheet, rowNum, headers, ['منطقة', 'المنطقة'], updateFields.area);
-      if (updateFields.address) setIfFound(sheet, rowNum, headers, ['العنوان'], updateFields.address);
-      if (updateFields.status || updateFields.followupStatus) setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'followupStatus'], updateFields.status || updateFields.followupStatus);
+      if (updateFields.name !== undefined) setIfFound(sheet, rowNum, headers, ['الاسم', 'name'], updateFields.name);
+      if (updateFields.code !== undefined) setIfFound(sheet, rowNum, headers, ['كود', 'الكود', 'code'], updateFields.code);
+      if (updateFields.servant !== undefined) setIfFound(sheet, rowNum, headers, ['الاشبين', 'الأشبين', 'الخادم', 'servant'], updateFields.servant);
+      if (updateFields.phoneStudent !== undefined) setIfFound(sheet, rowNum, headers, ['موبيال المخدوم', 'موبايل المخدوم', 'موبايل الطالب', 'تليفون الطالب'], updateFields.phoneStudent);
+      if (updateFields.phoneParent1 !== undefined) setIfFound(sheet, rowNum, headers, ['موبيل ولي الامر 1', 'ولي الأمر 1'], updateFields.phoneParent1);
+      if (updateFields.phoneParent2 !== undefined) setIfFound(sheet, rowNum, headers, ['موبيل ولي الامر 2', 'ولي الأمر 2'], updateFields.phoneParent2);
+      if (updateFields.birthDate !== undefined) setIfFound(sheet, rowNum, headers, ['تاريخ الميلاد'], updateFields.birthDate);
+      if (updateFields.area !== undefined) setIfFound(sheet, rowNum, headers, ['منطقة', 'المنطقة'], updateFields.area);
+      if (updateFields.address !== undefined) setIfFound(sheet, rowNum, headers, ['العنوان'], updateFields.address);
+      if (updateFields.status !== undefined || updateFields.followupStatus !== undefined) {
+        setIfFound(sheet, rowNum, headers, ['حالة الافتقاد', 'followupStatus'], updateFields.status !== undefined ? updateFields.status : updateFields.followupStatus);
+      }
 
       if (versionCol >= 0) {
         sheet.getRange(rowNum, versionCol + 1).setValue(nextVersion);
       }
 
-      var updateResult = {
-        ok: true,
-        status: 200,
-        row: rowNum,
+      safeFlushSpreadsheet();
+
+      var updateProof = buildPersistenceProof({
         mutationId: idempotencyKey,
-        newVersion: nextVersion,
-        action: 'update'
-      };
+        operation: 'update',
+        studentId: effectiveStudentId,
+        sheetName: targetSheetName,
+        row: rowNum,
+        recordId: effectiveStudentId,
+        newVersion: nextVersion
+      });
+      var updateResult = buildVerifiedMutationResponse(updateProof);
+
       if (idempotencyKey) {
         saveDurableIdempotencyResult(ss, idempotencyKey, updateResult);
-        cache.put('IDEMP_' + idempotencyKey, JSON.stringify(updateResult), 21600);
+        try { cache.put('IDEMP_' + idempotencyKey, JSON.stringify(updateResult), 21600); } catch (ceUpd) {}
       }
       return jsonResponse(updateResult);
     }
@@ -612,7 +871,9 @@ function getDurableIdempotencySheet(ss) {
   if (!ledger) {
     ledger = ss.insertSheet(sheetName);
     ledger.appendRow(['idempotency_key', 'response_json', 'created_at']);
-    ledger.hideSheet();
+    if (typeof ledger.hideSheet === 'function') {
+      ledger.hideSheet();
+    }
   }
   return ledger;
 }
@@ -636,10 +897,9 @@ function findDurableIdempotencyResult(ss, key) {
 }
 
 function saveDurableIdempotencyResult(ss, key, response) {
-  try {
-    var ledger = getDurableIdempotencySheet(ss);
-    ledger.appendRow([String(key), JSON.stringify(response), new Date()]);
-  } catch (e) {}
+  var ledger = getDurableIdempotencySheet(ss);
+  ledger.appendRow([String(key), JSON.stringify(response), new Date()]);
+  safeFlushSpreadsheet();
 }
 
 function loadDurableIdempotencyMap(ss, keysNeeded) {
@@ -657,9 +917,10 @@ function loadDurableIdempotencyMap(ss, keysNeeded) {
     var k = String(rows[r][0] || '').trim();
     if (k && neededSet[k]) {
       try {
-        map[k] = JSON.parse(String(rows[r][1] || '{}'));
+        map[k] = JSON.parse(String(rows[r][1] || ''));
       } catch (e) {
-        map[k] = { ok: true };
+        // Fail-closed: NEVER fabricate { ok: true } on corrupt ledger JSON
+        map[k] = { ok: false, error: 'corrupt_idempotency_record' };
       }
     }
   }
@@ -682,9 +943,16 @@ function checkIdempotencyKeys(ss, keys) {
     var cachedRaw = cachedEntries['IDEMP_' + k];
     if (cachedRaw) {
       try {
-        results[k] = { found: true, response: JSON.parse(String(cachedRaw)), source: 'cache' };
+        var parsedCache = JSON.parse(String(cachedRaw));
+        results[k] = {
+          found: true,
+          proof: parsedCache && parsedCache.proof ? parsedCache.proof : undefined,
+          response: parsedCache,
+          source: 'cache'
+        };
       } catch (err) {
-        results[k] = { found: true, response: { ok: true }, source: 'cache' };
+        // Fall through to durable sheet ledger instead of fabricating { ok: true }
+        missingFromCache.push(k);
       }
     } else {
       missingFromCache.push(k);
@@ -696,10 +964,18 @@ function checkIdempotencyKeys(ss, keys) {
     for (var j = 0; j < missingFromCache.length; j++) {
       var mk = missingFromCache[j];
       if (durableMap[mk]) {
-        results[mk] = { found: true, response: durableMap[mk], source: 'sheet' };
-        try {
-          cache.put('IDEMP_' + mk, JSON.stringify(durableMap[mk]), 21600);
-        } catch (ce) {}
+        var stored = durableMap[mk];
+        results[mk] = {
+          found: true,
+          proof: stored && stored.proof ? stored.proof : undefined,
+          response: stored,
+          source: 'sheet'
+        };
+        if (stored && stored.ok === true && stored.proof) {
+          try {
+            cache.put('IDEMP_' + mk, JSON.stringify(stored), 21600);
+          } catch (ce) {}
+        }
       } else {
         results[mk] = { found: false };
       }
@@ -711,15 +987,14 @@ function checkIdempotencyKeys(ss, keys) {
 
 function saveDurableIdempotencyBatch(ss, entries) {
   if (!entries || entries.length === 0) return;
-  try {
-    var ledger = getDurableIdempotencySheet(ss);
-    var startRow = Math.max(2, ledger.getLastRow() + 1);
-    var now = new Date();
-    var rows = entries.map(function (entry) {
-      return [String(entry.key), JSON.stringify(entry.response), now];
-    });
-    ledger.getRange(startRow, 1, rows.length, 3).setValues(rows);
-  } catch (e) {}
+  var ledger = getDurableIdempotencySheet(ss);
+  var startRow = Math.max(2, ledger.getLastRow() + 1);
+  var now = new Date();
+  var rows = entries.map(function (entry) {
+    return [String(entry.key), JSON.stringify(entry.response), now];
+  });
+  ledger.getRange(startRow, 1, rows.length, 3).setValues(rows);
+  safeFlushSpreadsheet();
 }
 
 function processBatchMutations(batchItems, postStartMs, topBody) {
@@ -744,21 +1019,30 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
   var allKeys = [];
   for (var i = 0; i < batchItems.length; i++) {
     var rawItem = batchItems[i] || {};
-    var itemKey = String(rawItem.idempotencyKey || rawItem.id || '').trim();
+    var itemKey = String(rawItem.idempotencyKey || rawItem.mutationId || rawItem.id || '').trim();
     if (itemKey) allKeys.push(itemKey);
   }
   var idempStateMap = checkIdempotencyKeys(ss, allKeys);
 
-  // Validate target sheets upfront and collect missing Friday columns per sheet
+  // Validate target sheets upfront and group pending batch items by canonical sheet name
   var results = new Array(batchItems.length);
   var pendingIndicesBySheet = {};
   for (var idx = 0; idx < batchItems.length; idx++) {
     var item = batchItems[idx] || {};
-    var mutKey = String(item.idempotencyKey || item.id || '').trim();
-    if (mutKey && idempStateMap[mutKey] && idempStateMap[mutKey].found) {
-      var prevResp = idempStateMap[mutKey].response || { ok: true };
+    var mutKey = String(item.idempotencyKey || item.mutationId || item.id || '').trim();
+    if (
+      mutKey &&
+      idempStateMap[mutKey] &&
+      idempStateMap[mutKey].found &&
+      idempStateMap[mutKey].response &&
+      idempStateMap[mutKey].response.ok === true &&
+      idempStateMap[mutKey].response.proof &&
+      idempStateMap[mutKey].response.proof.persisted === true
+    ) {
+      var prevResp = JSON.parse(JSON.stringify(idempStateMap[mutKey].response));
       prevResp.deduplicated = true;
       prevResp.mutationId = mutKey;
+      prevResp.proof.deduplicated = true;
       results[idx] = prevResp;
       continue;
     }
@@ -785,8 +1069,8 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
       continue;
     }
     var itemAction = String(item.action || '').trim().toLowerCase();
-    if (itemAction !== 'attendance') {
-      results[idx] = { ok: false, status: 400, mutationId: mutKey, error: 'المعالجة المجمعة تدعم عمليات الحضور فقط حالياً' };
+    if (itemAction !== 'attendance' && itemAction !== 'followup') {
+      results[idx] = { ok: false, status: 400, mutationId: mutKey, error: 'المعالجة المجمعة تدعم عمليات الحضور والافتقاد فقط حالياً' };
       continue;
     }
     if (!pendingIndicesBySheet[sheetName]) pendingIndicesBySheet[sheetName] = [];
@@ -795,7 +1079,8 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
 
   var newIdempotencyEntries = [];
   var cacheBatchToPut = {};
-  var currentCairoMonth = Utilities.formatDate(new Date(), 'Africa/Cairo', 'yyyy-MM');
+  var currentCairoToday = getCairoTodayDateString();
+  var currentCairoMonth = currentCairoToday.substring(0, 7);
 
   var sheetNames = Object.keys(pendingIndicesBySheet);
   for (var sIdx = 0; sIdx < sheetNames.length; sIdx++) {
@@ -808,7 +1093,7 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
       }
       continue;
     }
-    var sheet = ss.getSheetByName(targetSheetName);
+    var sheet = findApprovedSheet(ss, targetSheetName);
     if (!sheet) {
       for (var m = 0; m < itemIndices.length; m++) {
         var rIdx = itemIndices[m];
@@ -819,8 +1104,8 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
 
     var values = sheet.getDataRange().getValues();
     if (values.length === 0) {
-      for (var m = 0; m < itemIndices.length; m++) {
-        var eIdx = itemIndices[m];
+      for (var m2 = 0; m2 < itemIndices.length; m2++) {
+        var eIdx = itemIndices[m2];
         results[eIdx] = { ok: false, status: 500, mutationId: String(batchItems[eIdx].idempotencyKey || batchItems[eIdx].id || ''), error: 'الشيت فارغ' };
       }
       continue;
@@ -828,17 +1113,32 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
 
     var headers = values[0].map(function (h) { return formatHeaderCell(h); });
 
-    // Pre-create all missing Friday columns in this chunk in one pass before applying cells
+    // Pre-create missing Friday attendance columns & followup columns in one pass
     var neededFridays = [];
     var seenFridays = {};
-    for (var m = 0; m < itemIndices.length; m++) {
-      var bItem = batchItems[itemIndices[m]];
-      var fDate = String(bItem.date || bItem.friday || (bItem.payload && (bItem.payload.friday || bItem.payload.date)) || '').trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(fDate) && findExactHeaderIndex(headers, fDate) < 0 && !seenFridays[fDate]) {
-        seenFridays[fDate] = true;
-        neededFridays.push(fDate);
+    var neededFuHeaders = [];
+    var seenFuHeaders = {};
+    for (var m3 = 0; m3 < itemIndices.length; m3++) {
+      var bItem = batchItems[itemIndices[m3]];
+      var bAct = String(bItem.action || '').trim().toLowerCase();
+      if (bAct === 'attendance') {
+        var fDate = String(bItem.friday || bItem.date || (bItem.payload && (bItem.payload.friday || bItem.payload.date)) || '').trim();
+        if (isValidIsoDate(fDate) && findExactHeaderIndex(headers, fDate) < 0 && !seenFridays[fDate]) {
+          seenFridays[fDate] = true;
+          neededFridays.push(fDate);
+        }
+      } else if (bAct === 'followup') {
+        var bRawFuFriday = String(bItem.friday || bItem.fridayDate || (bItem.payload && (bItem.payload.friday || bItem.payload.fridayDate)) || '').trim();
+        var bRawFuDate = String(bItem.date || (bItem.payload && bItem.payload.date) || '').trim();
+        var resolvedFuFri = isValidIsoDate(bRawFuFriday) ? bRawFuFriday : (isValidIsoDate(bRawFuDate) ? bRawFuDate : currentCairoToday);
+        var fuHdr = 'افتقاد ' + resolvedFuFri;
+        if (findExactHeaderIndex(headers, fuHdr) < 0 && !seenFuHeaders[fuHdr]) {
+          seenFuHeaders[fuHdr] = true;
+          neededFuHeaders.push(fuHdr);
+        }
       }
     }
+
     neededFridays.sort();
     var insertedColumns = false;
     for (var nf = 0; nf < neededFridays.length; nf++) {
@@ -855,6 +1155,13 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
       }
       insertedColumns = true;
     }
+    neededFuHeaders.sort();
+    for (var nfu = 0; nfu < neededFuHeaders.length; nfu++) {
+      var lastCol2 = sheet.getLastColumn();
+      sheet.getRange(1, lastCol2 + 1).setValue(neededFuHeaders[nfu]);
+      headers.push(neededFuHeaders[nfu]);
+      insertedColumns = true;
+    }
     if (insertedColumns) {
       values = sheet.getDataRange().getValues();
       headers = values[0].map(function (h) { return formatHeaderCell(h); });
@@ -867,6 +1174,8 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
     var totalCol = findColIndex(headers, ['إجمالي الحضور', 'اجمالي الحضور', 'attendanceTotal', 'total']);
     var lastAttCol = findColIndex(headers, ['آخر حضور', 'اخر حضور', 'lastAttendance']);
     var monthCol = findColIndex(headers, ['حضور الشهر', 'attendanceMonth']);
+    var lastFuCol = findColIndex(headers, ['آخر افتقاد', 'اخر افتقاد', 'lastFollowup']);
+    var fuStatusCol = findColIndex(headers, ['حالة الافتقاد', 'followupStatus']);
 
     // Build fast student lookup maps once for the entire sheet
     var byCode = {};
@@ -894,22 +1203,14 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
     var dirtyRows = {};
     var dirtyCells = []; // [{ rowIndex, colIndex, val }]
     var conflictedRowSet = {};
+    var stagedSheetSuccesses = []; // [{ qIdx, qKey, itemRes }]
 
-    for (var m = 0; m < itemIndices.length; m++) {
-      var qIdx = itemIndices[m];
+    for (var m4 = 0; m4 < itemIndices.length; m4++) {
+      var qIdx = itemIndices[m4];
       var qItem = batchItems[qIdx];
-      var qKey = String(qItem.idempotencyKey || qItem.id || '').trim();
-
-      var friday = String(qItem.date || qItem.friday || (qItem.payload && (qItem.payload.friday || qItem.payload.date)) || '').trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(friday)) {
-        results[qIdx] = { ok: false, status: 400, mutationId: qKey, error: 'تاريخ غير صحيح' };
-        continue;
-      }
-      var fridayCol = findExactHeaderIndex(headers, friday);
-      if (fridayCol < 0) {
-        results[qIdx] = { ok: false, status: 500, mutationId: qKey, error: 'تعذر إنشاء عمود التاريخ' };
-        continue;
-      }
+      var qKey = String(qItem.idempotencyKey || qItem.mutationId || qItem.id || '').trim();
+      var qAction = String(qItem.action || '').trim().toLowerCase();
+      var qPayload = qItem.payload || {};
 
       var qCode = String(qItem.studentCode || qItem.code || '').trim();
       var qId = String(qItem.studentId || '').trim();
@@ -922,7 +1223,7 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
       else if (normQName && byName[normQName] !== undefined) rowIndex = byName[normQName];
 
       if (rowIndex === -1) {
-        results[qIdx] = { ok: false, status: 404, mutationId: qKey, error: 'الاسم غير موجود' };
+        results[qIdx] = { ok: false, status: 404, mutationId: qKey, studentId: qId, error: 'الاسم غير موجود' };
         continue;
       }
 
@@ -939,7 +1240,7 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
 
       var curVer = rowVersionMap[rowIndex];
       var expectedVer = qItem.expectedVersion;
-      if (typeof expectedVer === 'number' && isFinite(expectedVer) && expectedVer >= 1 && curVer !== expectedVer) {
+      if (versionCol >= 0 && typeof expectedVer === 'number' && isFinite(expectedVer) && expectedVer >= 1 && curVer !== expectedVer) {
         conflictedRowSet[rowIndex] = true;
         results[qIdx] = {
           ok: false,
@@ -951,79 +1252,221 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
         continue;
       }
 
-      var rawPresent = qItem.present !== undefined ? qItem.present : (qItem.isPresent !== undefined ? qItem.isPresent : (qItem.payload && (qItem.payload.isPresent !== undefined ? qItem.payload.isPresent : qItem.payload.present)));
-      var isPresent = rawPresent === true || ['1', 'true', 'present', 'حاضر'].indexOf(String(rawPresent).trim().toLowerCase()) !== -1;
+      var rowEffectiveId = qId || (idCol >= 0 ? formatCellValue(values[rowIndex][idCol]) : '') || ('gs_' + targetSheetName + '_' + (qCode || ('row' + (rowIndex + 1))) + '_' + (rowIndex + 1)).replace(/\s+/g, '_');
 
-      var prevVal = String(values[rowIndex][fridayCol] || '').trim().toLowerCase();
-      var wasPresent = ['1', 'true', 'present', 'حاضر'].indexOf(prevVal) !== -1;
-      var delta = (isPresent ? 1 : 0) - (wasPresent ? 1 : 0);
+      if (qAction === 'attendance') {
+        var friday = String(qItem.friday || qItem.date || (qPayload && (qPayload.friday || qPayload.date)) || '').trim();
+        if (!isValidIsoDate(friday)) {
+          results[qIdx] = { ok: false, status: 400, mutationId: qKey, studentId: rowEffectiveId, error: 'تاريخ غير صحيح' };
+          continue;
+        }
+        var fridayCol = findExactHeaderIndex(headers, friday);
+        if (fridayCol < 0) {
+          results[qIdx] = { ok: false, status: 500, mutationId: qKey, studentId: rowEffectiveId, error: 'تعذر إنشاء عمود التاريخ' };
+          continue;
+        }
 
-      values[rowIndex][fridayCol] = isPresent ? 1 : 0;
-      dirtyCells.push({ rowIndex: rowIndex, colIndex: fridayCol, val: isPresent ? 1 : 0 });
+        var rawPresent = qItem.present !== undefined ? qItem.present : (qItem.isPresent !== undefined ? qItem.isPresent : (qPayload && (qPayload.isPresent !== undefined ? qPayload.isPresent : qPayload.present)));
+        var isPresent = rawPresent === true || ['1', 'true', 'present', 'حاضر'].indexOf(String(rawPresent).trim().toLowerCase()) !== -1;
 
-      if (totalCol >= 0) {
-        var prevTotal = parseInt(values[rowIndex][totalCol] || '0', 10) || 0;
-        values[rowIndex][totalCol] = Math.max(0, prevTotal + delta);
-      }
+        var prevVal = String(values[rowIndex][fridayCol] || '').trim().toLowerCase();
+        var wasPresent = ['1', 'true', 'present', 'حاضر'].indexOf(prevVal) !== -1;
+        var delta = (isPresent ? 1 : 0) - (wasPresent ? 1 : 0);
 
-      var nextVer = curVer + 1;
-      rowVersionMap[rowIndex] = nextVer;
-      if (versionCol >= 0) {
-        values[rowIndex][versionCol] = nextVer;
-      }
-      dirtyRows[rowIndex] = true;
+        values[rowIndex][fridayCol] = isPresent ? 1 : 0;
+        dirtyCells.push({ rowIndex: rowIndex, colIndex: fridayCol, val: isPresent ? 1 : 0 });
 
-      var itemRes = {
-        ok: true,
-        status: 200,
-        row: rowIndex + 1,
-        mutationId: qKey,
-        studentId: qId,
-        newVersion: nextVer,
-        action: 'attendance'
-      };
-      results[qIdx] = itemRes;
-      if (qKey) {
-        newIdempotencyEntries.push({ key: qKey, response: itemRes });
-        cacheBatchToPut['IDEMP_' + qKey] = JSON.stringify(itemRes);
+        if (totalCol >= 0) {
+          var prevTotal = parseInt(values[rowIndex][totalCol] || '0', 10) || 0;
+          values[rowIndex][totalCol] = Math.max(0, prevTotal + delta);
+        }
+
+        var nextVer = (versionCol >= 0)
+          ? (curVer + 1)
+          : ((typeof expectedVer === 'number' && isFinite(expectedVer) && expectedVer >= 1) ? (Math.floor(expectedVer) + 1) : (curVer + 1));
+        rowVersionMap[rowIndex] = nextVer;
+        if (versionCol >= 0) {
+          values[rowIndex][versionCol] = nextVer;
+        }
+        dirtyRows[rowIndex] = true;
+
+        var batchAttProof = buildPersistenceProof({
+          mutationId: qKey,
+          operation: 'attendance',
+          studentId: rowEffectiveId,
+          sheetName: targetSheetName,
+          row: rowIndex + 1,
+          recordId: rowEffectiveId + ':' + friday,
+          newVersion: nextVer,
+          friday: friday,
+          present: isPresent
+        });
+        var itemRes = buildVerifiedMutationResponse(batchAttProof);
+        stagedSheetSuccesses.push({ qIdx: qIdx, qKey: qKey, itemRes: itemRes });
+      } else if (qAction === 'followup') {
+        var qFuMethod = String(qItem.status || qItem.followupStatus || qItem.type || qItem.method || (qPayload && (qPayload.status || qPayload.followupStatus || qPayload.method || qPayload.type)) || '').trim();
+        if (!qFuMethod) {
+          results[qIdx] = { ok: false, status: 400, mutationId: qKey, studentId: rowEffectiveId, error: 'حالة الافتقاد مطلوبة' };
+          continue;
+        }
+        var qRawFuFriday = String(qItem.friday || qItem.fridayDate || (qPayload && (qPayload.friday || qPayload.fridayDate)) || '').trim();
+        var qRawFuDate = String(qItem.date || (qPayload && qPayload.date) || '').trim();
+        var qFuDate = isValidIsoDate(qRawFuDate) ? qRawFuDate : currentCairoToday;
+        var qFuFriday = isValidIsoDate(qRawFuFriday) ? qRawFuFriday : qFuDate;
+        var qFuRecordId = String(qItem.recordId || (qPayload && qPayload.recordId) || '').trim();
+        var qFuNotes = qItem.notes !== undefined ? qItem.notes : ((qPayload && qPayload.notes) || '');
+        var qFuOutcomeRaw = String(qItem.callOutcome || (qPayload && qPayload.callOutcome) || '').trim();
+        var qFuOutcome = (qFuOutcomeRaw === 'تم التواصل' || qFuOutcomeRaw === 'لم يتم التواصل') ? qFuOutcomeRaw : '';
+
+        var qFuHeader = 'افتقاد ' + qFuFriday;
+        var qFuCol = findExactHeaderIndex(headers, qFuHeader);
+        if (qFuCol < 0) {
+          results[qIdx] = { ok: false, status: 500, mutationId: qKey, studentId: rowEffectiveId, error: 'تعذر إنشاء عمود الافتقاد' };
+          continue;
+        }
+
+        // Append pastoral followup log row FIRST — if this fails, fail ONLY this item without fake success
+        var qLogResult;
+        try {
+          qLogResult = appendFollowupLogRow(
+            ss,
+            targetSheetName,
+            headers,
+            values[rowIndex],
+            qFuFriday,
+            qFuMethod,
+            qFuNotes,
+            qKey,
+            qFuOutcome,
+            qFuDate,
+            qFuRecordId
+          );
+        } catch (fuLogErr) {
+          results[qIdx] = {
+            ok: false,
+            status: 500,
+            mutationId: qKey,
+            studentId: rowEffectiveId,
+            error: String(fuLogErr && fuLogErr.message ? fuLogErr.message : fuLogErr)
+          };
+          continue;
+        }
+
+        if (!qLogResult || qLogResult.appended !== true || !qLogResult.followupLogRow) {
+          results[qIdx] = {
+            ok: false,
+            status: 500,
+            mutationId: qKey,
+            studentId: rowEffectiveId,
+            error: 'تعذر إثبات حفظ سجل الافتقاد في تاب سجل الافتقاد'
+          };
+          continue;
+        }
+
+        var sanitizedMethod = sanitizeFormulaValue(qFuMethod);
+        values[rowIndex][qFuCol] = sanitizedMethod;
+        dirtyCells.push({ rowIndex: rowIndex, colIndex: qFuCol, val: sanitizedMethod });
+        if (lastFuCol >= 0) {
+          values[rowIndex][lastFuCol] = sanitizeFormulaValue(qFuDate);
+          dirtyCells.push({ rowIndex: rowIndex, colIndex: lastFuCol, val: sanitizeFormulaValue(qFuDate) });
+        }
+        if (fuStatusCol >= 0) {
+          values[rowIndex][fuStatusCol] = sanitizedMethod;
+          dirtyCells.push({ rowIndex: rowIndex, colIndex: fuStatusCol, val: sanitizedMethod });
+        }
+
+        var nextFuVer = (versionCol >= 0)
+          ? (curVer + 1)
+          : ((typeof expectedVer === 'number' && isFinite(expectedVer) && expectedVer >= 1) ? (Math.floor(expectedVer) + 1) : (curVer + 1));
+        rowVersionMap[rowIndex] = nextFuVer;
+        if (versionCol >= 0) {
+          values[rowIndex][versionCol] = nextFuVer;
+        }
+        dirtyRows[rowIndex] = true;
+
+        var batchFuProof = buildPersistenceProof({
+          mutationId: qKey,
+          operation: 'followup',
+          studentId: rowEffectiveId,
+          sheetName: targetSheetName,
+          row: rowIndex + 1,
+          recordId: qLogResult.recordId,
+          newVersion: nextFuVer,
+          friday: qFuFriday,
+          date: qFuDate,
+          followupLogAppended: true,
+          followupLogRow: qLogResult.followupLogRow
+        });
+        var fuItemRes = buildVerifiedMutationResponse(batchFuProof, {
+          lastFollowup: qFuDate,
+          fuDate: qFuDate,
+          fuStatus: qFuMethod,
+          callOutcome: qFuOutcome || undefined
+        });
+        stagedSheetSuccesses.push({ qIdx: qIdx, qKey: qKey, itemRes: fuItemRes });
       }
     }
 
-    // Flush modified attendance cells and compute summary columns ONCE per dirty student row
-    for (var cIdx = 0; cIdx < dirtyCells.length; cIdx++) {
-      var dc = dirtyCells[cIdx];
-      sheet.getRange(dc.rowIndex + 1, dc.colIndex + 1).setValue(dc.val);
-    }
+    // Flush modified cells and summary columns to the real Google Sheet BEFORE publishing success/idempotency
+    try {
+      for (var cIdx = 0; cIdx < dirtyCells.length; cIdx++) {
+        var dc = dirtyCells[cIdx];
+        sheet.getRange(dc.rowIndex + 1, dc.colIndex + 1).setValue(dc.val);
+      }
 
-    var dirtyRowKeys = Object.keys(dirtyRows);
-    for (var dr = 0; dr < dirtyRowKeys.length; dr++) {
-      var rIndex = parseInt(dirtyRowKeys[dr], 10);
-      var rNum = rIndex + 1;
+      var dirtyRowKeys = Object.keys(dirtyRows);
+      for (var dr = 0; dr < dirtyRowKeys.length; dr++) {
+        var rIndex = parseInt(dirtyRowKeys[dr], 10);
+        var rNum = rIndex + 1;
 
-      var latestPresentFriday = '';
-      var monthCount = 0;
-      for (var c = 0; c < headers.length; c++) {
-        var hDate = String(headers[c] || '').trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(hDate)) {
-          var cv = values[rIndex][c];
-          if (cv === 1 || String(cv).trim() === '1' || cv === true) {
-            if (hDate > latestPresentFriday) latestPresentFriday = hDate;
-            if (hDate.substring(0, 7) === currentCairoMonth) monthCount++;
+        var latestPresentFriday = '';
+        var monthCount = 0;
+        for (var c = 0; c < headers.length; c++) {
+          var hDate = String(headers[c] || '').trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(hDate)) {
+            var cv2 = values[rIndex][c];
+            if (cv2 === 1 || String(cv2).trim() === '1' || cv2 === true) {
+              if (hDate > latestPresentFriday) latestPresentFriday = hDate;
+              if (hDate.substring(0, 7) === currentCairoMonth) monthCount++;
+            }
           }
+        }
+
+        if (totalCol >= 0) {
+          sheet.getRange(rNum, totalCol + 1).setValue(values[rIndex][totalCol]);
+        }
+        if (lastAttCol >= 0) {
+          sheet.getRange(rNum, lastAttCol + 1).setValue(sanitizeFormulaValue(latestPresentFriday));
+        }
+        if (monthCol >= 0) {
+          sheet.getRange(rNum, monthCol + 1).setValue(monthCount);
+        }
+        if (versionCol >= 0) {
+          sheet.getRange(rNum, versionCol + 1).setValue(rowVersionMap[rIndex]);
         }
       }
 
-      if (totalCol >= 0) {
-        sheet.getRange(rNum, totalCol + 1).setValue(values[rIndex][totalCol]);
+      safeFlushSpreadsheet();
+
+      for (var okIdx = 0; okIdx < stagedSheetSuccesses.length; okIdx++) {
+        var okEntry = stagedSheetSuccesses[okIdx];
+        results[okEntry.qIdx] = okEntry.itemRes;
+        if (okEntry.qKey) {
+          newIdempotencyEntries.push({ key: okEntry.qKey, response: okEntry.itemRes });
+          cacheBatchToPut['IDEMP_' + okEntry.qKey] = JSON.stringify(okEntry.itemRes);
+        }
       }
-      if (lastAttCol >= 0) {
-        sheet.getRange(rNum, lastAttCol + 1).setValue(sanitizeFormulaValue(latestPresentFriday));
-      }
-      if (monthCol >= 0) {
-        sheet.getRange(rNum, monthCol + 1).setValue(monthCount);
-      }
-      if (versionCol >= 0) {
-        sheet.getRange(rNum, versionCol + 1).setValue(rowVersionMap[rIndex]);
+    } catch (sheetFlushErr) {
+      var flushMsg = String(sheetFlushErr && sheetFlushErr.message ? sheetFlushErr.message : sheetFlushErr);
+      for (var failIdx = 0; failIdx < stagedSheetSuccesses.length; failIdx++) {
+        var failEntry = stagedSheetSuccesses[failIdx];
+        results[failEntry.qIdx] = {
+          ok: false,
+          status: 500,
+          mutationId: failEntry.qKey,
+          studentId: failEntry.itemRes.studentId,
+          error: 'فشل حفظ البيانات في Google Sheets: ' + flushMsg
+        };
       }
     }
   }
@@ -1100,7 +1543,7 @@ function formatCellValue(cell) {
 }
 
 function readFollowupLogRows(ss) {
-  var logSheet = ss.getSheetByName('سجل الافتقاد');
+  var logSheet = findFollowupLogSheet(ss);
   if (!logSheet) return [];
   var values = logSheet.getDataRange().getValues();
   if (values.length <= 1) return [];
@@ -1113,6 +1556,7 @@ function readFollowupLogRows(ss) {
   var iType = findColIndex(headers, ['النوع']);
   var iOutcome = findColIndex(headers, ['نتيجة الاتصال', 'نتيجه الاتصال', 'callOutcome', 'النتيجة']);
   var iNotes = findColIndex(headers, ['ملاحظات', 'ملا حظات']);
+  var iRecordId = findColIndex(headers, ['record_id', 'recordId']);
 
   var records = [];
   for (var r = 1; r < values.length; r++) {
@@ -1122,8 +1566,9 @@ function readFollowupLogRows(ss) {
     if (!nameVal && !codeVal) continue;
     var rawOutcome = iOutcome >= 0 ? formatCellValue(row[iOutcome]) : '';
     var outcomeVal = (rawOutcome === 'تم التواصل' || rawOutcome === 'لم يتم التواصل') ? rawOutcome : undefined;
+    var storedRecId = iRecordId >= 0 ? formatCellValue(row[iRecordId]) : '';
     records.push({
-      id: 'gs_fu_' + (r + 1) + '_' + (codeVal || nameVal).replace(/\s+/g, '_'),
+      id: storedRecId || ('gs_fu_' + (r + 1) + '_' + (codeVal || nameVal).replace(/\s+/g, '_')),
       date: iDate >= 0 ? formatCellValue(row[iDate]) : '',
       fridayDate: iFriday >= 0 ? formatCellValue(row[iFriday]) : '',
       studentId: codeVal || nameVal,
@@ -1138,25 +1583,57 @@ function readFollowupLogRows(ss) {
   return records;
 }
 
-function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayDate, method, notes, mutationId, callOutcome) {
-  var logSheet = ss.getSheetByName('سجل الافتقاد');
-  if (!logSheet) return;
+/**
+ * Appends a followup row to 'سجل الافتقاد' with strict fail-loud guarantees and deduplication.
+ * NEVER fails silently if 'سجل الافتقاد' is missing.
+ */
+function appendFollowupLogRow(
+  ss,
+  sheetName,
+  studentHeaders,
+  studentRow,
+  fridayDate,
+  method,
+  notes,
+  mutationId,
+  callOutcome,
+  recordDate,
+  recordId
+) {
+  var logSheet = findFollowupLogSheet(ss);
+  if (!logSheet) {
+    throw new Error('التاب "' + FOLLOWUP_LOG_SHEET_NAME + '" غير موجود في ملف Google Sheets المركزي');
+  }
+
   var codeCol = findColIndex(studentHeaders, ['كود', 'الكود', 'code']);
   var nameCol = findColIndex(studentHeaders, ['الاسم', 'name']);
   var servantCol = findColIndex(studentHeaders, ['الاشبين', 'الأشبين', 'الخادم', 'servant']);
   var logLastColumn = Math.max(logSheet.getLastColumn(), 8);
   var logHeaders = logSheet.getRange(1, 1, 1, logLastColumn).getValues()[0]
     .map(function (h) { return formatHeaderCell(h); });
+
   var mutationIdCol = findColIndex(logHeaders, ['mutation_id']);
   if (mutationIdCol < 0) {
     mutationIdCol = logLastColumn;
     logSheet.getRange(1, mutationIdCol + 1).setValue('mutation_id');
+    logHeaders.push('mutation_id');
     logLastColumn = mutationIdCol + 1;
   }
+
   var outcomeCol = findColIndex(logHeaders, ['نتيجة الاتصال', 'نتيجه الاتصال', 'callOutcome']);
   if (outcomeCol < 0 && callOutcome) {
     outcomeCol = logLastColumn;
     logSheet.getRange(1, outcomeCol + 1).setValue('نتيجة الاتصال');
+    logHeaders.push('نتيجة الاتصال');
+    logLastColumn = outcomeCol + 1;
+  }
+
+  var recordIdCol = findColIndex(logHeaders, ['record_id', 'recordId']);
+  if (recordIdCol < 0 && recordId) {
+    recordIdCol = logLastColumn;
+    logSheet.getRange(1, recordIdCol + 1).setValue('record_id');
+    logHeaders.push('record_id');
+    logLastColumn = recordIdCol + 1;
   }
 
   var logLastRow = logSheet.getLastRow();
@@ -1165,13 +1642,39 @@ function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayD
       .createTextFinder(String(mutationId))
       .matchEntireCell(true)
       .findNext();
-    if (existingMutation) return;
+    if (existingMutation) {
+      var existingRow = existingMutation.getRow();
+      var existingRecIdVal = (recordIdCol >= 0) ? formatCellValue(logSheet.getRange(existingRow, recordIdCol + 1).getValue()) : '';
+      return {
+        appended: true,
+        followupLogRow: existingRow,
+        recordId: recordId || existingRecIdVal || ('gs_fu_' + existingRow),
+        deduplicated: true
+      };
+    }
+  }
+  if (recordId && recordIdCol >= 0 && logLastRow > 1) {
+    var existingByRecordId = logSheet.getRange(2, recordIdCol + 1, logLastRow - 1, 1)
+      .createTextFinder(String(recordId))
+      .matchEntireCell(true)
+      .findNext();
+    if (existingByRecordId) {
+      var existingRecRow = existingByRecordId.getRow();
+      return {
+        appended: true,
+        followupLogRow: existingRecRow,
+        recordId: String(recordId),
+        deduplicated: true
+      };
+    }
   }
 
-  var todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Africa/Cairo', 'yyyy-MM-dd');
+  var effectiveDate = isValidIsoDate(String(recordDate || '')) ? String(recordDate).trim() : getCairoTodayDateString();
+  var effectiveFriday = isValidIsoDate(String(fridayDate || '')) ? String(fridayDate).trim() : effectiveDate;
+
   var newRow = [
-    todayStr,
-    fridayDate || todayStr,
+    effectiveDate,
+    effectiveFriday,
     sanitizeFormulaValue(sheetName),
     sanitizeFormulaValue(codeCol >= 0 ? formatCellValue(studentRow[codeCol]) : ''),
     sanitizeFormulaValue(nameCol >= 0 ? formatCellValue(studentRow[nameCol]) : ''),
@@ -1179,13 +1682,31 @@ function appendFollowupLogRow(ss, sheetName, studentHeaders, studentRow, fridayD
     sanitizeFormulaValue(method || 'تم تليفونياً'),
     sanitizeFormulaValue(notes || '')
   ];
-  var targetWidth = Math.max(mutationIdCol + 1, outcomeCol >= 0 ? outcomeCol + 1 : 0);
+
+  var targetWidth = Math.max(
+    mutationIdCol + 1,
+    outcomeCol >= 0 ? outcomeCol + 1 : 0,
+    recordIdCol >= 0 ? recordIdCol + 1 : 0
+  );
   while (newRow.length < targetWidth) newRow.push('');
   newRow[mutationIdCol] = mutationId || '';
   if (outcomeCol >= 0 && callOutcome) {
     newRow[outcomeCol] = sanitizeFormulaValue(callOutcome);
   }
+  if (recordIdCol >= 0 && recordId) {
+    newRow[recordIdCol] = sanitizeFormulaValue(recordId);
+  }
+
   logSheet.appendRow(newRow);
+  safeFlushSpreadsheet();
+  var appendedRowNum = logSheet.getLastRow();
+
+  return {
+    appended: true,
+    followupLogRow: appendedRowNum,
+    recordId: recordId || ('gs_fu_' + appendedRowNum),
+    deduplicated: false
+  };
 }
 
 function mapRowToStudent(headers, row, sheetName, rowNumber) {

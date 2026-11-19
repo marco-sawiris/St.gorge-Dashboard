@@ -8,6 +8,15 @@ import {
   getNearestFridayString,
   normalizeArabicText
 } from '../utils/arabicUtils';
+import {
+  FOLLOWUP_MESSAGE_TEMPLATES,
+  FollowupMessageAudience,
+  renderFollowupMessageTemplate,
+  resolveFollowupClassName,
+  resolveFollowupPhoneTarget,
+  stripEmojis
+} from '../data/followupMessageTemplates';
+import { selectFollowupMessage, selectMultipleFollowupMessages } from './followupMessageLibrary';
 
 export interface AssistantAction {
   label: string;
@@ -114,6 +123,18 @@ export interface AssistantMeta {
     classScope?: string;
     servantScope?: string;
   };
+  suggestedFollowupTemplateIds?: string[];
+  lastFollowupAudience?: FollowupMessageAudience;
+  lastFollowupStudentId?: string;
+  followupEditableDraft?: string;
+  followupPhoneSourceLabel?: string;
+  followupPhoneWarning?: string;
+  followupOptions?: Array<{
+    templateId: string;
+    title: string;
+    audience: FollowupMessageAudience;
+    message: string;
+  }>;
 }
 
 export interface AssistantMessage {
@@ -217,11 +238,7 @@ export const MESSAGE_TEMPLATES = {
     '🎉 عيد ميلاد سعيد يا {name}! عقبال 100 سنة سعيدة في حضن بابا يسوع، مستنيينك الجمعة الجاية نحتفل بيك! 🕊️✨',
     '🎈 سنة جديدة كلها فرح ونعمة وتفوق يا {name}، صلوات الشهيد مارجرجس تكون معاك وتفرحنا بنجاحك دايماً! 🙏🌟'
   ],
-  followup: [
-    'سلام ونعمة يا {name} ✝️ افتقدناك جداً في فصل مارجرجس! يا رب تكون بخير وصحة، مستنيينك تنوّر الفصل الجمعة الجاية 💙',
-    'أهلاً يا بطل {name}! غيابك وحشنا في الخدمة، طمنا عليك وعلى الأسرة، ونفرح بوجودك معانا الجمعة الجاية 🙏✨',
-    'بنصلي لك دايماً يا {name} 🌟 فصل مارجرجس ناقصه وجودك الحلو، شرفنا الجمعة دي نعيش يوم جميل مع بعض! ⛪'
-  ],
+  followup: FOLLOWUP_MESSAGE_TEMPLATES.map((t) => t.template),
   encouragement: [
     'برافو يا {name} 👏 فخورين بالتزامك وحضورك الجميل في فصل مارجرجس، استمر يا بطل والرب يبارك خطواتك! 🌟💙',
     'عاش يا {name} ✝️ حضورك ومشاركتك بيفرحوا الخدمة جداً، ربنا يزيدك نعمة وتفوق في دراستك وحياتك! ✨'
@@ -841,15 +858,45 @@ export function detectAssistantIntent(query: string, prevMeta?: AssistantMeta | 
   const q = normalizeAssistantInput(query);
   if (!q) return 'help';
 
-  // Message generation intents
+  // Message generation intents (including all Arabic follow-up message requests)
   const wantsMessage =
     q.includes('رساله') ||
     q.includes('رسايل') ||
+    q.includes('رسائل') ||
     q.includes('مسج') ||
     q.includes('ابعت') ||
     q.includes('تهنئه') ||
     q.includes('تشجيع') ||
     q.includes('صلاه');
+
+  const isDirectFollowupDraftRequest =
+    (q.includes('عايز افتقد') ||
+      q.includes('اريد افتقاد') ||
+      q.includes('عايز افتقده') ||
+      q.includes('افتقد الطالب ده') ||
+      q.includes('افتقد المخدوم ده') ||
+      q.includes('اقترح رساله') ||
+      q.includes('اقترح رسايل') ||
+      q.includes('اقترح رسائل')) &&
+    !q.includes('مين') &&
+    !q.includes('كام') &&
+    !q.includes('كم') &&
+    !q.includes('باقي');
+
+  const isContextualFollowupVariantRequest =
+    prevMeta?.intent === 'message' &&
+    Boolean(prevMeta?.suggestedFollowupTemplateIds?.length) &&
+    (q.includes('مختلفه') ||
+      q.includes('تانيه') ||
+      q.includes('ثانيه') ||
+      q.includes('غيرها') ||
+      q.includes('بديل') ||
+      q.includes('قصيره') ||
+      q.includes('مختصره') ||
+      q.includes('لولي الامر') ||
+      q.includes('للطالب') ||
+      q.includes('للمخدوم') ||
+      q.includes('خيارات'));
 
   if ((q.includes('عيد') || q.includes('ميلاد')) && wantsMessage) {
     return 'birthdayMessage';
@@ -857,7 +904,12 @@ export function detectAssistantIntent(query: string, prevMeta?: AssistantMeta | 
   if ((q.includes('عيد') || q.includes('ميلاد') || q.includes('احتفال') || q.includes('مواليد')) && !q.includes('ناقص')) {
     return 'birthdays';
   }
-  if (wantsMessage && !q.includes('كيف') && !q.includes('ازاي') && !q.includes('اتصل')) {
+  if (
+    (wantsMessage || isDirectFollowupDraftRequest || isContextualFollowupVariantRequest) &&
+    !q.includes('كيف') &&
+    !q.includes('ازاي') &&
+    !q.includes('اتصل')
+  ) {
     return 'message';
   }
 
@@ -3532,15 +3584,234 @@ export function processAssistantQuery(
 
     case 'birthdayMessage':
     case 'message': {
+      const qNorm = scope.normalizedQuery;
+      const isNonFollowupCategory =
+        intent === 'birthdayMessage' ||
+        qNorm.includes('عيد') ||
+        qNorm.includes('ميلاد') ||
+        qNorm.includes('تشجيع') ||
+        qNorm.includes('تحفيز') ||
+        qNorm.includes('برافو') ||
+        qNorm.includes('مبروك') ||
+        qNorm.includes('نجاح') ||
+        qNorm.includes('تهنئه') ||
+        qNorm.includes('صلاه') ||
+        qNorm.includes('صلي');
+
+      const explicitStudent = findMentionedStudent(trimmed, workingStudents);
+      const prevStudentId = prevMeta?.lastFollowupStudentId || prevMeta?.studentIds?.[0];
+      const contextualStudent =
+        !explicitStudent && prevStudentId
+          ? workingStudents.find((s) => s.id === prevStudentId) || students.find((s) => s.id === prevStudentId) || null
+          : null;
+      const shouldUseContextualStudent =
+        Boolean(contextualStudent) &&
+        (qNorm.includes('ده') ||
+          qNorm.includes('مختلفه') ||
+          qNorm.includes('تانيه') ||
+          qNorm.includes('ثانيه') ||
+          qNorm.includes('غيرها') ||
+          qNorm.includes('بديل') ||
+          qNorm.includes('قصيره') ||
+          qNorm.includes('مختصره') ||
+          qNorm.includes('لولي الامر') ||
+          qNorm.includes('للطالب') ||
+          qNorm.includes('للمخدوم') ||
+          qNorm.includes('افتقده') ||
+          prevMeta?.intent === 'message' ||
+          prevMeta?.intent === 'search');
+      const targetStudent = explicitStudent || (shouldUseContextualStudent ? contextualStudent : null);
+
+      if (!isNonFollowupCategory) {
+        const wantsParent =
+          qNorm.includes('ولي الامر') ||
+          qNorm.includes('لولي الامر') ||
+          qNorm.includes('الاهل') ||
+          qNorm.includes('للاهل') ||
+          qNorm.includes('الاسره') ||
+          qNorm.includes('والد') ||
+          qNorm.includes('والده') ||
+          qNorm.includes('ماما') ||
+          qNorm.includes('بابا');
+        const wantsStudent =
+          !wantsParent &&
+          (qNorm.includes('للطالب') ||
+            qNorm.includes('للمخدوم') ||
+            qNorm.includes('الطالب') ||
+            qNorm.includes('المخدوم')) &&
+          !qNorm.includes('عايز افتقد الطالب ده');
+        const wantsShort =
+          qNorm.includes('قصيره') ||
+          qNorm.includes('قصير') ||
+          qNorm.includes('مختصره') ||
+          qNorm.includes('مختصر') ||
+          qNorm.includes('سريعه');
+        const wantsDifferent =
+          qNorm.includes('مختلفه') ||
+          qNorm.includes('تانيه') ||
+          qNorm.includes('ثانيه') ||
+          qNorm.includes('غيرها') ||
+          qNorm.includes('بديل') ||
+          qNorm.includes('اخرى') ||
+          qNorm.includes('اخري');
+        const wantsMultiple =
+          qNorm.includes('رسايل') ||
+          qNorm.includes('رسائل') ||
+          qNorm.includes('كذا رساله') ||
+          qNorm.includes('اكتر من رساله') ||
+          qNorm.includes('اكثر من رساله') ||
+          qNorm.includes('خيارات') ||
+          qNorm.includes('اقتراحات') ||
+          /[2-5]\s*رسا/.test(qNorm);
+
+        let audience: FollowupMessageAudience | undefined = wantsParent
+          ? 'parent'
+          : wantsStudent
+          ? 'student'
+          : wantsDifferent
+          ? prevMeta?.lastFollowupAudience
+          : undefined;
+
+        // Collect all previously suggested template IDs from this session to avoid repeating
+        const sessionSuggestedIds: string[] = [];
+        for (const msg of options?.sessionMessages || []) {
+          const ids = msg.meta?.suggestedFollowupTemplateIds;
+          if (Array.isArray(ids)) {
+            for (const id of ids) {
+              if (id && !sessionSuggestedIds.includes(id)) sessionSuggestedIds.push(id);
+            }
+          }
+        }
+        const immediatelyPreviousIds = prevMeta?.suggestedFollowupTemplateIds || [];
+
+        const phoneTarget = targetStudent ? resolveFollowupPhoneTarget(targetStudent) : null;
+        if (!audience && phoneTarget?.hasValidPhone && !phoneTarget.isFallbackToStudent) {
+          audience = 'parent';
+        }
+
+        // Check if excluding all session IDs exhausts the pool; if so, keep at least the immediately previous IDs excluded
+        const matchingPool = FOLLOWUP_MESSAGE_TEMPLATES.filter((t) => {
+          if (audience && t.audience !== audience) return false;
+          if (wantsShort && !t.isShort) return false;
+          return true;
+        });
+        const remainingPool = matchingPool.filter((t) => !sessionSuggestedIds.includes(t.id));
+        const excludeTemplateIds =
+          remainingPool.length > 0 ? sessionSuggestedIds : immediatelyPreviousIds;
+
+        const selectionCtx = {
+          student: targetStudent || undefined,
+          className: targetStudent ? resolveFollowupClassName(targetStudent.sourceSheet) : undefined,
+          audience,
+          preferShort: wantsShort,
+          excludeTemplateIds
+        };
+
+        if (wantsMultiple) {
+          const suggestions = selectMultipleFollowupMessages(3, selectionCtx);
+          const primary = suggestions[0];
+          const audienceLabel =
+            audience === 'parent'
+              ? 'لولي الأمر'
+              : audience === 'student'
+              ? 'للطالب'
+              : 'مناسبة للافتقاد';
+          const targetLabel = targetStudent
+            ? ` للمخدوم ${targetStudent.name} (${targetStudent.code})`
+            : '';
+
+          const formattedOptions = suggestions
+            .map((opt, idx) => `${idx + 1}. (${opt.title}):\n${opt.message}`)
+            .join('\n\n');
+
+          const phoneNote = targetStudent
+            ? phoneTarget?.hasValidPhone
+              ? `\n\nرقم الإرسال المقترح: ${phoneTarget.sourceLabel} (${phoneTarget.rawPhone})`
+              : `\n\nتنبيه: ${phoneTarget?.warningMessage || 'لا يوجد رقم هاتف صالح لهذا المخدوم، يمكنك نسخ الرسالة وإرسالها يدوياً.'}`
+            : '';
+
+          return {
+            text: stripEmojis(
+              `إليك ${suggestions.length} خيارات رسائل افتقاد ${audienceLabel}${targetLabel} (يمكنك تعديل الرسالة أو نسخها أو فتح واتساب للإرسال اليدوي):\n\n${formattedOptions}${phoneNote}`
+            ),
+            copyText: primary.message,
+            whatsappText: primary.message,
+            whatsappPhone: phoneTarget?.hasValidPhone ? (phoneTarget.rawPhone || phoneTarget.normalizedDigits || undefined) : undefined,
+            actions: [
+              { label: 'رسالة مختلفة', type: 'prompt', payload: 'هات رسالة مختلفة' },
+              { label: 'رسالة لولي الأمر', type: 'prompt', payload: 'عايز رسالة لولي الأمر' },
+              { label: 'رسالة للطالب', type: 'prompt', payload: 'اكتب رسالة للطالب' },
+              { label: 'رسالة قصيرة', type: 'prompt', payload: 'اكتب رسالة قصيرة' }
+            ],
+            meta: {
+              intent: 'message',
+              domain: 'followup',
+              studentIds: targetStudent ? [targetStudent.id] : [],
+              lastFollowupStudentId: targetStudent?.id,
+              lastFollowupAudience: primary.audience,
+              suggestedFollowupTemplateIds: suggestions.map((s) => s.templateId),
+              followupEditableDraft: primary.message,
+              followupPhoneSourceLabel: phoneTarget?.hasValidPhone ? phoneTarget.sourceLabel : undefined,
+              followupPhoneWarning: targetStudent && !phoneTarget?.hasValidPhone ? phoneTarget?.warningMessage : undefined,
+              followupOptions: suggestions.map((s) => ({
+                templateId: s.templateId,
+                title: s.title,
+                audience: s.audience,
+                message: s.message
+              }))
+            }
+          };
+        }
+
+        const picked = selectFollowupMessage(selectionCtx);
+        const audienceTitle =
+          picked.audience === 'parent'
+            ? 'لولي الأمر'
+            : picked.audience === 'student'
+            ? 'للطالب'
+            : 'عامة';
+        const header = targetStudent
+          ? `رسالة افتقاد (${audienceTitle} - ${picked.title}) للمخدوم ${targetStudent.name} (${targetStudent.code}):`
+          : `رسالة افتقاد مقترحة (${audienceTitle} - ${picked.title}) — يمكنك تعديلها أو نسخها قبل الإرسال اليدوي:`;
+        const phoneNote = targetStudent
+          ? phoneTarget?.hasValidPhone
+            ? `\n\nرقم واتساب المقترح: ${phoneTarget.sourceLabel} (${phoneTarget.rawPhone})`
+            : `\n\nتنبيه: ${phoneTarget?.warningMessage || 'لا يوجد رقم هاتف مسجل لهذا المخدوم، يمكنك نسخ الرسالة وإرسالها يدوياً.'}`
+          : '';
+
+        return {
+          text: stripEmojis(`${header}\n\n${picked.message}${phoneNote}`),
+          copyText: picked.message,
+          whatsappText: picked.message,
+          whatsappPhone: phoneTarget?.hasValidPhone ? (phoneTarget.rawPhone || phoneTarget.normalizedDigits || undefined) : undefined,
+          actions: [
+            { label: 'رسالة مختلفة', type: 'prompt', payload: 'هات رسالة مختلفة' },
+            { label: 'رسالة لولي الأمر', type: 'prompt', payload: 'عايز رسالة لولي الأمر' },
+            { label: 'رسالة للطالب', type: 'prompt', payload: 'اكتب رسالة للطالب' },
+            { label: 'رسالة قصيرة', type: 'prompt', payload: 'اكتب رسالة قصيرة' }
+          ],
+          meta: {
+            intent: 'message',
+            domain: 'followup',
+            studentIds: targetStudent ? [targetStudent.id] : [],
+            lastFollowupStudentId: targetStudent?.id,
+            lastFollowupAudience: picked.audience,
+            suggestedFollowupTemplateIds: [picked.templateId],
+            followupEditableDraft: picked.message,
+            followupPhoneSourceLabel: phoneTarget?.hasValidPhone ? phoneTarget.sourceLabel : undefined,
+            followupPhoneWarning: targetStudent && !phoneTarget?.hasValidPhone ? phoneTarget?.warningMessage : undefined
+          }
+        };
+      }
+
       const { text: rawTemplate } = pickMessageTemplate(trimmed);
-      const targetStudent = findMentionedStudent(trimmed, workingStudents);
       const displayName = targetStudent ? targetStudent.name.split(' ')[0] : 'بطل مارجرجس';
       const filledMessage = rawTemplate.replace(/\{name\}/g, displayName);
       const phone = targetStudent ? getPreferredPhone(targetStudent) : undefined;
 
       const header = targetStudent
-        ? `✉️ رسالة جاهزة إلى ${targetStudent.name} (${targetStudent.code}):`
-        : '✉️ رسالة جاهزة (يمكنك نسخها أو تعديل الاسم قبل الإرسال):';
+        ? `رسالة جاهزة إلى ${targetStudent.name} (${targetStudent.code}):`
+        : 'رسالة جاهزة (يمكنك نسخها أو تعديل الاسم قبل الإرسال):';
 
       return {
         text: `${header}\n\n"${filledMessage}"`,
@@ -3548,9 +3819,9 @@ export function processAssistantQuery(
         whatsappText: filledMessage,
         whatsappPhone: phone,
         actions: [
-          { label: '🎂 رسالة عيد ميلاد', type: 'prompt', payload: 'رسالة عيد ميلاد' },
-          { label: '💙 رسالة افتقاد', type: 'prompt', payload: 'رسالة افتقاد' },
-          { label: '🌟 رسالة تشجيع', type: 'prompt', payload: 'رسالة تشجيع' }
+          { label: 'رسالة افتقاد', type: 'prompt', payload: 'اكتب رسالة افتقاد' },
+          { label: 'رسالة عيد ميلاد', type: 'prompt', payload: 'رسالة عيد ميلاد' },
+          { label: 'رسالة تشجيع', type: 'prompt', payload: 'رسالة تشجيع' }
         ],
         meta: { intent, domain: 'other', studentIds: targetStudent ? [targetStudent.id] : [] }
       };
@@ -3566,11 +3837,11 @@ export function processAssistantQuery(
         };
       }
       return {
-        text: 'يمكنني مساعدتك في: أعياد الميلاد، حالات الحضور والغياب والأسماء غير المسجلة، سجل الافتقاد ونتائج الاتصال، بيانات المخدومين الناقصة، المقارنة بين الفصول، وتوليد تقارير الخدمة الفورية.',
+        text: 'يمكنني مساعدتك في: أعياد الميلاد، حالات الحضور والغياب والأسماء غير المسجلة، سجل الافتقاد ونتائج الاتصال، كتابة رسائل افتقاد جاهزة للواتساب، بيانات المخدومين الناقصة، المقارنة بين الفصول، وتوليد تقارير الخدمة الفورية.',
         actions: [
           { label: '📝 لم تسجل حضور/غياب', type: 'prompt', payload: 'هات الأسماء اللي لم تسجل حضور أو غياب' },
           { label: '📊 ملخص الخدمة', type: 'prompt', payload: 'اعرض ملخص الخدمة' },
-          { label: '⚠️ الغائبون', type: 'prompt', payload: 'مين غاب آخر جمعة؟' }
+          { label: 'رسالة افتقاد', type: 'prompt', payload: 'اكتب رسالة افتقاد' }
         ],
         meta: { intent: 'faq', domain: 'other' }
       };
@@ -3588,21 +3859,27 @@ export function processAssistantQuery(
       if (matchedStudents.length > 0) {
         const top = matchedStudents.slice(0, 8);
         const lines = top.map((s, idx) => {
-          const phone = s.phoneStudent || s.phoneParent1 || 'غير مسجل';
+          const phone = s.phoneParent1 || s.phoneParent2 || s.phoneStudent || 'غير مسجل';
           const outcomeTxt = s.lastCallOutcome ? ` • نتيجة الاتصال: ${s.lastCallOutcome}` : '';
           return `${idx + 1}. ${s.name} (${s.code})\n   الأشبين: ${s.servant || '-'} | الفصل: ${s.sourceSheet} | حضور: ${s.attendanceTotal} (${s.attendanceMonth}/4)\n   📞 ${phone} | الافتقاد: ${formatMethodDisplay(s.followupStatus)}${outcomeTxt}`;
         });
         const first = top[0];
+        const firstPhoneTarget = resolveFollowupPhoneTarget(first);
+        const searchFollowupText = renderFollowupMessageTemplate(FOLLOWUP_MESSAGE_TEMPLATES[0], {
+          studentName: first.name,
+          className: resolveFollowupClassName(first.sourceSheet)
+        });
         return {
           text: `🔎 نتائج البحث عن «${trimmed}» (${matchedStudents.length}):\n\n${lines.join('\n\n')}${syncFootnotes}`,
-          whatsappPhone: getPreferredPhone(first),
-          whatsappText: MESSAGE_TEMPLATES.followup[0].replace('{name}', first.name.split(' ')[0]),
-          actions: [{ label: `✉️ رسالة لـ ${first.name.split(' ')[0]}`, type: 'prompt', payload: `رسالة افتقاد لـ ${first.name}` }],
+          whatsappPhone: firstPhoneTarget.hasValidPhone ? firstPhoneTarget.normalizedDigits || undefined : undefined,
+          whatsappText: searchFollowupText,
+          actions: [{ label: `رسالة افتقاد لـ ${first.name.split(' ')[0]}`, type: 'prompt', payload: `اكتب رسالة افتقاد لـ ${first.name}` }],
           meta: {
             intent: 'search',
             domain: 'students',
             studentIds: matchedStudents.map((s) => s.id),
-            cohortStudentIds: matchedStudents.map((s) => s.id)
+            cohortStudentIds: matchedStudents.map((s) => s.id),
+            lastFollowupStudentId: first.id
           }
         };
       }
