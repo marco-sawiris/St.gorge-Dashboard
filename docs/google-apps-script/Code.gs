@@ -1210,6 +1210,31 @@ function saveDurableIdempotencyBatch(ss, entries) {
 
 function processBatchMutations(batchItems, postStartMs, topBody) {
   topBody = topBody || {};
+
+  // Normalize both supported client envelopes before any batch validation or lookup.
+  // The app may send identifiers/action inside item.mutation rather than at item root.
+  batchItems = (Array.isArray(batchItems) ? batchItems : []).map(function (rawItem) {
+    rawItem = rawItem || {};
+    var nestedMutation = rawItem.mutation || {};
+    var nestedPayload = rawItem.payload || nestedMutation.payload || {};
+    var normalized = {};
+    Object.keys(nestedMutation).forEach(function (key) {
+      if (key !== 'payload' && key !== 'mutation') normalized[key] = nestedMutation[key];
+    });
+    Object.keys(rawItem).forEach(function (key) {
+      if (key !== 'mutation' && key !== 'payload') normalized[key] = rawItem[key];
+    });
+    normalized.payload = nestedPayload;
+    normalized.action = String(rawItem.action || nestedMutation.action || nestedPayload.action || '').trim().toLowerCase();
+    normalized.studentId = String(rawItem.studentId || nestedMutation.studentId || nestedPayload.studentId || '').trim();
+    normalized.studentCode = String(rawItem.studentCode || rawItem.code || nestedMutation.studentCode || nestedMutation.code || nestedPayload.studentCode || nestedPayload.code || '').trim();
+    normalized.studentName = String(rawItem.studentName || rawItem.name || nestedMutation.studentName || nestedMutation.name || nestedPayload.studentName || nestedPayload.name || '').trim();
+    normalized.idempotencyKey = String(rawItem.idempotencyKey || rawItem.mutationId || rawItem.id || nestedMutation.idempotencyKey || nestedMutation.mutationId || nestedMutation.id || '').trim();
+    normalized.mutationId = normalized.idempotencyKey;
+    if (normalized.expectedVersion === undefined) normalized.expectedVersion = nestedMutation.expectedVersion !== undefined ? nestedMutation.expectedVersion : nestedPayload.expectedVersion;
+    return normalized;
+  });
+
   if (!batchItems || batchItems.length === 0) {
     return { ok: true, status: 200, action: 'batch', results: [], serverDurationMs: Date.now() - postStartMs };
   }
