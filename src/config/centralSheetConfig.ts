@@ -2,7 +2,7 @@
  * Single source of truth for the central Google Sheets identifier and URLs.
  * Note: Any client-supplied spreadsheetId override must be ignored/rejected.
  */
-export const CENTRAL_SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0' as const;
+export const CENTRAL_SPREADSHEET_ID = '1UHTw4KVxApvNUAHHpvEWwI4RCvLxyTMV' as const;
 
 export const CENTRAL_SPREADSHEET_EDIT_URL =
   `https://docs.google.com/spreadsheets/d/${CENTRAL_SPREADSHEET_ID}/edit` as const;

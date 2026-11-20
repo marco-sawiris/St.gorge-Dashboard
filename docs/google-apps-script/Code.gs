@@ -5,7 +5,7 @@
  * ============================================================================
  *
  * Authoritative Central Database:
- *   Central Spreadsheet ID = "15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0"
+ *   Central Spreadsheet ID = "1UHTw4KVxApvNUAHHpvEWwI4RCvLxyTMV"
  *
  * Compatible with:
  *   1. St. George Dashboard Web / Android APK (Phase 4.3.2–4.4 Offline Queue + Proof Verification)
@@ -22,11 +22,11 @@
  *   - Strict ES5 syntax (no optional chaining, no let/const/arrow functions)
  *
  * Script Properties (Google Apps Script -> Project Settings -> Script Properties):
- *   SPREADSHEET_ID = "15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0" (Optional if container-bound)
+ *   SPREADSHEET_ID = "1UHTw4KVxApvNUAHHpvEWwI4RCvLxyTMV" (Optional if container-bound)
  *   RELAY_KEY      = Optional secret key for external client authentication.
  */
 
-var CENTRAL_SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
+var CENTRAL_SPREADSHEET_ID = '1UHTw4KVxApvNUAHHpvEWwI4RCvLxyTMV';
 var LIVE_STUDENT_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة'];
 var OPTIONAL_STUDENT_SHEETS = ['غير نشط'];
 var APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط'];
@@ -117,11 +117,8 @@ function jsonResponse(payload) {
  * Never accepts a client-supplied spreadsheetId.
  */
 function getSpreadsheet() {
-  try {
-    var active = SpreadsheetApp.getActiveSpreadsheet();
-    if (active) return active;
-  } catch (e) {}
-
+  // Always open by explicit ID — never use getActiveSpreadsheet() which
+  // returns the container-bound sheet (may be an old/test sheet).
   var props = PropertiesService.getScriptProperties();
   var sheetId = String(props.getProperty('SPREADSHEET_ID') || '').trim() || CENTRAL_SPREADSHEET_ID;
   return SpreadsheetApp.openById(sheetId);
