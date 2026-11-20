@@ -55,13 +55,13 @@ export function safeRemoveLocalStorage(key: string): void {
 }
 
 export function isLocalhostUrl(url: string): boolean {
-  return /^https?:\\/\\/(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)(:\\d+)?(\\/|$)/i.test(url.trim());
+  return /^https?:\/\/(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)(:\\d+)?(\/|$)/i.test(url.trim());
 }
 
 export function getApiBaseUrl(): string {
   const runtimeUrl = safeGetLocalStorage('stgorge_api_base_url');
   if (runtimeUrl && runtimeUrl.trim()) {
-    const cleaned = runtimeUrl.trim().replace(/\\/$/, '');
+    const cleaned = runtimeUrl.trim().replace(/\/$/, '');
     if (!isNativeCapacitorRuntime() || !isLocalhostUrl(cleaned)) {
       return cleaned;
     }
@@ -69,7 +69,7 @@ export function getApiBaseUrl(): string {
 
   const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
   if (typeof envUrl === 'string' && envUrl.trim()) {
-    const cleaned = envUrl.trim().replace(/\\/$/, '');
+    const cleaned = envUrl.trim().replace(/\/$/, '');
     if (!isNativeCapacitorRuntime() || !isLocalhostUrl(cleaned)) {
       return cleaned;
     }
@@ -79,12 +79,12 @@ export function getApiBaseUrl(): string {
 }
 
 export function setApiBaseUrl(url: string): boolean {
-  const cleaned = url.trim().replace(/\\/$/, '');
+  const cleaned = url.trim().replace(/\/$/, '');
   if (!cleaned) {
     safeRemoveLocalStorage('stgorge_api_base_url');
     return true;
   }
-  if (isLocalhostUrl(cleaned) || !/^https:\\/\\//i.test(cleaned)) {
+  if (isLocalhostUrl(cleaned) || !/^https:\/\//i.test(cleaned)) {
     return false;
   }
   safeSetLocalStorage('stgorge_api_base_url', cleaned);
@@ -93,12 +93,12 @@ export function setApiBaseUrl(url: string): boolean {
 
 export function getAppsScriptUrl(): string {
   const runtimeUrl = safeGetLocalStorage('stgorge_apps_script_url');
-  if (runtimeUrl && /^https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[^\\s]+\\/exec(?:\\?.*)?$/i.test(runtimeUrl.trim())) {
+  if (runtimeUrl && /^https:\/\/script\\.google\\.com\/macros\/s\/[^\\s]+\/exec(?:\\?.*)?$/i.test(runtimeUrl.trim())) {
     return runtimeUrl.trim();
   }
 
   const envUrl = (import.meta as any).env?.VITE_APPS_SCRIPT_URL;
-  if (typeof envUrl === 'string' && /^https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[^\\s]+\\/exec(?:\\?.*)?$/i.test(envUrl.trim())) {
+  if (typeof envUrl === 'string' && /^https:\/\/script\\.google\\.com\/macros\/s\/[^\\s]+\/exec(?:\\?.*)?$/i.test(envUrl.trim())) {
     return envUrl.trim();
   }
 
@@ -111,7 +111,7 @@ export function setAppsScriptUrl(url: string): boolean {
     safeRemoveLocalStorage('stgorge_apps_script_url');
     return true;
   }
-  if (!/^https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[^\\s]+\\/exec(?:\\?.*)?$/i.test(cleaned)) {
+  if (!/^https:\/\/script\\.google\\.com\/macros\/s\/[^\\s]+\/exec(?:\\?.*)?$/i.test(cleaned)) {
     return false;
   }
   safeSetLocalStorage('stgorge_apps_script_url', cleaned);
