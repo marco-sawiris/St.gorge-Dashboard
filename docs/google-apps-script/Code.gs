@@ -573,7 +573,7 @@ function doPost(e) {
     var addPayloadFields = body.fields || (mutPayload && mutPayload.newStudent) || (mutPayload && mutPayload.fields) || mutPayload || {};
     var targetName = String(body.name || body.studentName || mutation.studentName || addPayloadFields.name || '').trim();
     var targetCode = String(body.studentCode || body.code || mutation.studentCode || addPayloadFields.code || '').trim();
-    var targetId = String(body.studentId || mutation.studentId || mutPayload.studentId || addPayloadFields.id || '').trim();
+    var targetId = String(mutation.studentId || mutPayload.studentId || body.studentId || addPayloadFields.id || '').trim();
     if (!targetId) {
       return jsonResponse({ ok: false, status: 400, error: 'معرّف المخدوم studentId مطلوب ولا يمكن إنشاء إثبات حفظ بدونه.' });
     }
@@ -1231,7 +1231,7 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
     });
     normalized.payload = nestedPayload;
     normalized.action = String(rawItem.action || nestedMutation.action || nestedPayload.action || '').trim().toLowerCase();
-    normalized.studentId = String(rawItem.studentId || nestedMutation.studentId || nestedPayload.studentId || '').trim();
+    normalized.studentId = String(nestedMutation.studentId || rawItem.studentId || nestedPayload.studentId || '').trim();
     normalized.studentCode = String(rawItem.studentCode || rawItem.code || nestedMutation.studentCode || nestedMutation.code || nestedPayload.studentCode || nestedPayload.code || '').trim();
     normalized.studentName = String(rawItem.studentName || rawItem.name || nestedMutation.studentName || nestedMutation.name || nestedPayload.studentName || nestedPayload.name || '').trim();
     normalized.idempotencyKey = String(rawItem.idempotencyKey || rawItem.mutationId || rawItem.id || nestedMutation.idempotencyKey || nestedMutation.mutationId || nestedMutation.id || '').trim();
