@@ -212,12 +212,25 @@ function findFollowupLogSheet(ss) {
  * Must ONLY be called after the remote sheet write has succeeded and flushed.
  */
 function buildPersistenceProof(opts) {
+  opts = opts || {};
+  var mutationId = String(opts.mutationId || '').trim();
+  var operation = String(opts.operation || '').trim();
+  var studentId = String(opts.studentId || '').trim();
+  var sheetName = String(opts.sheetName || '').trim();
+
+  // A persistence proof is a contract, not a success-shaped response.
+  // Refuse to issue it unless all identity fields are explicitly present.
+  if (!mutationId) throw new Error('تعذر إصدار إثبات الحفظ: mutationId مفقود.');
+  if (!operation) throw new Error('تعذر إصدار إثبات الحفظ: operation مفقود.');
+  if (!studentId) throw new Error('تعذر إصدار إثبات الحفظ: studentId مفقود.');
+  if (!sheetName) throw new Error('تعذر إصدار إثبات الحفظ: sheetName مفقود.');
+
   var proof = {
-    mutationId: String(opts.mutationId || '').trim(),
+    mutationId: mutationId,
     persisted: true,
-    operation: String(opts.operation || '').trim(),
-    studentId: String(opts.studentId || '').trim(),
-    sheetName: String(opts.sheetName || '').trim(),
+    operation: operation,
+    studentId: studentId,
+    sheetName: sheetName,
     verifiedAt: opts.verifiedAt || new Date().toISOString()
   };
 
