@@ -116,7 +116,8 @@ function verifyCellValue(sheet, row, column, expected, label) {
   if (!sheet || row < 1 || column < 1) throw new Error('تعذر تحديد خلية التحقق: ' + (label || 'unknown'));
   safeFlushSpreadsheet();
   var actual = sheet.getRange(row, column).getValue();
-  if (normalizeVerificationValue(actual) !== normalizeVerificationValue(expected)) {
+  var safeExpected = sanitizeFormulaValue(expected);
+  if (normalizeVerificationValue(actual) !== normalizeVerificationValue(safeExpected)) {
     throw new Error('فشل التحقق بعد الكتابة في ' + (label || ('R' + row + 'C' + column)) + '. لم يتم إصدار إثبات حفظ.');
   }
   return true;
@@ -1652,6 +1653,11 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
       }
 
       safeFlushSpreadsheet();
+      // Verify every queued cell against the live sheet before any batch item is marked persisted.
+      for (var verifyIdx = 0; verifyIdx < dirtyCells.length; verifyIdx++) {
+        var verifyCell = dirtyCells[verifyIdx];
+        verifyCellValue(sheet, verifyCell.rowIndex + 1, verifyCell.colIndex + 1, verifyCell.val, 'عملية batch');
+      }
 
       for (var okIdx = 0; okIdx < stagedSheetSuccesses.length; okIdx++) {
         var okEntry = stagedSheetSuccesses[okIdx];
@@ -1905,6 +1911,13 @@ function appendFollowupLogRow(
   logSheet.appendRow(newRow);
   safeFlushSpreadsheet();
   var appendedRowNum = logSheet.getLastRow();
+  if (appendedRowNum < 2) throw new Error('تعذر تحديد صف سجل الافتقاد بعد الإضافة.');
+  var persistedLogRow = logSheet.getRange(appendedRowNum, 1, 1, newRow.length).getValues()[0];
+  for (var verifyCol = 0; verifyCol < newRow.length; verifyCol++) {
+    if (normalizeVerificationValue(persistedLogRow[verifyCol]) !== normalizeVerificationValue(newRow[verifyCol])) {
+      throw new Error('فشل التحقق من إعادة قراءة صف سجل الافتقاد بعد الكتابة.');
+    }
+  }
 
   return {
     appended: true,
