@@ -539,7 +539,17 @@ function doPost(e) {
     }
 
     // Idempotency check (cache + durable ledger)
-    var idempotencyKey = String(body.idempotencyKey || body.mutationId || mutation.id || body.id || '').trim();
+    // Check every possible field the client may send the mutation ID under
+    var idempotencyKey = String(
+      body.idempotencyKey ||
+      body.mutationId ||
+      body.id ||
+      mutation.idempotencyKey ||
+      mutation.mutationId ||
+      mutation.id ||
+      (body.mutation && (body.mutation.idempotencyKey || body.mutation.id)) ||
+      ''
+    ).trim();
     var cache = CacheService.getScriptCache();
     if (idempotencyKey) {
       var cached = null;
@@ -693,6 +703,7 @@ function doPost(e) {
     var rowNum = rowIndex + 1;
     var rowCode = codeCol >= 0 ? formatCellValue(values[rowIndex][codeCol]) : targetCode;
     var rowStoredId = idCol >= 0 ? formatCellValue(values[rowIndex][idCol]) : '';
+    // CRITICAL: Echo back client-sent studentId (targetId) so proof.studentId matches mutation.studentId
     var effectiveStudentId = targetId || rowStoredId || ('gs_' + targetSheetName + '_' + (rowCode || ('row' + rowNum)) + '_' + rowNum).replace(/\s+/g, '_');
 
     var expectedVersion = mutation.expectedVersion !== undefined ? mutation.expectedVersion : body.expectedVersion;
