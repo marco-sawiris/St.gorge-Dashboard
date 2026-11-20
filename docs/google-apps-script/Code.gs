@@ -573,21 +573,26 @@ function doPost(e) {
     var addPayloadFields = body.fields || (mutPayload && mutPayload.newStudent) || (mutPayload && mutPayload.fields) || mutPayload || {};
     var targetName = String(body.name || body.studentName || mutation.studentName || addPayloadFields.name || '').trim();
     var targetCode = String(body.studentCode || body.code || mutation.studentCode || addPayloadFields.code || '').trim();
-    var targetId = String(body.studentId || mutation.studentId || addPayloadFields.id || '').trim();
+    var targetId = String(body.studentId || mutation.studentId || mutPayload.studentId || addPayloadFields.id || '').trim();
+    if (!targetId) {
+      return jsonResponse({ ok: false, status: 400, error: 'معرّف المخدوم studentId مطلوب ولا يمكن إنشاء إثبات حفظ بدونه.' });
+    }
 
     // Row Matching Logic
     var rowIndex = -1;
-    if (targetCode && codeCol >= 0) {
+    // Prefer the exact immutable studentId; use code/name only to locate legacy rows
+    // whose sheet does not yet contain a dedicated ID column.
+    if (targetId && idCol >= 0) {
       for (var r = 1; r < values.length; r++) {
-        if (String(values[r][codeCol] || '').trim() === targetCode) {
+        if (String(values[r][idCol] || '').trim() === targetId) {
           rowIndex = r;
           break;
         }
       }
     }
-    if (rowIndex === -1 && targetId && idCol >= 0) {
+    if (rowIndex === -1 && targetCode && codeCol >= 0) {
       for (var r = 1; r < values.length; r++) {
-        if (String(values[r][idCol] || '').trim() === targetId) {
+        if (String(values[r][codeCol] || '').trim() === targetCode) {
           rowIndex = r;
           break;
         }
@@ -1447,9 +1452,19 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
       var qId = String(qItem.studentId || '').trim();
       var qName = String(qItem.studentName || qItem.name || '').trim().replace(/\s+/g, ' ');
       var normQName = normalizeArabicForMatch(qName);
+      if (!qId) {
+        results[qIdx] = {
+          ok: false,
+          status: 400,
+          mutationId: qKey,
+          error: 'معرّف المخدوم studentId مطلوب في كل عملية batch؛ لم يتم تنفيذ الكتابة.'
+        };
+        continue;
+      }
       var rowIndex = -1;
-      if (qCode && byCode[qCode] !== undefined) rowIndex = byCode[qCode];
-      else if (qId && byId[qId] !== undefined) rowIndex = byId[qId];
+      // Exact studentId takes precedence; code/name are legacy row locators only.
+      if (qId && byId[qId] !== undefined) rowIndex = byId[qId];
+      else if (qCode && byCode[qCode] !== undefined) rowIndex = byCode[qCode];
       else if (qName && byName[qName] !== undefined) rowIndex = byName[qName];
       else if (normQName && byName[normQName] !== undefined) rowIndex = byName[normQName];
 
@@ -1483,7 +1498,7 @@ function processBatchMutations(batchItems, postStartMs, topBody) {
         continue;
       }
 
-      var rowEffectiveId = qId || (idCol >= 0 ? formatCellValue(values[rowIndex][idCol]) : '') || ('gs_' + targetSheetName + '_' + (qCode || ('row' + (rowIndex + 1))) + '_' + (rowIndex + 1)).replace(/\s+/g, '_');
+      var rowEffectiveId = qId; // Echo the exact client mutation.studentId; never synthesize a different proof identity.
 
       if (qAction === 'attendance') {
         var friday = String(qItem.friday || qItem.date || (qPayload && (qPayload.friday || qPayload.date)) || '').trim();
