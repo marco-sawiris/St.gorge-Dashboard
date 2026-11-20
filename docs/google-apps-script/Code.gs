@@ -5,7 +5,7 @@
  * ============================================================================
  *
  * Authoritative Central Database:
- *   Central Spreadsheet ID = "1UHTw4KVxApvNUAHHpvEWwI4RCvLxyTMV"
+ *   Central Spreadsheet ID = "15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0"
  *
  * Compatible with:
  *   1. St. George Dashboard Web / Android APK (Phase 4.3.2–4.4 Offline Queue + Proof Verification)
@@ -22,14 +22,14 @@
  *   - Strict ES5 syntax (no optional chaining, no let/const/arrow functions)
  *
  * Script Properties (Google Apps Script -> Project Settings -> Script Properties):
- *   SPREADSHEET_ID = "1UHTw4KVxApvNUAHHpvEWwI4RCvLxyTMV" (Optional if container-bound)
+ *   SPREADSHEET_ID = "15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0" (must match exactly)
  *   RELAY_KEY      = Optional secret key for external client authentication.
  */
 
-var CENTRAL_SPREADSHEET_ID = '1UHTw4KVxApvNUAHHpvEWwI4RCvLxyTMV';
+var CENTRAL_SPREADSHEET_ID = '15Nda4pGb3WdAfOuRTwRS9Fx822_EORgumOmhZcjTVt0';
 var LIVE_STUDENT_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة'];
-var OPTIONAL_STUDENT_SHEETS = ['غير نشط'];
-var APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة', 'غير نشط'];
+var OPTIONAL_STUDENT_SHEETS = [];
+var APPROVED_SHEETS = ['نشط', 'غير حاضر', 'فصل البابا شنودة'];
 var ALL_SHEETS_SENTINEL = '__ALL__';
 var FOLLOWUP_LOG_SHEET_NAME = 'سجل الافتقاد';
 var FORBIDDEN_STUDENT_WRITE_SHEETS = ['ردود النموذج 1', 'سجل الافتقاد', '_mutation_idempotency'];
@@ -37,8 +37,7 @@ var FORBIDDEN_STUDENT_WRITE_SHEETS = ['ردود النموذج 1', 'سجل ال�
 var APPROVED_SHEET_ACTUAL_ALIASES = {
   'نشط': ['نشط'],
   'غير حاضر': ['غير حاضر'],
-  'فصل البابا شنودة': ['فصل البابا شنودة ', 'فصل البابا شنودة'],
-  'غير نشط': ['غير نشط']
+  'فصل البابا شنودة': ['فصل البابا شنودة ', 'فصل البابا شنودة']
 };
 
 function isMissingOrLiteralUndefined(val) {
@@ -106,6 +105,30 @@ function safeFlushSpreadsheet() {
   }
 }
 
+// Read-after-write verification: never issue a persistence proof from flush alone.
+function normalizeVerificationValue(value) {
+  if (value instanceof Date) return Utilities.formatDate(value, 'Africa/Cairo', 'yyyy-MM-dd');
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+}
+
+function verifyCellValue(sheet, row, column, expected, label) {
+  if (!sheet || row < 1 || column < 1) throw new Error('تعذر تحديد خلية التحقق: ' + (label || 'unknown'));
+  safeFlushSpreadsheet();
+  var actual = sheet.getRange(row, column).getValue();
+  if (normalizeVerificationValue(actual) !== normalizeVerificationValue(expected)) {
+    throw new Error('فشل التحقق بعد الكتابة في ' + (label || ('R' + row + 'C' + column)) + '. لم يتم إصدار إثبات حفظ.');
+  }
+  return true;
+}
+
+function verifyRowFieldValues(sheet, row, headers, checks) {
+  for (var i = 0; i < checks.length; i++) {
+    var col = findColIndex(headers, checks[i].aliases);
+    if (col >= 0) verifyCellValue(sheet, row, col + 1, checks[i].value, checks[i].label || checks[i].aliases[0]);
+  }
+}
+
 function jsonResponse(payload) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
@@ -120,8 +143,15 @@ function getSpreadsheet() {
   // Always open by explicit ID — never use getActiveSpreadsheet() which
   // returns the container-bound sheet (may be an old/test sheet).
   var props = PropertiesService.getScriptProperties();
-  var sheetId = String(props.getProperty('SPREADSHEET_ID') || '').trim() || CENTRAL_SPREADSHEET_ID;
-  return SpreadsheetApp.openById(sheetId);
+  var configuredId = String(props.getProperty('SPREADSHEET_ID') || '').trim();
+  if (configuredId && configuredId !== CENTRAL_SPREADSHEET_ID) {
+    throw new Error('SPREADSHEET_ID في Script Properties لا يطابق ملف Google Sheets المركزي المعتمد. تم إيقاف العملية لحماية البيانات.');
+  }
+  var ss = SpreadsheetApp.openById(CENTRAL_SPREADSHEET_ID);
+  if (!ss || String(ss.getId()) !== CENTRAL_SPREADSHEET_ID) {
+    throw new Error('تعذر تأكيد معرّف ملف Google Sheets المركزي؛ تم إيقاف العملية.');
+  }
+  return ss;
 }
 
 /**
@@ -608,6 +638,11 @@ function doPost(e) {
       sheet.appendRow(newRow);
       safeFlushSpreadsheet();
       var addedRowNum = sheet.getLastRow();
+      if (addedRowNum < 2) throw new Error('تعذر تحديد صف المخدوم المضاف للتحقق.');
+      verifyRowFieldValues(sheet, addedRowNum, headers, [
+        { aliases: ['الاسم', 'name'], value: addName, label: 'اسم المخدوم المضاف' },
+        { aliases: ['كود', 'الكود', 'code'], value: addCode, label: 'كود المخدوم المضاف' }
+      ]);
       var effectiveAddStudentId = targetId || ('gs_' + targetSheetName + '_' + (addCode || 'SG') + '_' + addedRowNum).replace(/\s+/g, '_');
 
       var addProof = buildPersistenceProof({
@@ -744,6 +779,7 @@ function doPost(e) {
       }
 
       safeFlushSpreadsheet();
+      verifyCellValue(sheet, rowNum, fridayCol + 1, isPresent ? 1 : 0, 'حضور يوم ' + friday);
 
       var attProof = buildPersistenceProof({
         mutationId: idempotencyKey,
@@ -822,6 +858,17 @@ function doPost(e) {
       }
 
       safeFlushSpreadsheet();
+      verifyCellValue(sheet, rowNum, fuCol + 1, fuMethod, 'حالة الافتقاد في سجل المخدوم');
+      if (logWriteResult.followupLogRow > 1) {
+        var verifiedLogRow = logWriteResult.followupLogRow;
+        var logSheetForVerify = findFollowupLogSheet(ss);
+        if (!logSheetForVerify) throw new Error('تعذر إعادة قراءة سجل الافتقاد بعد الكتابة.');
+        if (fuRecordId) {
+          var verifyHeaders = logSheetForVerify.getRange(1, 1, 1, Math.max(logSheetForVerify.getLastColumn(), 1)).getValues()[0].map(function (h) { return formatHeaderCell(h); });
+          var verifyRecordIdCol = findColIndex(verifyHeaders, ['record_id', 'recordId']);
+          if (verifyRecordIdCol >= 0) verifyCellValue(logSheetForVerify, verifiedLogRow, verifyRecordIdCol + 1, fuRecordId, 'معرّف سجل الافتقاد');
+        }
+      }
 
       var fuProof = buildPersistenceProof({
         mutationId: idempotencyKey,
@@ -876,6 +923,19 @@ function doPost(e) {
       }
 
       safeFlushSpreadsheet();
+      var updateChecks = [];
+      if (updateFields.name !== undefined) updateChecks.push({ aliases: ['الاسم', 'name'], value: updateFields.name, label: 'اسم المخدوم' });
+      if (updateFields.code !== undefined) updateChecks.push({ aliases: ['كود', 'الكود', 'code'], value: updateFields.code, label: 'كود المخدوم' });
+      if (updateFields.servant !== undefined) updateChecks.push({ aliases: ['الاشبين', 'الأشبين', 'الخادم', 'servant'], value: updateFields.servant, label: 'الخادم' });
+      if (updateFields.phoneStudent !== undefined) updateChecks.push({ aliases: ['موبيال المخدوم', 'موبايل المخدوم', 'موبايل الطالب', 'تليفون الطالب'], value: updateFields.phoneStudent, label: 'هاتف المخدوم' });
+      if (updateFields.phoneParent1 !== undefined) updateChecks.push({ aliases: ['موبيل ولي الامر 1', 'ولي الأمر 1'], value: updateFields.phoneParent1, label: 'هاتف ولي الأمر الأول' });
+      if (updateFields.phoneParent2 !== undefined) updateChecks.push({ aliases: ['موبيل ولي الامر 2', 'ولي الأمر 2'], value: updateFields.phoneParent2, label: 'هاتف ولي الأمر الثاني' });
+      if (updateFields.birthDate !== undefined) updateChecks.push({ aliases: ['تاريخ الميلاد'], value: updateFields.birthDate, label: 'تاريخ الميلاد' });
+      if (updateFields.area !== undefined) updateChecks.push({ aliases: ['منطقة', 'المنطقة'], value: updateFields.area, label: 'المنطقة' });
+      if (updateFields.address !== undefined) updateChecks.push({ aliases: ['العنوان'], value: updateFields.address, label: 'العنوان' });
+      if (updateNotes !== undefined) updateChecks.push({ aliases: ['ملاحظات الافتقاد', 'ملاحظات', 'notes'], value: updateNotes, label: 'الملاحظات' });
+      if (updateFields.status !== undefined || updateFields.followupStatus !== undefined) updateChecks.push({ aliases: ['حالة الافتقاد', 'followupStatus'], value: updateFields.status !== undefined ? updateFields.status : updateFields.followupStatus, label: 'حالة الافتقاد' });
+      verifyRowFieldValues(sheet, rowNum, headers, updateChecks);
 
       var updateProof = buildPersistenceProof({
         mutationId: idempotencyKey,
