@@ -1196,8 +1196,22 @@ export async function idbSaveStudents(
           return;
         }
 
-        // Case B: Non-empty verified Pull -> non-destructive merge + safe unique-code ID migration!
-        // NEVER delete a local student merely because its ID is absent from the Pull response!
+        // Case B: Non-empty verified Pull -> merge + safe unique-code ID migration.
+        // If the pull is confirmed complete, students absent from the sheet AND with no
+        // unsynced local changes are removed from IndexedDB (they were deleted from the sheet).
+        if (isConfirmedComplete) {
+          const incomingIds = new Set(students.map((s) => s.id));
+          for (const [localId, localStudent] of targetLocalMap.entries()) {
+            if (
+              !incomingIds.has(localId) &&
+              localStudent.hasUnsyncedLocalChanges !== true
+            ) {
+              const delReq = studentStore.delete(localId);
+              delReq.onerror = () => tx.abort();
+            }
+          }
+        }
+
         const targetLocalByUniqueCode = buildUniqueCodeMapForSheet(targetLocalMap.values());
         const incomingUniqueCodeCounts = new Map<string, number>();
         for (const s of students) {

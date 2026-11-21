@@ -306,6 +306,7 @@ export interface AppContextType {
   updateStudent: (studentId: string, updatedFields: Partial<Student>) => Promise<boolean>;
   addNewStudent: (studentData: Partial<Student>) => Promise<boolean>;
   deleteStudent: (studentId: string) => Promise<boolean>;
+  transferStudent: (studentId: string, destinationSheet: SheetName) => Promise<boolean>;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   clearReadNotifications: () => void;
@@ -1000,7 +1001,12 @@ export function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey
         ...(mutation.payload?.callOutcome ? { callOutcome: mutation.payload.callOutcome } : {}),
         fields: fields
       }
-    }
+    },
+    // Transfer-specific fields — ignored by other actions
+    ...(mutation.action === ('transfer' as any) ? {
+      targetSheet: mutation.payload?.targetSheet || mutation.payload?.destinationSheet || '',
+      destinationSheet: mutation.payload?.destinationSheet || mutation.payload?.targetSheet || ''
+    } : {})
   };
 }
 
@@ -4095,6 +4101,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [students, isPreviewMode, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
   );
 
+  // 8. Transfer Student: move student from one sheet to another
+  const transferStudent = useCallback(
+    async (studentId: string, destinationSheet: SheetName): Promise<boolean> => {
+      if (isPreviewMode) {
+        addNotification('وضع المعاينة', 'لا يمكن تنفيذ النقل في وضع المعاينة', 'warn');
+        return false;
+      }
+
+      const student = students.find((s) => s.id === studentId);
+      if (!student) {
+        addNotification('خطأ', 'المخدوم غير موجود', 'danger');
+        return false;
+      }
+
+      if (student.sourceSheet === destinationSheet) {
+        addNotification('تنبيه', 'المخدوم موجود بالفعل في هذا الفصل', 'warn');
+        return false;
+      }
+
+      const permission = canPerformAction('add_student', student.servant);
+      if (!permission.allowed) {
+        addNotification('غير مصرح', permission.reason || 'نقل المخدومين يتطلب صلاحية أمين الخدمة', 'warn');
+        return false;
+      }
+
+      const opId = generateUUID();
+      const transferredStudent: Student = {
+        ...student,
+        sourceSheet: destinationSheet,
+        version: 1,
+        hasUnsyncedLocalChanges: true,
+        att: {},
+        fu: {}
+      };
+
+      const mutation: OfflineMutation = {
+        id: `TRF_${studentId}_${opId}`,
+        action: 'transfer' as any,
+        studentId,
+        studentCode: student.code,
+        studentName: student.name,
+        sourceSheet: student.sourceSheet,
+        payload: {
+          targetSheet: destinationSheet,
+          destinationSheet,
+          studentData: student
+        },
+        expectedVersion: student.version,
+        timestamp: Date.now(),
+        retryCount: 0,
+        status: 'pending'
+      };
+
+      const priorStudents = students;
+      try {
+        // Locally: remove from source sheet, add to destination sheet
+        await idbAtomicDeleteStudentWithMutation(studentId, mutation);
+        await idbAtomicAddStudentWithMutation(transferredStudent, { ...mutation, id: `TRF_ADD_${studentId}_${opId}`, action: 'add' as any, sourceSheet: destinationSheet });
+        setStudents((prev) => [
+          ...prev.filter((s) => s.id !== studentId),
+          transferredStudent
+        ]);
+        await refreshPendingState();
+        addNotification(
+          'تم النقل محلياً',
+          `تم نقل ${student.name} من ${student.sourceSheet} إلى ${destinationSheet} — سيتم التزامن مع الشيت تلقائياً`,
+          'info'
+        );
+        void triggerAutoProcessQueue(true);
+        return true;
+      } catch (err: any) {
+        setStudents(priorStudents);
+        addNotification('خطأ في النقل', err?.message || 'تعذر نقل المخدوم محلياً', 'danger');
+        return false;
+      }
+    },
+    [students, isPreviewMode, canPerformAction, addNotification, refreshPendingState, triggerAutoProcessQueue]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -4164,6 +4249,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateStudent,
         addNewStudent,
         deleteStudent,
+        transferStudent,
         markNotificationRead,
         markAllNotificationsRead,
         clearReadNotifications,

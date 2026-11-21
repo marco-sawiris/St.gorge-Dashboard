@@ -484,7 +484,7 @@ function doPost(e) {
     }
 
     var mutation = body.mutation || body;
-    var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete', 'batch', 'checkidempotency'];
+    var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete', 'batch', 'checkidempotency', 'transfer'];
     var action = String(body.action || mutation.action || '').trim().toLowerCase();
     if (!action || allowedActions.indexOf(action) === -1) {
       return jsonResponse({ ok: false, status: 400, error: 'action غير معروف' });
@@ -984,6 +984,130 @@ function doPost(e) {
       }
       return jsonResponse(updateResult);
     }
+
+    // ─── TRANSFER: move a student from one approved sheet to another ───────────
+    if (action === 'transfer') {
+      var targetSheetDest = String(
+        body.targetSheet || body.destinationSheet || body.destSheet ||
+        (mutation && (mutation.targetSheet || mutation.destinationSheet)) || ''
+      ).trim();
+
+      if (!targetSheetDest) {
+        return jsonResponse({ ok: false, status: 400, error: 'transfer يتطلب targetSheet (الشيت الهدف)' });
+      }
+      if (APPROVED_SHEETS.indexOf(targetSheetDest) === -1) {
+        return jsonResponse({ ok: false, status: 400, error: 'الشيت الهدف غير معتمد: ' + targetSheetDest });
+      }
+      if (targetSheetDest === targetSheetName) {
+        return jsonResponse({ ok: false, status: 400, error: 'الشيت المصدر والهدف متطابقان — لا داعي للنقل' });
+      }
+
+      // Student must exist in source sheet
+      if (rowIndex === -1) {
+        return jsonResponse({ ok: false, status: 404, error: 'المخدوم غير موجود في شيت المصدر: ' + targetSheetName });
+      }
+
+      // Locate destination sheet
+      var destSheet = findApprovedSheet(ss, targetSheetDest);
+      if (!destSheet) {
+        return jsonResponse({ ok: false, status: 404, error: 'الشيت الهدف غير موجود: ' + targetSheetDest });
+      }
+
+      var destValues = destSheet.getDataRange().getValues();
+      var destHeaders = destValues.length > 0
+        ? destValues[0].map(function (h) { return formatHeaderCell(h); })
+        : headers;
+
+      // Build student data row from source
+      var sourceRow = values[rowIndex];
+
+      // Check student not already in destination (by code or name)
+      var destNameCol = findColIndex(destHeaders, ['الاسم', 'name']);
+      var destCodeCol = findColIndex(destHeaders, ['كود', 'الكود', 'code']);
+      var alreadyInDest = false;
+      if (rowCode) {
+        for (var dr = 1; dr < destValues.length; dr++) {
+          var destCellCode = destCodeCol >= 0 ? formatCellValue(destValues[dr][destCodeCol]) : '';
+          if (destCellCode && normalizeStudentCodeForMatch(destCellCode) === normalizeStudentCodeForMatch(rowCode)) {
+            alreadyInDest = true;
+            break;
+          }
+        }
+      }
+      if (!alreadyInDest && targetName) {
+        for (var dr2 = 1; dr2 < destValues.length; dr2++) {
+          var destCellName = destNameCol >= 0 ? formatCellValue(destValues[dr2][destNameCol]) : '';
+          if (destCellName && destCellName === targetName) {
+            alreadyInDest = true;
+            break;
+          }
+        }
+      }
+      if (alreadyInDest) {
+        return jsonResponse({ ok: false, status: 409, error: 'المخدوم موجود مسبقاً في الشيت الهدف' });
+      }
+
+      // Build a new row for the destination using the source headers mapping
+      var newDestRow = new Array(destHeaders.length).fill('');
+      var transferableFields = [
+        { src: ['الاسم', 'name'],                        dst: ['الاسم', 'name'] },
+        { src: ['كود', 'الكود', 'code'],                  dst: ['كود', 'الكود', 'code'] },
+        { src: ['الاشبين', 'الأشبين', 'الخادم', 'servant'], dst: ['الاشبين', 'الأشبين', 'الخادم', 'servant'] },
+        { src: ['موبيال المخدوم', 'موبايل المخدوم', 'موبايل الطالب', 'تليفون الطالب'], dst: ['موبيال المخدوم', 'موبايل المخدوم', 'موبايل الطالب', 'تليفون الطالب'] },
+        { src: ['موبيل ولي الامر 1', 'ولي الأمر 1'],      dst: ['موبيل ولي الامر 1', 'ولي الأمر 1'] },
+        { src: ['موبيل ولي الامر 2', 'ولي الأمر 2'],      dst: ['موبيل ولي الامر 2', 'ولي الأمر 2'] },
+        { src: ['تاريخ الميلاد'],                         dst: ['تاريخ الميلاد'] },
+        { src: ['منطقة', 'المنطقة'],                      dst: ['منطقة', 'المنطقة'] },
+        { src: ['العنوان'],                               dst: ['العنوان'] },
+        { src: ['ملاحظات', 'ملاحظات الافتقاد', 'notes'],  dst: ['ملاحظات', 'ملاحظات الافتقاد', 'notes'] }
+      ];
+      for (var tf = 0; tf < transferableFields.length; tf++) {
+        var srcColIdx = findColIndex(headers, transferableFields[tf].src);
+        var dstColIdx = findColIndex(destHeaders, transferableFields[tf].dst);
+        if (srcColIdx >= 0 && dstColIdx >= 0) {
+          newDestRow[dstColIdx] = sourceRow[srcColIdx];
+        }
+      }
+
+      // Append to destination sheet
+      destSheet.appendRow(newDestRow);
+      var newDestRow_ = destSheet.getLastRow();
+
+      // Set version = 1 in destination if version column exists
+      var destVersionCol = findColIndex(destHeaders, ['version', '__version']);
+      if (destVersionCol >= 0) {
+        destSheet.getRange(newDestRow_, destVersionCol + 1).setValue(1);
+      }
+
+      // Delete source row (only allowed inside transfer — controlled exception)
+      sheet.deleteRow(rowNum);
+
+      safeFlushSpreadsheet();
+
+      var transferProof = buildPersistenceProof({
+        mutationId: idempotencyKey,
+        operation: 'transfer',
+        studentId: effectiveStudentId,
+        sheetName: targetSheetDest,
+        row: newDestRow_,
+        recordId: effectiveStudentId,
+        newVersion: 1,
+        sourceSheet: targetSheetName,
+        destinationSheet: targetSheetDest
+      });
+      var transferResult = buildVerifiedMutationResponse(transferProof, {
+        sourceSheet: targetSheetName,
+        destinationSheet: targetSheetDest,
+        newRow: newDestRow_
+      });
+
+      if (idempotencyKey) {
+        saveDurableIdempotencyResult(ss, idempotencyKey, transferResult);
+        try { cache.put('IDEMP_' + idempotencyKey, JSON.stringify(transferResult), 21600); } catch (ceTr) {}
+      }
+      return jsonResponse(transferResult);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     return jsonResponse({ ok: false, status: 400, error: 'action غير معروف' });
   } catch (err) {
@@ -1786,6 +1910,10 @@ function findExactHeaderIndex(headers, exactName) {
     if (String(headers[h] || '').trim() === exactName) return h;
   }
   return -1;
+}
+
+function normalizeStudentCodeForMatch(code) {
+  return String(code || '').trim().toLowerCase().replace(/\s+/g, '');
 }
 
 function findColIndex(headers, names) {
