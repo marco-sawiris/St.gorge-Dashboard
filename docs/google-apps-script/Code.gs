@@ -234,6 +234,12 @@ function buildPersistenceProof(opts) {
     verifiedAt: opts.verifiedAt || new Date().toISOString()
   };
 
+  if (opts.sourceSheet !== undefined && opts.sourceSheet !== null && String(opts.sourceSheet).trim()) {
+    proof.sourceSheet = String(opts.sourceSheet).trim();
+  }
+  if (opts.destinationSheet !== undefined && opts.destinationSheet !== null && String(opts.destinationSheet).trim()) {
+    proof.destinationSheet = String(opts.destinationSheet).trim();
+  }
   if (typeof opts.row === 'number' && isFinite(opts.row) && opts.row >= 1) {
     proof.row = Math.floor(opts.row);
   }

@@ -1348,7 +1348,8 @@ async function runSprintTests() {
     'Test 31i: Apps Script monthly and latest attendance calculations use valid single-escaped ISO date regexes'
   );
   assert(
-    (appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete', 'batch', 'checkidempotency'];") ||
+    (appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete', 'batch', 'checkidempotency', 'transfer'];") ||
+      appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete', 'batch', 'checkidempotency'];") ||
       appsScriptSrc.includes("var allowedActions = ['add', 'update', 'attendance', 'followup', 'delete'];")) &&
       appsScriptSrc.includes("if (action === 'delete')") &&
       appsScriptSrc.includes('status: 403') &&

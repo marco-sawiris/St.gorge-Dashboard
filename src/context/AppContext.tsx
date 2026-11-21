@@ -61,6 +61,7 @@ import {
   idbAtomicRecordAttendanceWithMutation,
   idbAtomicBatchRecordAttendanceWithMutations,
   idbAtomicDeleteStudentWithMutation,
+  idbAtomicTransferStudentWithMutation,
   idbAtomicRecordFollowupWithMutation,
   idbReconcileStudents,
   idbPurgeMockRecords,
@@ -1003,7 +1004,7 @@ export function buildAppsScriptSinglePayload(mutation: OfflineMutation, relayKey
       }
     },
     // Transfer-specific fields — ignored by other actions
-    ...(mutation.action === ('transfer' as any) ? {
+    ...(mutation.action === 'transfer' ? {
       targetSheet: mutation.payload?.targetSheet || mutation.payload?.destinationSheet || '',
       destinationSheet: mutation.payload?.destinationSheet || mutation.payload?.targetSheet || ''
     } : {})
@@ -4138,7 +4139,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const mutation: OfflineMutation = {
         id: `TRF_${studentId}_${opId}`,
-        action: 'transfer' as any,
+        action: 'transfer',
         studentId,
         studentCode: student.code,
         studentName: student.name,
@@ -4157,8 +4158,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const priorStudents = students;
       try {
         // Locally: remove from source sheet, add to destination sheet
-        await idbAtomicDeleteStudentWithMutation(studentId, mutation);
-        await idbAtomicAddStudentWithMutation(transferredStudent, { ...mutation, id: `TRF_ADD_${studentId}_${opId}`, action: 'add' as any, sourceSheet: destinationSheet });
+        await idbAtomicTransferStudentWithMutation(studentId, transferredStudent, mutation);
         setStudents((prev) => [
           ...prev.filter((s) => s.id !== studentId),
           transferredStudent
