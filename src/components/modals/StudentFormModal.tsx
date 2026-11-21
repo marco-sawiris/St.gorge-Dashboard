@@ -14,7 +14,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
   onClose,
   studentToEdit
 }) => {
-  const { addNewStudent, updateStudent, students, setHasUnsavedEditChanges } = useApp();
+  const { addNewStudent, updateStudent, setHasUnsavedEditChanges } = useApp();
 
   const isEditing = Boolean(studentToEdit);
 
@@ -69,13 +69,12 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
       setNotes(vals.notes);
       setInitialSnapshot(JSON.stringify(vals));
     } else {
-      const nextCodeNum = students.length + 101;
       const vals = {
         name: '',
-        code: `SG-${nextCodeNum}`,
+        code: '',
         servant: '',
         sheet: 'نشط',
-        area: 'الزيتون الغربية',
+        area: '',
         address: '',
         phoneStudent: '',
         phoneParent1: '',
@@ -98,7 +97,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
     }
     setShowUnsavedConfirm(false);
     setErrorMsg('');
-  }, [studentToEdit, isOpen, students.length, setHasUnsavedEditChanges]);
+  }, [studentToEdit, isOpen, setHasUnsavedEditChanges]);
 
   const currentSnapshot = JSON.stringify({
     name,
@@ -350,7 +349,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 type="text"
                 value={area}
                 onChange={(e) => setArea(e.target.value)}
-                placeholder="الزيتون الغربية، طومانباي..."
+                placeholder="الزيتون، طومانباي..."
                 className="w-full min-h-[42px] h-auto py-2 px-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)] shadow-xs"
               />
             </div>
