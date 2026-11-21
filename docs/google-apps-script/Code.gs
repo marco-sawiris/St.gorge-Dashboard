@@ -1099,8 +1099,6 @@ function doPost(e) {
         recordId: effectiveStudentId,
         newVersion: 1,
         sourceSheet: targetSheetName,
-        destinationSheet: targetSheetDest,
-        sourceSheet: targetSheetName,
         destinationSheet: targetSheetDest
       });
       var transferResult = buildVerifiedMutationResponse(transferProof, {
