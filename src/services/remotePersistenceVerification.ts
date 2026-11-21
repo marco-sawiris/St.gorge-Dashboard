@@ -17,6 +17,8 @@ export interface RemotePersistenceProof {
   friday?: string; // REQUIRED (YYYY-MM-DD) for 'attendance' and 'followup'
   date?: string; // Optional Cairo calendar date (YYYY-MM-DD) for 'followup'
   sheetName: string;
+  sourceSheet?: string;
+  destinationSheet?: string;
   recordId?: string; // Stable remote record identifier
   verifiedAt?: string; // Optional ISO timestamp
   row?: number;
@@ -173,10 +175,30 @@ export function validateRemotePersistenceProof(
     };
   }
 
-  // 5. Sheet name match
-  const expectedSheet = normalizeSheetForProof(mutation.sourceSheet);
+  // 5. Sheet identity match. Transfers persist in the destination sheet,
+  // but must prove both the original source and intended destination.
+  const expectedSourceSheet = normalizeSheetForProof(mutation.sourceSheet);
+  const expectedDestinationSheet = normalizeSheetForProof(
+    mutation.payload?.targetSheet || mutation.payload?.destinationSheet
+  );
   const proofSheet = normalizeSheetForProof(candidate.sheetName ?? candidate.sheet);
-  if (!expectedSheet || !proofSheet || proofSheet !== expectedSheet) {
+  let proofSourceSheet: string | undefined;
+  let proofDestinationSheet: string | undefined;
+
+  if (mutation.action === 'transfer') {
+    proofSourceSheet = normalizeSheetForProof(raw.sourceSheet ?? candidate.sourceSheet);
+    proofDestinationSheet = normalizeSheetForProof(raw.destinationSheet ?? candidate.destinationSheet);
+    if (!expectedSourceSheet || !expectedDestinationSheet ||
+        proofSourceSheet !== expectedSourceSheet ||
+        proofDestinationSheet !== expectedDestinationSheet ||
+        proofSheet !== expectedDestinationSheet) {
+      return {
+        valid: false,
+        outcome: 'unknown',
+        reason: 'transfer_source_or_destination_sheet_mismatch'
+      };
+    }
+  } else if (!expectedSourceSheet || !proofSheet || proofSheet !== expectedSourceSheet) {
     return {
       valid: false,
       outcome: 'unknown',
@@ -332,6 +354,35 @@ export function validateRemotePersistenceProof(
         newVersion: normalizedNewVersion,
         followupLogAppended: true,
         followupLogRow: normalizedFollowupLogRow,
+        deduplicated: Boolean(candidate.deduplicated ?? raw.deduplicated)
+      }
+    };
+  }
+
+  if (mutation.action === 'transfer') {
+    if (!normalizedRecordId && !normalizedRow) {
+      return {
+        valid: false,
+        outcome: 'unknown',
+        reason: 'transfer_missing_destination_record'
+      };
+    }
+    return {
+      valid: true,
+      outcome: 'verified_persisted',
+      reason: 'verified_transfer_persistence_proof',
+      proof: {
+        mutationId: proofMutationId,
+        persisted: true,
+        operation: 'transfer',
+        studentId: proofStudentId,
+        sheetName: proofSheet,
+        sourceSheet: proofSourceSheet,
+        destinationSheet: proofDestinationSheet,
+        recordId: normalizedRecordId,
+        verifiedAt: normalizedVerifiedAt,
+        row: normalizedRow,
+        newVersion: normalizedNewVersion,
         deduplicated: Boolean(candidate.deduplicated ?? raw.deduplicated)
       }
     };

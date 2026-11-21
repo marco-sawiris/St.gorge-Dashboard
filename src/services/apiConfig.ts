@@ -131,7 +131,7 @@ export function setRelayKey(key: string): void {
   }
 }
 
-export const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyhU1KkL1IsG3q9ShA_Dln9e9dvfm1wQeABlEDb7k4lwl1PeLupWaLtGBF803TgzvDo8A/exec';
+export const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxWhiib_biyiip2OkBgGt9_zLGZN0w9wQIXggdb4E4XEJKzmj9UVcUFX7eOzcPPb2TaLA/exec';
 // No relay secret is embedded in source code or shipped inside the APK.
 export const DEFAULT_RELAY_KEY = '';
 

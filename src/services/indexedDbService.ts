@@ -475,6 +475,52 @@ export async function idbAtomicDeleteStudentWithMutation(
   });
 }
 
+// Atomic local transfer + single remote mutation in one IndexedDB transaction.
+export async function idbAtomicTransferStudentWithMutation(
+  sourceStudentId: string,
+  destinationStudent: Student,
+  mutation: OfflineMutation
+): Promise<void> {
+  const db = await getIndexedDB();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    };
+    const safeResolve = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+
+    const tx = db.transaction(['students', 'mutations'], 'readwrite');
+    const studentStore = tx.objectStore('students');
+    const mutationStore = tx.objectStore('mutations');
+
+    tx.oncomplete = () => safeResolve();
+    tx.onerror = () => safeReject(tx.error || new Error('فشلت المعاملة الذرية لنقل المخدوم'));
+    tx.onabort = () => safeReject(tx.error || new Error('تم إلغاء المعاملة الذرية لنقل المخدوم'));
+
+    try {
+      const deleteReq = studentStore.delete(sourceStudentId);
+      deleteReq.onerror = () => tx.abort();
+
+      const putStudentReq = studentStore.put(destinationStudent);
+      putStudentReq.onerror = () => tx.abort();
+
+      const mutationReq = mutationStore.put(mutation);
+      mutationReq.onerror = () => tx.abort();
+    } catch (err) {
+      tx.abort();
+      safeReject(err);
+    }
+  });
+}
+
 // 4. Atomic Record Follow-up in a SINGLE readwrite transaction across 3 stores
 // Guarantees all-or-nothing rollback if any step fails
 export async function idbAtomicRecordFollowupWithMutation(

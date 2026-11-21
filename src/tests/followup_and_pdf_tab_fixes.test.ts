@@ -188,6 +188,7 @@ function buildMinimalFollowupContext(
     updateStudent: async () => true,
     addNewStudent: async () => true,
     deleteStudent: async () => false,
+    transferStudent: async () => false,
     markNotificationRead: () => {},
     markAllNotificationsRead: () => {},
     clearReadNotifications: () => {},

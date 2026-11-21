@@ -41,7 +41,7 @@ export interface MutationStageTimings {
 
 export interface OfflineMutation {
   id: string; // Unique Operation Idempotency Key (UUID-backed, immutable across all retries)
-  action: 'attendance' | 'followup' | 'update' | 'add' | 'delete';
+  action: 'attendance' | 'followup' | 'update' | 'add' | 'delete' | 'transfer';
   studentId: string;
   studentCode: string;
   studentName: string;
