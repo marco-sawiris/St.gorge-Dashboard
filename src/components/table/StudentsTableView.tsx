@@ -71,7 +71,7 @@ export const StudentsTableView: React.FC<StudentsTableViewProps> = ({
       'الفصل',
       'المنطقة',
       'العنوان',
-      'موبايل الطالب',
+      'موبايل المخدوم',
       'ولي الأمر 1',
       'ولي الأمر 2',
       'إجمالي الحضور',

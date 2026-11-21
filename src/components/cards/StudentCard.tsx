@@ -471,7 +471,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
           </div>
 
           <div>
-            <label className="block text-[10.5px] font-bold text-[var(--text-secondary)] mb-0.5">موبايل الطالب</label>
+            <label className="block text-[10.5px] font-bold text-[var(--text-secondary)] mb-0.5">موبايل المخدوم</label>
             <input
               type="tel"
               value={editPhoneStudent}
@@ -949,7 +949,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
                         href={telHref}
                         onClick={(e) => e.stopPropagation()}
                         className="glass-btn min-w-[36px] min-h-[36px] p-2 rounded-xl text-[var(--text)] hover:text-[var(--accent)] transition-all flex items-center justify-center shrink-0"
-                        title="اتصال بالطالب"
+                        title="اتصال بالمخدوم"
                       >
                         <Phone className="w-3.5 h-3.5 shrink-0" />
                       </a>
@@ -1056,7 +1056,7 @@ const StudentCardComponent: React.FC<StudentCardProps> = ({
             {/* Phones List */}
             <div className="p-2.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--glass-border)] space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[var(--text-muted)]">موبايل الطالب:</span>
+                <span className="text-[var(--text-muted)]">موبايل المخدوم:</span>
                 <div className="flex items-center gap-2 shrink-0">
                   <strong className="font-mono text-[var(--text)] selectable-text">
                     {student.phoneStudent || 'غير مسجل'}

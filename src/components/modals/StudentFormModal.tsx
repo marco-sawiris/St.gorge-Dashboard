@@ -312,7 +312,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block font-bold text-[var(--text-secondary)] mb-1">موبايل الطالب</label>
+              <label className="block font-bold text-[var(--text-secondary)] mb-1">موبايل المخدوم</label>
               <input
                 type="tel"
                 value={phoneStudent}
